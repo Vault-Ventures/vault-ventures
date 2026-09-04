@@ -1,0 +1,474 @@
+VAULT VENTURES — PROFESSIONAL DASHBOARD
+
+IMPORTANT:
+Design/refine ONLY the Professional Dashboard.
+
+The following are already approved and MUST NOT be redesigned:
+- Profile
+- Discovery
+- Founder Dashboard
+- Investor Dashboard
+- Deal Room
+
+==================================================
+1. ROLE CONTEXT
+==================================================
+
+Vault Ventures uses ONE account that may contain:
+
+Founder
+Investor
+Professional
+
+The Professional Dashboard must show ONLY Professional workspace information.
+
+The same user may switch between:
+
+Founder Workspace
+Investor Workspace
+Professional Workspace
+
+using the existing Role Switcher.
+
+Do NOT create separate accounts.
+
+Admin is completely separate and must never appear in this Role Switcher.
+
+==================================================
+2. PROFESSIONAL DASHBOARD PURPOSE
+==================================================
+
+The dashboard should immediately answer:
+
+- What opportunities match my skills?
+- What applications are active?
+- Which startups need my attention?
+- Which Deal Rooms are active?
+- How strong is my profile?
+- What should I do next?
+
+This should feel like a premium professional collaboration workspace.
+
+It must NOT feel like:
+
+- a job board
+- LinkedIn clone
+- social media feed
+- generic SaaS dashboard
+
+==================================================
+3. PAGE HEADER
+==================================================
+
+Use a compact page header:
+
+Good morning, Alex
+
+Professional workspace
+
+Keep the existing global Role Switcher in the application shell.
+
+Do NOT create another role selector inside the dashboard.
+
+==================================================
+4. KEY METRICS
+==================================================
+
+Create a compact metric row:
+
+Active Applications
+Active Deal Rooms
+Profile Views
+Average Match Score
+
+Use compact information blocks.
+
+Do NOT create oversized statistic cards.
+
+==================================================
+5. RECOMMENDED OPPORTUNITIES
+==================================================
+
+This is the primary section.
+
+Title:
+
+Recommended Opportunities
+
+Show opportunities based on the Professional's:
+
+- Skills
+- Experience
+- Industry experience
+- Availability
+- Relevant matching criteria
+
+Each opportunity should show:
+
+Business
+Industry
+Stage
+Required skills
+Match Score
+Why it matches
+Primary action
+
+Example:
+
+NovaTech AI
+
+FinTech · Seed
+
+Looking for:
+AI/ML · Product Strategy
+
+91% Match
+
+Why you're matched:
+AI/ML + Product + FinTech experience
+
+[View Opportunity]
+
+AI information must use the existing cyan visual language.
+
+==================================================
+6. APPLICATIONS
+==================================================
+
+Create:
+
+My Applications
+
+Each application should show:
+
+Business
+Contribution / role
+Application date
+Current status
+Last activity
+Next action
+
+Statuses:
+
+Submitted
+Under Review
+Accepted
+Rejected
+Withdrawn
+
+Use restrained semantic status indicators.
+
+Do not use oversized badges.
+
+==================================================
+7. ACTIVE DEAL ROOMS
+==================================================
+
+Create:
+
+Active Deal Rooms
+
+Each row:
+
+Business
+Participant
+Current stage
+Last activity
+Next action
+
+Example:
+
+NovaTech AI × Alex Morgan
+
+Interest Confirmed
+
+Last activity:
+3h ago
+
+[Open Deal Room]
+
+Keep Deal Room presentation professional.
+
+Do NOT make it look like a messaging inbox.
+
+==================================================
+8. SKILL MATCHING
+==================================================
+
+Create a compact:
+
+Skill Matching
+
+section.
+
+Show:
+
+Strongest matching skills
+
+AI/ML
+Product Strategy
+Data Analysis
+
+Then, where appropriate:
+
+Skills currently requested by opportunities
+
+This section should help explain WHY an opportunity matches the Professional.
+
+Do not gamify skills.
+
+==================================================
+9. PROFILE COMPLETION
+==================================================
+
+Show:
+
+Profile
+84% complete
+
+Remaining:
+
+○ Add portfolio
+○ Add availability
+✓ Add skills
+
+[Complete Profile]
+
+This is a compact contextual component.
+
+Do NOT duplicate the full Profile page.
+
+==================================================
+10. NEXT ACTION
+==================================================
+
+Surface ONE primary next action.
+
+Examples:
+
+Review new matches
+
+Complete professional profile
+
+Respond to application
+
+Continue Deal Room
+
+Only one action should have primary emphasis.
+
+Do not create several competing CTA cards.
+
+==================================================
+11. RECENT ACTIVITY
+==================================================
+
+Create a compact activity list.
+
+Examples:
+
+Application viewed
+2h ago
+
+New opportunity matched
+5h ago
+
+Connection accepted
+Yesterday
+
+Deal Room updated
+2 days ago
+
+Keep timestamps subtle.
+
+==================================================
+12. DESKTOP LAYOUT
+==================================================
+
+Use:
+
+Main content ≈ 2/3
+
+Contextual sidebar ≈ 1/3
+
+Main:
+
+Metrics
+Recommended Opportunities
+Applications
+Deal Rooms
+
+Sidebar:
+
+Next Action
+Skill Matching
+Profile Completion
+Recent Activity
+
+Maintain strong alignment.
+
+Do not introduce unnecessary containers.
+
+==================================================
+13. VISUAL HIERARCHY
+==================================================
+
+Primary:
+
+Recommended Opportunities
+Applications
+Next Action
+
+Secondary:
+
+Metrics
+Deal Rooms
+
+Tertiary:
+
+Skill Matching
+Recent Activity
+
+The entire dashboard must not have equal visual weight everywhere.
+
+==================================================
+14. RESPONSIVE WEB
+==================================================
+
+This is a RESPONSIVE WEB PLATFORM.
+
+Desktop:
+2-column layout.
+
+Tablet:
+Reduced/collapsible sidebar.
+
+Mobile:
+
+Header
+Next Action
+Metrics
+Recommended Opportunities
+Applications
+Deal Rooms
+Skill Matching
+Profile Completion
+Recent Activity
+
+Do NOT simply shrink desktop components.
+
+Reflow intelligently.
+
+==================================================
+15. EMPTY STATES
+==================================================
+
+Design professional empty states.
+
+No recommendations:
+
+"No matching opportunities yet."
+
+"Add more skills and experience to improve your recommendations."
+
+[Update Profile]
+
+No applications:
+
+"You haven't applied to an opportunity yet."
+
+[Discover Opportunities]
+
+No Deal Rooms:
+
+"No active Deal Rooms."
+
+No skills:
+
+"Add your skills to improve matching."
+
+[Add Skills]
+
+==================================================
+16. LOADING STATES
+==================================================
+
+Create skeleton states for:
+
+Metrics
+Opportunity rows/cards
+Applications
+Deal Rooms
+Activity
+
+Do not use a large page-level spinner.
+
+==================================================
+17. ROLE SWITCHING
+==================================================
+
+Prototype:
+
+Professional Workspace
+↓
+Role Switcher
+↓
+Founder Workspace
+
+or
+
+Professional Workspace
+↓
+Role Switcher
+↓
+Investor Workspace
+
+The user remains inside the SAME ACCOUNT.
+
+The Profile remains ONE unified profile containing all selected-role information.
+
+Only the active workspace, navigation and role-specific dashboard change.
+
+==================================================
+18. ADMIN EXCLUSION
+==================================================
+
+Do NOT show Admin inside the normal Role Switcher.
+
+Admin has:
+
+- Separate authentication
+- Separate workspace
+- Separate navigation
+- Separate permissions
+- Separate administrative experience
+
+==================================================
+19. FINAL QUALITY CHECK
+==================================================
+
+Before finishing:
+
+✓ Clearly Professional-focused
+✓ Premium B2B SaaS feel
+✓ Not a job-board clone
+✓ Information-dense
+✓ Strong opportunity discovery
+✓ Match Score clearly visible
+✓ Matching reason understandable
+✓ Applications easy to track
+✓ Deal Rooms actionable
+✓ Skills explain matching
+✓ Profile completion useful
+✓ One clear next action
+✓ No oversized cards
+✓ No unnecessary decoration
+✓ Responsive web
+✓ Loading states
+✓ Empty states
+✓ Same Vault Ventures design system
+✓ Multi-role account model respected
+✓ Admin completely separate
+
+Do NOT modify the approved Profile, Discovery, Founder Dashboard, Investor Dashboard, or Deal Room.
+
+ONLY design/refine the Professional Dashboard.
