@@ -119,14 +119,14 @@ type InvestmentModel = 'large' | 'micro';
 
 function ActivityLog() {
   return (
-    <div className="px-4 py-4">
-      <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-3">Activity Log</p>
-      <div className="space-y-3">
+    <div className="px-5 py-5">
+      <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-3.5">Activity Log</p>
+      <div className="space-y-3.5">
         {LOG.map((e, i) => (
           <div key={i} className="flex items-start gap-2.5">
             <div className="mt-1 w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: e.dot }} />
-            <div className="min-w-0">
-              <p className="text-[11px] text-[color:var(--vv-text-secondary)] leading-snug">{e.text}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11.5px] text-[color:var(--vv-text-secondary)] leading-snug">{e.text}</p>
               <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-0.5 font-mono tabular-nums">{e.time}</p>
             </div>
           </div>
@@ -138,19 +138,19 @@ function ActivityLog() {
 
 function DealSummaryPanel({ dealStage }: { dealStage: number }) {
   return (
-    <div className="px-4 py-4 space-y-4">
+    <div className="px-5 py-5 space-y-6">
       <div>
-        <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-2">Participants</p>
+        <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-3">Participants</p>
         {PARTICIPANTS.map((p, i) => (
-          <div key={i} className="mb-3 pb-3 border-b border-[#1c2a3e] last:border-0">
-            <div className="flex items-center gap-2 mb-1.5">
-              <div className="w-7 h-7 rounded bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] flex items-center justify-center text-[11px] font-bold text-[color:var(--vv-text)] shrink-0">{p.name[0]}</div>
-              <div className="min-w-0">
-                <p className="text-[12px] font-medium text-[color:var(--vv-text)] truncate">{p.name}</p>
-                <p className="text-[10px] text-[color:var(--vv-text-tertiary)]">{p.role}</p>
+          <div key={i} className="mb-4 pb-4 border-b border-[#1c2a3e] last:border-0">
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="w-8 h-8 rounded bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] flex items-center justify-center text-[11.5px] font-bold text-[color:var(--vv-text)] shrink-0">{p.name[0]}</div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-semibold text-[color:var(--vv-text)] truncate">{p.name}</p>
+                <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">{p.role}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <VerificationBadge tier={p.tier} />
               <ScoreChip score={p.score} label={p.scoreLabel} topFactors={['FinTech', 'Seed stage']} />
             </div>
@@ -159,25 +159,27 @@ function DealSummaryPanel({ dealStage }: { dealStage: number }) {
       </div>
 
       <div>
-        <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-2">Deal Details</p>
-        <div className="space-y-1.5">
+        <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-3">Deal Details</p>
+        <div className="space-y-2">
           {DEAL_DETAILS.map((row, i) => (
-            <div key={i} className="flex items-center justify-between py-1 border-b border-[#1c2a3e]">
+            <div key={i} className="flex items-center justify-between py-1.5 border-b border-[#1c2a3e]">
               <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)] shrink-0">{row.label}</span>
-              <span className={`text-[11.5px] text-[color:var(--vv-text-secondary)] ${row.mono ? 'font-mono tabular-nums' : ''}`}>{row.value}</span>
+              <span className={`text-[12px] text-[color:var(--vv-text-secondary)] ${row.mono ? 'font-mono tabular-nums font-semibold' : ''}`}>{row.value}</span>
             </div>
           ))}
-          <div className="flex items-center justify-between py-1 border-b border-[#1c2a3e]">
+          <div className="flex items-center justify-between py-1.5 border-b border-[#1c2a3e]">
             <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">Status</span>
             <Badge variant={dealStage >= 8 ? 'success' : 'accent'}>
               {dealStage >= 8 ? 'Completed' : dealStage >= 6 ? 'Agreement' : 'NDA Signed'}
             </Badge>
           </div>
-          <p className="text-[10px] text-[#F59E0B] pt-0.5">? Simulated - no real capital</p>
+          <p className="text-[10.5px] text-[#F59E0B] pt-1">? Simulated - no real capital</p>
         </div>
       </div>
 
-      <StagedDisclosure currentStage={3} compact />
+      <div className="pt-2">
+        <StagedDisclosure currentStage={3} compact />
+      </div>
     </div>
   );
 }
@@ -219,7 +221,7 @@ function LockedDocCard({ doc, onNDA }: { doc: Doc; onNDA: () => void }) {
 
 function CompletionView({ onReputation, onSummary }: { onReputation: () => void; onSummary: () => void }) {
   return (
-    <div className="max-w-xl space-y-4">
+    <div className="max-w-3xl space-y-6">
       {/* Banner */}
       <div className="rounded-[14px] border p-6 text-center"
         style={{ background: 'rgba(34,197,94,0.04)', borderColor: 'rgba(34,197,94,0.22)' }}>
@@ -231,11 +233,11 @@ function CompletionView({ onReputation, onSummary }: { onReputation: () => void;
         </div>
         <p className="font-display text-[18px] font-semibold text-[#22C55E] mb-1">Deal Completed</p>
         <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mb-1">NovaTech AI - Meridian Capital</p>
-        <p className="text-[11px] text-[#35446A]">Completed Aug 26, 2026</p>
+        <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">Completed Aug 26, 2026</p>
       </div>
 
       {/* Summary */}
-      <div className="rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden" style={{ background: 'rgba(26,28,29,0.85)' }}>
+      <div className="rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden bg-[#121A2B]">
         <div className="px-4 py-3 border-b border-[color:var(--vv-border)]">
           <p className="text-[12px] font-semibold text-[color:var(--vv-text)]">Deal Summary</p>
         </div>
@@ -288,7 +290,7 @@ function AgreementTab({ dealStage }: { dealStage: number }) {
   ];
 
   return (
-    <div className="max-w-xl space-y-4">
+    <div className="max-w-3xl space-y-6">
       <div className="flex items-center justify-between mb-1">
         <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold">
           Shareholders Agreement
@@ -308,13 +310,13 @@ function AgreementTab({ dealStage }: { dealStage: number }) {
         </div>
       )}
 
-      <div className="rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden" style={{ background: 'rgba(26,28,29,0.85)' }}>
+      <div className="rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden bg-[#121A2B]">
         <div className="px-4 py-3 border-b border-[color:var(--vv-border)] flex items-center justify-between">
           <p className="text-[12px] font-semibold text-[color:var(--vv-text)]">Agreed Terms</p>
-          <p className="text-[10.5px] text-[#35446A]">? Simulated - no real financial obligation</p>
+          <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">? Simulated - no real financial obligation</p>
         </div>
         {clauses.map((c, i) => (
-          <div key={i} className="flex items-center justify-between px-4 py-2.5 border-b border-[#2B2D2F] last:border-b-0">
+          <div key={i} className="flex items-center justify-between px-4 py-2.5 border-b border-[color:var(--vv-border)] last:border-b-0">
             <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">{c.label}</span>
             <span className="text-[12px] font-semibold text-[color:var(--vv-text)]">{c.value}</span>
           </div>
@@ -322,12 +324,12 @@ function AgreementTab({ dealStage }: { dealStage: number }) {
       </div>
 
       {/* Signatures */}
-      <div className="rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden" style={{ background: 'rgba(26,28,29,0.85)' }}>
+      <div className="rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden bg-[#121A2B]">
         <div className="px-4 py-3 border-b border-[color:var(--vv-border)]">
           <p className="text-[12px] font-semibold text-[color:var(--vv-text)]">Signatures</p>
         </div>
         {PARTICIPANTS.map((p, i) => (
-          <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-[#2B2D2F] last:border-b-0">
+          <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-[color:var(--vv-border)] last:border-b-0">
             <div className="w-8 h-8 rounded-[7px] flex items-center justify-center text-[11px] font-bold text-[color:var(--vv-text)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] shrink-0">{p.name[0]}</div>
             <div className="flex-1 min-w-0">
               <p className="text-[12px] font-medium text-[color:var(--vv-text)]">{p.name}</p>
@@ -392,7 +394,7 @@ function InvestmentTab({ model }: { model: InvestmentModel }) {
   ];
 
   return (
-    <div className="max-w-2xl space-y-4">
+    <div className="max-w-4xl space-y-6">
       {/* Simulation boundary notice */}
       <div
         className="flex items-center gap-2.5 px-4 py-3 rounded-[10px] text-[12px] font-medium"
@@ -405,7 +407,7 @@ function InvestmentTab({ model }: { model: InvestmentModel }) {
       </div>
 
       {/* Model toggle */}
-      <div className="flex items-center gap-1 p-1 rounded-[10px] inline-flex" style={{ background: 'rgba(26,28,29,0.8)', border: '1px solid rgba(43,45,47,0.8)' }}>
+      <div className="flex items-center gap-1 p-1 rounded-[10px] inline-flex bg-[#121A2B] border border-[color:var(--vv-border)]">
         {(['large', 'micro'] as InvestmentModel[]).map(m => (
           <button
             key={m}
@@ -413,7 +415,7 @@ function InvestmentTab({ model }: { model: InvestmentModel }) {
             className="px-4 py-1.5 rounded-[8px] text-[12px] font-semibold transition-all"
             style={viewModel === m
               ? { background: 'rgba(198,122,78,0.2)', color: '#C67A4E', border: '1px solid rgba(198,122,78,0.3)' }
-              : { color: '#5E6D8F' }}
+              : { color: 'var(--vv-text-tertiary)' }}
           >
             {m === 'large' ? '? Standard - Equity/Ownership' : '? Micro - P/L Sharing'}
           </button>
@@ -423,13 +425,13 @@ function InvestmentTab({ model }: { model: InvestmentModel }) {
       {/* Large / Equity model */}
       {viewModel === 'large' && (
         <div className="space-y-3">
-          <div className="rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden" style={{ background: 'rgba(26,28,29,0.85)' }}>
+          <div className="rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden bg-[#121A2B]">
             <div className="px-4 py-3 border-b border-[color:var(--vv-border)] flex items-center justify-between">
               <p className="text-[12.5px] font-semibold text-[color:var(--vv-text)]">Equity / Ownership Terms</p>
               <Badge variant="warning">Simulated</Badge>
             </div>
             {largeTerms.map((t, i) => (
-              <div key={i} className="flex items-center justify-between px-4 py-2.5 border-b border-[#2B2D2F] last:border-0">
+              <div key={i} className="flex items-center justify-between px-4 py-2.5 border-b border-[color:var(--vv-border)] last:border-0">
                 <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">{t.label}</span>
                 <span className="text-[12px] font-semibold text-[color:var(--vv-text)]">{t.value}</span>
               </div>
@@ -437,15 +439,15 @@ function InvestmentTab({ model }: { model: InvestmentModel }) {
           </div>
 
           {/* Ownership visual */}
-          <div className="rounded-[12px] border border-[color:var(--vv-border)] p-4" style={{ background: 'rgba(26,28,29,0.85)' }}>
+          <div className="rounded-[12px] border border-[color:var(--vv-border)] p-4 bg-[#121A2B]">
             <p className="text-[11px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-3">Simulated Ownership Breakdown</p>
             <div className="flex items-center gap-2 mb-2">
               <div className="h-3 rounded-l-full" style={{ width: '11%', background: '#C67A4E' }} title="Meridian Capital 11%" />
-              <div className="h-3 rounded-r-full flex-1" style={{ background: 'rgba(43,45,47,0.5)' }} title="Founders + Reserved 89%" />
+              <div className="h-3 rounded-r-full flex-1" style={{ background: 'color-mix(in srgb, var(--vv-raised) 90%, transparent)' }} title="Founders + Reserved 89%" />
             </div>
             <div className="flex items-center gap-4 text-[11px]">
               <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: '#C67A4E' }} /> <span className="text-[color:var(--vv-text-secondary)]">Meridian Capital - 11%</span></div>
-              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: 'rgba(43,45,47,0.5)' }} /> <span className="text-[color:var(--vv-text-secondary)]">Founders + Reserved - 89%</span></div>
+              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full inline-block" style={{ background: 'color-mix(in srgb, var(--vv-raised) 90%, transparent)' }} /> <span className="text-[color:var(--vv-text-secondary)]">Founders + Reserved - 89%</span></div>
             </div>
             <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-2">? Simulated - no real equity settlement occurs on this platform.</p>
           </div>
@@ -455,13 +457,13 @@ function InvestmentTab({ model }: { model: InvestmentModel }) {
       {/* Micro / P/L Sharing model */}
       {viewModel === 'micro' && (
         <div className="space-y-3">
-          <div className="rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden" style={{ background: 'rgba(26,28,29,0.85)' }}>
+          <div className="rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden bg-[#121A2B]">
             <div className="px-4 py-3 border-b border-[color:var(--vv-border)] flex items-center justify-between">
               <p className="text-[12.5px] font-semibold text-[color:var(--vv-text)]">Profit/Loss Sharing Terms</p>
               <Badge variant="warning">Simulated</Badge>
             </div>
             {microTerms.map((t, i) => (
-              <div key={i} className="flex items-center justify-between px-4 py-2.5 border-b border-[#2B2D2F] last:border-0">
+              <div key={i} className="flex items-center justify-between px-4 py-2.5 border-b border-[color:var(--vv-border)] last:border-0">
                 <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">{t.label}</span>
                 <span className="text-[12px] font-semibold text-[color:var(--vv-text)]">{t.value}</span>
               </div>
@@ -469,7 +471,7 @@ function InvestmentTab({ model }: { model: InvestmentModel }) {
           </div>
 
           {/* P/L table */}
-          <div className="rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden" style={{ background: 'rgba(26,28,29,0.85)' }}>
+          <div className="rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden bg-[#121A2B]">
             <div className="px-4 py-3 border-b border-[color:var(--vv-border)]">
               <p className="text-[12.5px] font-semibold text-[color:var(--vv-text)]">Simulated P/L Report</p>
               <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">Net P/L = Revenue - Expenses. Returns are not guaranteed.</p>
@@ -540,6 +542,33 @@ export default function DealRoom() {
   const [activityOpen, setActivityOpen] = useState(false);
   const [investmentModel] = useState<InvestmentModel>('large');
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const tabScrollRef = useRef<HTMLDivElement>(null);
+  const isDraggingTab = useRef(false);
+  const dragStartX = useRef(0);
+  const scrollLeftStart = useRef(0);
+
+  function handleTabMouseDown(e: React.MouseEvent) {
+    if (!tabScrollRef.current) return;
+    isDraggingTab.current = true;
+    dragStartX.current = e.pageX - tabScrollRef.current.offsetLeft;
+    scrollLeftStart.current = tabScrollRef.current.scrollLeft;
+  }
+
+  function handleTabMouseLeave() {
+    isDraggingTab.current = false;
+  }
+
+  function handleTabMouseUp() {
+    isDraggingTab.current = false;
+  }
+
+  function handleTabMouseMove(e: React.MouseEvent) {
+    if (!isDraggingTab.current || !tabScrollRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - tabScrollRef.current.offsetLeft;
+    const walk = (x - dragStartX.current) * 1.5;
+    tabScrollRef.current.scrollLeft = scrollLeftStart.current - walk;
+  }
 
   // scroll chat to bottom when new message added
   useEffect(() => {
@@ -572,25 +601,25 @@ export default function DealRoom() {
     <div className="flex flex-col h-full overflow-hidden">
 
       {/* -- Back nav -- */}
-      <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-[#1c2a3e] bg-[#0D1626]">
+      <div className="flex-shrink-0 flex items-center gap-2 px-6 py-3 border-b border-[#1c2a3e] bg-[#0D1626]">
         <button
           onClick={() => navigate(-1)}
           className="flex items-center gap-1 text-[11.5px] text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] transition-colors">
           <IconChevronLeft s={13} />
           Back
         </button>
-        <span className="text-[#35446A] text-[11px]">/</span>
-        <span className="text-[11.5px] text-[color:var(--vv-text-secondary)] font-medium">Deal Room - NovaTech AI - Meridian Capital</span>
+        <span className="text-[color:var(--vv-text-tertiary)] text-[11px]">/</span>
+        <span className="text-[12px] text-[color:var(--vv-text-secondary)] font-medium">Deal Room - NovaTech AI - Meridian Capital</span>
       </div>
 
-      <div className="flex-shrink-0 px-4 py-2.5 border-b border-[color:var(--vv-border)] bg-[#121A2B]">
-        <div className="flex items-start gap-2.5">
-          <IconShield s={14} className="text-[#C67A4E] shrink-0 mt-0.5" />
+      <div className="flex-shrink-0 px-6 py-3 border-b border-[color:var(--vv-border)] bg-[#121A2B]">
+        <div className="flex items-start gap-3">
+          <IconShield s={15} className="text-[#C67A4E] shrink-0 mt-0.5" />
           <div className="min-w-0">
-            <p className="text-[12px] font-semibold text-[color:var(--vv-text)]">
+            <p className="text-[12.5px] font-semibold text-[color:var(--vv-text)]">
               {isAdmin ? 'Admin oversight view' : canFounderAct ? 'Founder deal view' : canInvestorAct ? 'Investor deal view' : 'Deal Room view'}
             </p>
-            <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">
+            <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">
               {isAdmin
                 ? 'Review deal activity and governance signals. Participant actions are unavailable in the Admin Console.'
                 : canFounderAct
@@ -606,7 +635,7 @@ export default function DealRoom() {
       {/* -- Lifecycle stepper -- */}
       <div className="flex-shrink-0 bg-[#0D1626] border-b border-[color:var(--vv-border)]">
         <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          <div className="flex items-center px-5 py-3 min-w-max gap-0">
+          <div className="flex items-center px-6 py-4 min-w-max gap-0">
             {STAGES.map((s, i) => {
               const stageNum = i + 1;
               const done    = stageNum < dealStage;
@@ -615,30 +644,26 @@ export default function DealRoom() {
                 <div key={s} className="flex items-center">
                   <button
                     onClick={() => setDealStage(stageNum)}
-                    className="flex flex-col items-center group"
+                    className="flex flex-col items-center group cursor-pointer"
                     title={`Jump to: ${s}`}>
-                    <div className={`w-6 h-6 rounded-full border flex items-center justify-center text-[9px] font-bold transition-all ${
-                      done    ? 'bg-[#22C55E] border-[#22C55E] text-white' :
-                      current ? 'bg-[#C67A4E] border-[#C67A4E] text-white' :
+                    <div className={`w-7 h-7 rounded-full border flex items-center justify-center text-[10px] font-bold transition-all ${
+                      done    ? 'bg-[#22C55E] border-[#22C55E] text-white shadow-sm' :
+                      current ? 'bg-[#C67A4E] border-[#C67A4E] text-white shadow-md' :
                                 'bg-transparent border-[color:var(--vv-border-strong)] text-[color:var(--vv-text-tertiary)] group-hover:border-[#5E6D8F]'
                     }`}>
-                      {done ? <IconCheck s={10} /> : stageNum}
+                      {done ? <IconCheck s={11} /> : stageNum}
                     </div>
-                    <span className={`text-[9px] mt-1 whitespace-nowrap tracking-wide transition-colors ${
-                      current ? 'text-[#C67A4E]' : done ? 'text-[color:var(--vv-text-secondary)]' : 'text-[#35446A]'
+                    <span className={`text-[10px] mt-1.5 whitespace-nowrap tracking-wide font-medium transition-colors ${
+                      current ? 'text-[#C67A4E]' : done ? 'text-[color:var(--vv-text-secondary)]' : 'text-[color:var(--vv-text-tertiary)]'
                     }`}>{s}</span>
                   </button>
                   {i < STAGES.length - 1 && (
-                    <div className={`w-8 h-px mx-1 mb-3.5 shrink-0 transition-colors ${done ? 'bg-[#22C55E]' : 'bg-[#35446A]'}`} />
+                    <div className={`w-10 sm:w-14 h-px mx-2 mb-4 shrink-0 transition-colors ${done ? 'bg-[#22C55E]' : 'bg-[color:var(--vv-border-strong)]'}`} />
                   )}
                 </div>
               );
             })}
           </div>
-        </div>
-        {/* Stage demo hint */}
-        <div className="px-5 pb-2">
-          <p className="text-[9.5px] text-[#35446A]">Click any stage above to preview that lifecycle state</p>
         </div>
       </div>
 
@@ -646,7 +671,7 @@ export default function DealRoom() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
         {/* Left sidebar */}
-        <aside className="hidden lg:flex flex-col w-48 xl:w-52 shrink-0 border-r border-[color:var(--vv-border)] bg-[#0D1626] overflow-y-auto">
+        <aside className="hidden lg:flex flex-col w-64 xl:w-72 shrink-0 border-r border-[color:var(--vv-border)] bg-[#0D1626] overflow-y-auto">
           <DealSummaryPanel dealStage={dealStage} />
         </aside>
 
@@ -674,24 +699,30 @@ export default function DealRoom() {
           </div>
 
           {/* Tab bar */}
-          <div className="shrink-0 border-b border-[color:var(--vv-border)] bg-[#121A2B] overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <div className="flex items-center px-4 min-w-max">
+          <div 
+            ref={tabScrollRef}
+            onMouseDown={handleTabMouseDown}
+            onMouseLeave={handleTabMouseLeave}
+            onMouseUp={handleTabMouseUp}
+            onMouseMove={handleTabMouseMove}
+            className="shrink-0 border-b border-[color:var(--vv-border)] bg-[#121A2B] overflow-x-auto select-none cursor-grab active:cursor-grabbing [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="flex items-center px-6 min-w-max">
               {tabs.map(t => (
                 <button
                   key={t.id}
                   onClick={() => setTab(t.id)}
-                  className={`flex items-center gap-1.5 px-3.5 py-3.5 text-[12.5px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  className={`flex items-center gap-2 px-4 py-4 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                     tab === t.id ? 'border-[#C67A4E] text-[color:var(--vv-text)]' : 'border-transparent text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)]'
                   }`}>
                   {t.label}
-                  {t.badge && <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#C67A4E] text-[color:var(--vv-on-copper)]">{t.badge}</span>}
+                  {t.badge && <span className="px-1.5 py-0.5 rounded-full text-[9.5px] font-bold bg-[#C67A4E] text-[color:var(--vv-on-copper)]">{t.badge}</span>}
                 </button>
               ))}
             </div>
           </div>
 
           {/* Tab content */}
-          <div className="flex-1 overflow-y-auto p-4 md:p-5">
+          <div className="flex-1 overflow-y-auto p-5 md:p-8">
 
             {/* -- OVERVIEW -- */}
             {tab === 'overview' && (
@@ -701,7 +732,7 @@ export default function DealRoom() {
                   onSummary={() => {}}
                 />
               ) : (
-                <div className="space-y-4 max-w-2xl">
+                <div className="space-y-6 max-w-4xl">
 
                   {/* NDA status card */}
                   {dealStage < 4 ? (
@@ -904,13 +935,13 @@ export default function DealRoom() {
 
             {/* -- TERMS -- */}
             {tab === 'terms' && (
-              <div className="max-w-2xl space-y-4">
+              <div className="max-w-4xl space-y-6">
                 {/* Negotiation panel link */}
-                <div className="flex items-center justify-between p-4 rounded-[12px] border"
+                <div className="flex items-center justify-between p-4.5 rounded-[12px] border"
                   style={{ background: 'rgba(167,139,250,0.05)', borderColor: 'rgba(167,139,250,0.2)' }}>
                   <div>
-                    <p className="text-[13px] font-semibold text-[color:var(--vv-text)]">Negotiation Panel</p>
-                    <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">Version 3 - Revised Offer - Awaiting your response</p>
+                    <p className="text-[13.5px] font-semibold text-[color:var(--vv-text)]">Negotiation Panel</p>
+                    <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mt-0.5">Version 3 - Revised Offer - Awaiting your response</p>
                   </div>
                   <Button size="sm" variant="secondary" onClick={() => navigate('/app/negotiation/nova-health?return=/app/deal-room')}>
                     Open Negotiation ?
@@ -923,23 +954,23 @@ export default function DealRoom() {
                 </div>
 
                 {/* Desktop */}
-                <div className="hidden sm:block bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[10px] overflow-hidden">
+                <div className="hidden sm:block bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[500px]">
                       <thead>
                         <tr className="border-b border-[color:var(--vv-border)]">
                           {['Term', 'Founder position', 'Investor proposal', 'Status'].map(h => (
-                            <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold text-[color:var(--vv-text-tertiary)] uppercase tracking-widest whitespace-nowrap">{h}</th>
+                            <th key={h} className="px-5 py-3 text-left text-[10px] font-semibold text-[color:var(--vv-text-tertiary)] uppercase tracking-widest whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {TERMS.map((t, i) => (
-                          <tr key={i} className="border-b border-[#1c2a3e] last:border-0">
-                            <td className="px-4 py-3 text-[12.5px] font-medium text-[color:var(--vv-text)] whitespace-nowrap">{t.term}</td>
-                            <td className="px-4 py-3 font-mono text-[12px] text-[color:var(--vv-text-secondary)] tabular-nums">{t.founder}</td>
-                            <td className={`px-4 py-3 font-mono text-[12px] tabular-nums ${t.agreed ? 'text-[#22C55E]' : 'text-[#F59E0B]'}`}>{t.investor}</td>
-                            <td className="px-4 py-3"><Badge variant={t.agreed ? 'success' : 'warning'}>{t.agreed ? 'Agreed' : 'Open'}</Badge></td>
+                          <tr key={i} className="border-b border-[#1c2a3e] last:border-0 hover:bg-[color:var(--vv-raised)]/30 transition-colors">
+                            <td className="px-5 py-3.5 text-[13px] font-medium text-[color:var(--vv-text)] whitespace-nowrap">{t.term}</td>
+                            <td className="px-5 py-3.5 font-mono text-[12.5px] text-[color:var(--vv-text-secondary)] tabular-nums">{t.founder}</td>
+                            <td className={`px-5 py-3.5 font-mono text-[12.5px] tabular-nums ${t.agreed ? 'text-[#22C55E]' : 'text-[#F59E0B]'}`}>{t.investor}</td>
+                            <td className="px-5 py-3.5"><Badge variant={t.agreed ? 'success' : 'warning'}>{t.agreed ? 'Agreed' : 'Open'}</Badge></td>
                           </tr>
                         ))}
                       </tbody>
@@ -979,7 +1010,7 @@ export default function DealRoom() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="px-3 py-2.5 rounded-md border border-[color:var(--vv-border)] text-[11px] text-[color:var(--vv-text-tertiary)]">
+                  <div className="px-3.5 py-3 rounded-md border border-[color:var(--vv-border)] text-[11.5px] text-[color:var(--vv-text-tertiary)]">
                     {isAdmin ? 'Admin oversight: participant negotiation actions are disabled.' : 'Negotiation actions are unavailable in this workspace.'}
                   </div>
                 )}
@@ -988,7 +1019,7 @@ export default function DealRoom() {
 
             {/* -- MILESTONES -- */}
             {tab === 'milestones' && (
-              <div className="max-w-xl">
+              <div className="max-w-4xl space-y-4">
                 <div className="flex items-center justify-between mb-3 gap-3">
                   <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold">Milestone Funding Schedule</p>
                   <button onClick={() => navigate('/app/milestones?return=/app/deal-room')}
@@ -999,23 +1030,23 @@ export default function DealRoom() {
                     </svg>
                   </button>
                 </div>
-                <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[10px] overflow-hidden">
+                <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] overflow-hidden">
                   {MILESTONES.map((m, i) => (
-                    <div key={i} className={`flex items-center gap-4 px-4 py-3.5 border-b border-[#1c2a3e] last:border-0 ${m.status === 'active' ? 'bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)]' : ''}`}>
-                      <div className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 ${
+                    <div key={i} className={`flex items-center gap-4 px-5 py-4 border-b border-[#1c2a3e] last:border-0 ${m.status === 'active' ? 'bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)]' : ''}`}>
+                      <div className={`w-7 h-7 rounded-full border flex items-center justify-center shrink-0 ${
                         m.status === 'completed' ? 'bg-[#22C55E] border-[#22C55E]' :
                         m.status === 'active'    ? 'bg-[#C67A4E] border-[#C67A4E]' : 'border-[color:var(--vv-border-strong)]'
                       }`}>
                         {m.status === 'completed'
                           ? <IconCheck s={11} className="text-white" />
-                          : <span className={`text-[9px] font-bold ${m.status === 'active' ? 'text-white' : 'text-[color:var(--vv-text-tertiary)]'}`}>{i + 1}</span>}
+                          : <span className={`text-[10px] font-bold ${m.status === 'active' ? 'text-white' : 'text-[color:var(--vv-text-tertiary)]'}`}>{i + 1}</span>}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-[12.5px] font-medium ${m.status === 'pending' ? 'text-[color:var(--vv-text-tertiary)]' : 'text-[color:var(--vv-text)]'}`}>{m.label}</p>
-                        <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-0.5 font-mono">{m.date}</p>
+                        <p className={`text-[13px] font-medium ${m.status === 'pending' ? 'text-[color:var(--vv-text-tertiary)]' : 'text-[color:var(--vv-text)]'}`}>{m.label}</p>
+                        <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] mt-0.5 font-mono">{m.date}</p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className={`font-mono text-[12px] font-semibold tabular-nums ${m.status === 'completed' ? 'text-[#22C55E]' : m.status === 'active' ? 'text-[#C67A4E]' : 'text-[color:var(--vv-text-tertiary)]'}`}>{m.amount}</p>
+                        <p className={`font-mono text-[12.5px] font-semibold tabular-nums ${m.status === 'completed' ? 'text-[#22C55E]' : m.status === 'active' ? 'text-[#C67A4E]' : 'text-[color:var(--vv-text-tertiary)]'}`}>{m.amount}</p>
                         <Badge variant={m.status === 'completed' ? 'success' : m.status === 'active' ? 'accent' : 'neutral'} dot>
                           {m.status === 'completed' ? 'Completed' : m.status === 'active' ? 'Active' : 'Pending'}
                         </Badge>
@@ -1034,7 +1065,7 @@ export default function DealRoom() {
 
             {/* -- CHAT -- */}
             {tab === 'chat' && (
-              <div className="flex flex-col max-w-2xl h-full min-h-[400px]">
+              <div className="flex flex-col max-w-4xl h-full min-h-[400px]">
                 <div className="flex-1 space-y-2 mb-4 overflow-y-auto">
                   {chatEntries.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -1093,7 +1124,7 @@ export default function DealRoom() {
         </div>
 
         {/* Right: activity log (desktop) */}
-        <aside className="hidden xl:flex flex-col w-52 shrink-0 border-l border-[color:var(--vv-border)] bg-[#0D1626] overflow-y-auto">
+        <aside className="hidden xl:flex flex-col w-60 xl:w-64 shrink-0 border-l border-[color:var(--vv-border)] bg-[#0D1626] overflow-y-auto">
           <ActivityLog />
         </aside>
 

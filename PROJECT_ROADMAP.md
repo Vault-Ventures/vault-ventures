@@ -1,6 +1,6 @@
 # Vault Ventures — Project Roadmap
 
-**Version:** 1.0 | **Last Updated:** 2025-01-22 | **Managed By:** Project Owner
+**Version:** 1.0 | **Last Updated:** 2026-09-10 | **Managed By:** Project Owner
 
 ---
 
@@ -9,6 +9,23 @@
 **Roadmap order is controlled by the project owner and must not be changed automatically by an AI agent.**
 
 This document reflects the intended development sequence. Any deviation requires explicit approval from the product/project lead.
+
+---
+
+## Current Owner-Tracked Backend Status
+
+**Phase 1 — Part 4 — Role-Based Profiles & Authorization Foundation: COMPLETED.** Final verification passed on 2026-09-10. Part 1 (Backend API Foundation) and Part 2 (Authentication) were previously completed. Parts are implementation tracking labels; the Master Project Specification does not define official development phase numbering. The historical roadmap sections below are retained without renumbering; their planned backend foundation entries must be read alongside this current status.
+
+- Completed: multi-role participant enrollment, identity-linked Founder profiles, Investor profiles/preferences, Professional profiles/skills, ownership policies, and a separate admin authorization boundary. Five authenticated profile/enrollment/preference routes preserve the existing API conventions.
+- Eight verified tables: `user_roles`, `admin_access`, `founder_profiles`, `investor_profiles`, `investor_preferences`, `professional_profiles`, `skills`, `professional_profile_skill`.
+- Files: 35 backend implementation files (33 additions plus `app/Models/User.php` and `routes/api.php` updates), itemized in [IMPLEMENTATION_LOG.md](IMPLEMENTATION_LOG.md). They cover the role enum, models, four migrations, controllers, Form Requests, Resources, policies, routes, two test files, and `backend/docs/profiles-authorization.md`. This final audit updates only these two root tracking documents.
+- Applied additive migrations (batch 2): `2026_09_10_000001_create_role_authorization_tables`, `2026_09_10_000002_create_founder_profiles_table`, `2026_09_10_000003_create_investor_profile_tables`, `2026_09_10_000004_create_professional_profile_tables`.
+- Verification: PHP 8.3.33 focused profile/authorization/database-safety suite **74 tests, 372 assertions passed**; full regression suite **106 tests, 558 assertions passed**. Exact commands are in the implementation log. Tests use the guarded separate MySQL test database; original main-database data checksums are unchanged.
+- Security: owner-and-role policies; protected SPA writes with existing Sanctum/CSRF; explicit response fields; unsupported input rejected; no public admin provisioning, automatic assignment, seeders, or unrestricted admin bypass. Existing users remain valid without roles. All 150 protected-file checksums are unchanged, including frontend, authentication controllers, environment, protected configuration, and test safety files. No Git repository is available for a complete historical diff.
+- Remaining limitations: no profile-completion rules, operational admin workflows, business submissions, discovery, matching, readiness scoring, verification workflows, reputation, deals, or financial features in this scope. Local mail and frontend integration limitations remain unchanged. UTC, English, and BDT conventions remain in force.
+- Next recommendation, pending approval: map Founder Business Submission and Business Requirements against Master Specification sections 5.1, 7, 23, 25.1, and 33; approve exact fields, ownership, and access before implementation. No new official phase or Part is assigned here, and the next scope has not been implemented.
+
+This status update records the owner's requested final verification; it does not reorder the historical roadmap. See the dated Part 4 entry in [IMPLEMENTATION_LOG.md](IMPLEMENTATION_LOG.md) for the full audit inventory and evidence.
 
 ---
 

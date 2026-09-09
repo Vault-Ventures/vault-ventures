@@ -252,12 +252,9 @@ function ConnectionCard({ conn }: { conn: Connection }) {
 
   return (
     <div
-      className="rounded-[14px] border transition-all duration-200"
-      style={{
-        background: isDeclined ? 'rgba(26,28,29,0.6)' : 'rgba(26,28,29,0.85)',
-        borderColor: isDeclined ? 'rgba(36,48,74,0.5)' : 'rgba(36,48,74,0.9)',
-        opacity: isDeclined ? 0.65 : 1,
-      }}
+      className={`rounded-[14px] border transition-all duration-200 bg-[#121A2B] ${
+        isDeclined ? 'border-[color:var(--vv-border)]/50 opacity-65' : 'border-[color:var(--vv-border)]'
+      }`}
     >
       {/* Header */}
       <div className="px-5 pt-4 pb-3 border-b border-[#1c2a3e]">
@@ -290,7 +287,7 @@ function ConnectionCard({ conn }: { conn: Connection }) {
             <span className="text-[11.5px] text-[color:var(--vv-text-secondary)] font-medium">{conn.businessName}</span>
           </div>
           {conn.opportunity && (
-            <span className="text-[10px] text-[color:var(--vv-text-tertiary)] px-2 py-0.5 rounded-full" style={{ background: 'rgba(36,48,74,0.5)', border: '1px solid rgba(53,68,106,0.4)' }}>
+            <span className="text-[10px] text-[color:var(--vv-text-tertiary)] px-2 py-0.5 rounded-full border border-[color:var(--vv-border)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)]">
               {conn.opportunity}
             </span>
           )}
@@ -312,7 +309,7 @@ function ConnectionCard({ conn }: { conn: Connection }) {
       <div className="px-5 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex-1 min-w-0">
           {conn.note && <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] leading-relaxed">{conn.note}</p>}
-          <p className="text-[10px] text-[#35446A] mt-1">Updated {conn.updatedAt}</p>
+          <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-1">Updated {conn.updatedAt}</p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">

@@ -218,7 +218,7 @@ function VerificationPanel({ tier }: { tier: VerificationTier }) {
   const info = TIER_INFO[tier];
   const tiers: VerificationTier[] = [0, 1, 2];
   return (
-    <div className="rounded-[14px] border border-[color:var(--vv-border)] overflow-hidden" style={{ background: 'rgba(26,28,29,0.85)' }}>
+    <div className="rounded-[14px] border border-[color:var(--vv-border)] overflow-hidden bg-[#121A2B]">
       <div className="px-5 py-3.5 border-b border-[color:var(--vv-border)] flex items-center justify-between">
         <p className="text-[12px] font-semibold text-[color:var(--vv-text)]">Verification Status</p>
         <p className="text-[10px] text-[color:var(--vv-text-tertiary)]">Separate from reputation</p>
@@ -246,19 +246,19 @@ function VerificationPanel({ tier }: { tier: VerificationTier }) {
               <div key={t} className="flex items-start gap-2.5">
                 <div
                   className="w-4 h-4 rounded-full border flex items-center justify-center shrink-0 mt-0.5"
-                  style={{ borderColor: done ? tInfo.color : '#35446A', background: done ? tInfo.color + '20' : 'transparent' }}
+                  style={{ borderColor: done ? tInfo.color : 'var(--vv-border-strong)', background: done ? tInfo.color + '20' : 'transparent' }}
                 >
                   {done && <svg width="8" height="8" fill="none" stroke={tInfo.color} strokeWidth="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" strokeLinecap="round"/></svg>}
                 </div>
                 <div>
-                  <p className="text-[11.5px] font-medium" style={{ color: done ? tInfo.color : '#35446A' }}>{tInfo.label}</p>
+                  <p className="text-[11.5px] font-medium" style={{ color: done ? tInfo.color : 'var(--vv-text-tertiary)' }}>{tInfo.label}</p>
                   <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">{tInfo.description}</p>
                 </div>
               </div>
             );
           })}
         </div>
-        <p className="text-[10px] text-[#35446A] mt-3">Verification tiers are granted by the platform admin. Reputation is separate and based on completed activity.</p>
+        <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-3">Verification tiers are granted by the platform admin. Reputation is separate and based on completed activity.</p>
       </div>
     </div>
   );
@@ -269,7 +269,7 @@ function VerificationPanel({ tier }: { tier: VerificationTier }) {
 function ReputationOverviewCard({ data }: { data: ReputationData }) {
   const cfg = LEVEL_CFG[data.reputationLevel];
   return (
-    <div className="rounded-[14px] border overflow-hidden" style={{ background: 'rgba(26,28,29,0.85)', borderColor: cfg.border }}>
+    <div className="rounded-[14px] border overflow-hidden bg-[#121A2B]" style={{ borderColor: cfg.border }}>
       <div className="px-5 py-4 border-b border-[color:var(--vv-border)] flex items-center justify-between gap-3">
         <div>
           <p className="text-[11px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-1">Reputation Level</p>
@@ -283,7 +283,7 @@ function ReputationOverviewCard({ data }: { data: ReputationData }) {
           </div>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-[10px] text-[#35446A]">Based on</p>
+          <p className="text-[10px] text-[color:var(--vv-text-tertiary)]">Based on</p>
           <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">verified completed activity</p>
         </div>
       </div>
@@ -301,12 +301,12 @@ function ReputationOverviewCard({ data }: { data: ReputationData }) {
 
 function FactorsPanel({ factors }: { factors: ReputationFactor[] }) {
   return (
-    <div className="rounded-[14px] border border-[color:var(--vv-border)] overflow-hidden" style={{ background: 'rgba(26,28,29,0.85)' }}>
+    <div className="rounded-[14px] border border-[color:var(--vv-border)] overflow-hidden bg-[#121A2B]">
       <div className="px-5 py-3.5 border-b border-[color:var(--vv-border)]">
         <p className="text-[12px] font-semibold text-[color:var(--vv-text)]">Reputation Breakdown</p>
         <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-1">All factors sourced from verifiable completed activity.</p>
       </div>
-      <div className="divide-y divide-[#2B2D2F]">
+      <div className="divide-y divide-[color:var(--vv-border)]">
         {factors.map((f, i) => (
           <div key={i} className="flex items-start gap-3 px-5 py-3.5">
             <span className="text-[16px] text-[#C67A4E] shrink-0 mt-0.5">{f.icon}</span>
@@ -331,20 +331,20 @@ function FeedbackPanel({ feedback, onLeave }: { feedback: FeedbackItem[]; onLeav
 
   if (feedback.length === 0) {
     return (
-      <div className="rounded-[14px] border border-[color:var(--vv-border)] overflow-hidden" style={{ background: 'rgba(26,28,29,0.85)' }}>
+      <div className="rounded-[14px] border border-[color:var(--vv-border)] overflow-hidden bg-[#121A2B]">
         <div className="px-5 py-3.5 border-b border-[color:var(--vv-border)] flex items-center justify-between">
           <p className="text-[12px] font-semibold text-[color:var(--vv-text)]">Feedback</p>
         </div>
         <div className="px-5 py-8 text-center">
           <p className="text-[13px] text-[color:var(--vv-text-tertiary)] mb-1">No feedback yet.</p>
-          <p className="text-[11.5px] text-[#35446A]">Feedback becomes visible after completed deals or engagements.</p>
+          <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">Feedback becomes visible after completed deals or engagements.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="rounded-[14px] border border-[color:var(--vv-border)] overflow-hidden" style={{ background: 'rgba(26,28,29,0.85)' }}>
+    <div className="rounded-[14px] border border-[color:var(--vv-border)] overflow-hidden bg-[#121A2B]">
       <div className="px-5 py-3.5 border-b border-[color:var(--vv-border)] flex items-center justify-between">
         <p className="text-[12px] font-semibold text-[color:var(--vv-text)]">
           Feedback Received
@@ -354,7 +354,7 @@ function FeedbackPanel({ feedback, onLeave }: { feedback: FeedbackItem[]; onLeav
           <Button size="sm" variant="ghost" onClick={() => navigate('/app/feedback')}>Leave feedback</Button>
         )}
       </div>
-      <div className="divide-y divide-[#2B2D2F]">
+      <div className="divide-y divide-[color:var(--vv-border)]">
         {feedback.map(fb => (
           <div key={fb.id} className="px-5 py-4">
             <div className="flex items-start gap-3 mb-2">
@@ -372,7 +372,7 @@ function FeedbackPanel({ feedback, onLeave }: { feedback: FeedbackItem[]; onLeav
                   </div>
                   <StarRow rating={fb.rating} />
                 </div>
-                <p className="text-[10.5px] text-[#35446A] mt-0.5">{fb.relationship} - Completed {fb.completedDate}</p>
+                <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">{fb.relationship} - Completed {fb.completedDate}</p>
               </div>
             </div>
 
@@ -385,7 +385,7 @@ function FeedbackPanel({ feedback, onLeave }: { feedback: FeedbackItem[]; onLeav
                   <span className="text-[10px] text-[color:var(--vv-text-tertiary)]">{d.label}</span>
                   <div className="flex gap-0.5">
                     {Array.from({ length: 5 }, (_, j) => (
-                      <div key={j} className="w-1.5 h-1.5 rounded-full" style={{ background: j < d.rating ? '#C9A24B' : '#35446A' }} />
+                      <div key={j} className="w-1.5 h-1.5 rounded-full" style={{ background: j < d.rating ? '#C9A24B' : 'var(--vv-border-strong)' }} />
                     ))}
                   </div>
                 </div>
@@ -413,7 +413,7 @@ function HistoryPanel({ history }: { history: HistoryEntry[] }) {
   };
 
   return (
-    <div className="rounded-[14px] border border-[color:var(--vv-border)] overflow-hidden" style={{ background: 'rgba(26,28,29,0.85)' }}>
+    <div className="rounded-[14px] border border-[color:var(--vv-border)] overflow-hidden bg-[#121A2B]">
       <div className="px-5 py-3.5 border-b border-[color:var(--vv-border)]">
         <p className="text-[12px] font-semibold text-[color:var(--vv-text)]">Reputation History</p>
         <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">Traceable record of activity that contributes to this reputation.</p>
@@ -424,7 +424,7 @@ function HistoryPanel({ history }: { history: HistoryEntry[] }) {
             <div key={e.id} className="flex items-start gap-3">
               <div className="flex flex-col items-center mt-1">
                 <div className="w-2 h-2 rounded-full shrink-0" style={{ background: e.dot }} />
-                {i < shown.length - 1 && <div className="w-px flex-1 mt-1" style={{ background: 'rgba(53,68,106,0.4)', minHeight: 18 }} />}
+                {i < shown.length - 1 && <div className="w-px flex-1 mt-1 bg-[color:var(--vv-border-strong)]" style={{ minHeight: 18 }} />}
               </div>
               <div className="flex-1 min-w-0 pb-3">
                 <div className="flex items-center gap-2 flex-wrap mb-0.5">
@@ -437,7 +437,7 @@ function HistoryPanel({ history }: { history: HistoryEntry[] }) {
                   </span>
                 </div>
                 <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">{e.detail}</p>
-                <p className="text-[10px] text-[#35446A] mt-0.5 font-mono">{e.date}</p>
+                <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-0.5 font-mono">{e.date}</p>
               </div>
             </div>
           ))}
@@ -533,11 +533,11 @@ export default function Reputation() {
           <VerificationPanel tier={data.verificationTier} />
 
           {/* Quick stats */}
-          <div className="rounded-[14px] border border-[color:var(--vv-border)] overflow-hidden" style={{ background: 'rgba(26,28,29,0.85)' }}>
+          <div className="rounded-[14px] border border-[color:var(--vv-border)] overflow-hidden bg-[#121A2B]">
             <div className="px-5 py-3.5 border-b border-[color:var(--vv-border)]">
               <p className="text-[12px] font-semibold text-[color:var(--vv-text)]">Quick Stats</p>
             </div>
-            <div className="divide-y divide-[#2B2D2F]">
+            <div className="divide-y divide-[color:var(--vv-border)]">
               {data.factors.map((f, i) => (
                 <div key={i} className="flex items-center justify-between px-5 py-2.5">
                   <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">{f.label}</span>

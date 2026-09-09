@@ -95,30 +95,30 @@ export function DisclosureProgress({ currentStage, onUnlock, compact = false }: 
 
             {/* Text + action */}
             <div className="flex-1 min-w-0 pb-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={`text-[11.5px] font-medium ${unlocked ? 'text-[color:var(--vv-text)]' : 'text-[color:var(--vv-text-tertiary)]'}`}>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className={`text-[11px] font-medium leading-snug ${unlocked ? 'text-[color:var(--vv-text)]' : 'text-[color:var(--vv-text-tertiary)]'}`}>
                   Stage {s.number} - {s.label}
                 </span>
                 {isNDA && !unlocked && (
-                  <span className="text-[9.5px] px-1.5 py-0.5 rounded-full border font-semibold uppercase tracking-wide"
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full border font-semibold uppercase tracking-wide shrink-0"
                     style={{ color: '#A78BFA', borderColor: 'rgba(167,139,250,0.25)', background: 'rgba(167,139,250,0.06)' }}>
                     NDA
                   </span>
                 )}
                 {isProposal && !unlocked && (
-                  <span className="text-[9.5px] px-1.5 py-0.5 rounded-full border font-semibold uppercase tracking-wide"
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full border font-semibold uppercase tracking-wide shrink-0"
                     style={{ color: '#C9A24B', borderColor: 'rgba(201,162,75,0.25)', background: 'rgba(201,162,75,0.06)' }}>
                     Final
                   </span>
                 )}
                 {unlocked && (
-                  <span className="text-[9.5px] px-1.5 py-0.5 rounded-full border font-semibold uppercase tracking-wide"
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full border font-semibold uppercase tracking-wide shrink-0"
                     style={{ color: '#22C55E', borderColor: 'rgba(34,197,94,0.25)', background: 'rgba(34,197,94,0.07)' }}>
                     Unlocked
                   </span>
                 )}
                 {isNext && (
-                  <span className="text-[9.5px] px-1.5 py-0.5 rounded-full border font-semibold uppercase tracking-wide"
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full border font-semibold uppercase tracking-wide shrink-0"
                     style={{ color: accentColor, borderColor: `${accentColor}36`, background: `${accentColor}0A` }}>
                     Next
                   </span>

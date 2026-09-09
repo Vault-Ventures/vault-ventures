@@ -837,3 +837,104 @@
 
 - Backend authentication, authorization, persistence, lifecycle enforcement, and BUG-04 product clarification remain future work.
 - The existing non-blocking bundle-size advisory remains.
+
+---
+
+## Phase 1 — Part 4 — Role-Based Profiles & Authorization Foundation
+
+**Status:** COMPLETED — final verification passed  
+**Verification date:** 2026-09-10
+
+### Completed Task and Scope
+
+Verified the implemented participant role/profile foundation against the Master Project Specification and the owner's approved schema and corrections. Part 1 (API foundation) and Part 2 (authentication) were previously completed. Earlier log entries describe historical state; their statements that backend authentication remains future work no longer describe the current backend. These Parts are owner tracking labels, not phases defined by the specification.
+
+All eight tables are present: `user_roles`, `admin_access`, `founder_profiles`, `investor_profiles`, `investor_preferences`, `professional_profiles`, `skills`, and `professional_profile_skill`. Models, relationships, five policies, Form Requests, explicit API Resources, controllers, and focused tests are present. Founder profiles contain identity linkage and timestamps only.
+
+Verified authenticated routes:
+
+- `GET /api/me/profile`
+- `POST /api/me/roles`
+- `PATCH /api/me/profiles/professional`
+- `GET /api/me/investor-preferences`
+- `PATCH /api/me/investor-preferences`
+
+### Files Changed by the Implementation
+
+The implementation comprises 35 backend files: 33 additions and updates to `app/Models/User.php` and `routes/api.php`. Paths below are relative to `backend/`.
+
+- `app/Enums/ParticipantRole.php`
+- `database/migrations/2026_09_10_000001_create_role_authorization_tables.php`
+- `database/migrations/2026_09_10_000002_create_founder_profiles_table.php`
+- `database/migrations/2026_09_10_000003_create_investor_profile_tables.php`
+- `database/migrations/2026_09_10_000004_create_professional_profile_tables.php`
+- `app/Models/UserRole.php`
+- `app/Models/AdminAccess.php`
+- `app/Models/FounderProfile.php`
+- `app/Models/InvestorProfile.php`
+- `app/Models/InvestorPreference.php`
+- `app/Models/ProfessionalProfile.php`
+- `app/Models/Skill.php`
+- `app/Http/Requests/Profiles/ProfileRequest.php`
+- `app/Http/Requests/Profiles/EnrollParticipantRoleRequest.php`
+- `app/Http/Requests/Profiles/UpdateProfessionalProfileRequest.php`
+- `app/Http/Requests/Profiles/UpdateInvestorPreferenceRequest.php`
+- `app/Policies/InvestorPreferencePolicy.php`
+- `app/Policies/AdminAccessPolicy.php`
+- `app/Http/Resources/FounderProfileResource.php`
+- `app/Http/Resources/InvestorPreferenceResource.php`
+- `app/Http/Resources/InvestorProfileResource.php`
+- `app/Http/Resources/ProfessionalProfileResource.php`
+- `app/Http/Resources/ProfileResource.php`
+- `app/Http/Controllers/ProfileController.php`
+- `app/Http/Controllers/ParticipantRoleController.php`
+- `app/Http/Controllers/InvestorPreferenceController.php`
+- `app/Http/Controllers/ProfessionalProfileController.php`
+- `app/Policies/FounderProfilePolicy.php`
+- `app/Policies/InvestorProfilePolicy.php`
+- `app/Policies/ProfessionalProfilePolicy.php`
+- `tests/Feature/RoleProfileTest.php`
+- `tests/Feature/ProfileDataTest.php`
+- `app/Models/User.php`
+- `routes/api.php`
+- `docs/profiles-authorization.md`
+
+This final verification changes only the existing root `IMPLEMENTATION_LOG.md` and `PROJECT_ROADMAP.md`; it adds no implementation code.
+
+### Migrations
+
+The four additive migrations are applied in batch 2; existing default migrations remain in batch 1:
+
+- `2026_09_10_000001_create_role_authorization_tables`
+- `2026_09_10_000002_create_founder_profiles_table`
+- `2026_09_10_000003_create_investor_profile_tables`
+- `2026_09_10_000004_create_professional_profile_tables`
+
+The final audit checked migration status and live table columns without applying or rolling back migrations. All eight new tables contain zero rows in the main database. Existing main-database table counts/checksums match the pre-implementation snapshot.
+
+### Test Results
+
+Run from `backend/` with PHP 8.3.33:
+
+- `& C:/Tools/php83/php.exe vendor/bin/phpunit --filter 'RoleProfileTest|ProfileDataTest|TestDatabaseGuardTest|TestDatabaseSafetyTest'` — PASS: 74 tests, 372 assertions.
+- `& C:/Tools/php83/php.exe vendor/bin/phpunit` — PASS: 106 tests, 558 assertions, including authentication regression coverage.
+
+Database-writing tests use the separate guarded `vault_ventures_test` database. No seeders or destructive main-database commands were run.
+
+### Security and Authorization Notes
+
+- Accounts may enroll in multiple participant roles: founder, investor, professional. Existing users require no fabricated roles or profile data.
+- `admin_access` is a separate, guarded authorization boundary. There is no public provisioning route, seeder, automatic assignment, or global admin ownership bypass.
+- Ownership policies require the correct participant role and record owner. Profile writes require the existing SPA session authentication and CSRF protection.
+- Requests reject unsupported fields and prevent owner/admin mass assignment. Resources explicitly select response fields and exclude password hashes, tokens, and admin access.
+- Investment preference amounts use precise decimal storage and string responses with the BDT convention; this is preference validation only, not investment execution or financial business logic.
+- All 150 protected-file SHA-256 hashes match the pre-implementation baseline, covering frontend source, authentication controllers, environment and protected configuration, and test safety files. APP_KEY, MySQL configuration, UTC, Sanctum, CSRF, and CORS remain preserved.
+- This directory is not a Git repository. Protected-file checksums and the scoped implementation file inventory support preservation findings, but a repository-wide historical diff cannot be produced.
+
+### Remaining Limitations
+
+No profile-completion gates or percentages, business submissions, discovery, matching, scoring, verification workflows, reputation, deals, or financial features are implemented by this scope. Admin provisioning and operational admin workflows remain excluded. Profile drafts remain permitted; categorical fields without an approved taxonomy remain free text. Existing local mail and frontend integration limitations are unchanged.
+
+### Next Recommended Scope
+
+Map Founder Business Submission and Business Requirements to Master Specification sections 5.1, 7, 23, 25.1, and 33. Agree exact fields, ownership, and access rules before implementation. This is a recommendation pending owner approval; no new official phase or Part number is assigned and no next-scope work has begun.

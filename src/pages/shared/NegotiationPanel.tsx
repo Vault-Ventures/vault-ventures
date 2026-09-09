@@ -172,13 +172,11 @@ function CounterModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="counter-offer-title"
-      style={{ background: 'rgba(4,8,15,0.8)', backdropFilter: 'blur(8px)' }}>
-      <div className="w-full sm:max-w-[520px] rounded-t-[20px] sm:rounded-[18px] border border-[color:var(--vv-border-strong)] overflow-hidden flex flex-col max-h-[90vh]"
-        style={{ background: 'rgba(10,15,26,0.98)' }}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="counter-offer-title">
+      <div className="w-full sm:max-w-[520px] rounded-t-[20px] sm:rounded-[18px] border border-[color:var(--vv-border)] overflow-hidden flex flex-col max-h-[90vh] bg-[#121A2B]">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#1E2C44] flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[color:var(--vv-border)] flex-shrink-0">
           <div>
             <p id="counter-offer-title" className="font-display text-[15px] font-semibold text-[color:var(--vv-text)]">Counter Offer</p>
             <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">Proposal #{current.version} - edit negotiable terms only</p>
@@ -196,8 +194,8 @@ function CounterModal({
             <div key={term.key}>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-[11.5px] font-semibold text-[color:var(--vv-text-secondary)]">{term.label}</label>
-                <span className="text-[10.5px] text-[#35446A]">
-                  Current: <span className="text-[color:var(--vv-text-tertiary)]">{term.value}</span>
+                <span className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">
+                  Current: <span className="text-[color:var(--vv-text-secondary)]">{term.value}</span>
                 </span>
               </div>
               <input type="text" value={values[term.key] ?? ''}
@@ -210,12 +208,12 @@ function CounterModal({
             <label className="block text-[11.5px] font-semibold text-[color:var(--vv-text-secondary)] mb-1.5">Note (optional)</label>
             <textarea rows={3} value={note} onChange={e => setNote(e.target.value)}
               placeholder="Explain your counter offer..."
-              className="w-full px-3.5 py-2.5 rounded-[8px] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] text-[12.5px] text-[color:var(--vv-text)] placeholder-[#35446A] outline-none resize-none leading-relaxed" />
+              className="w-full px-3.5 py-2.5 rounded-[8px] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] text-[12.5px] text-[color:var(--vv-text)] placeholder-[color:var(--vv-text-tertiary)] outline-none resize-none leading-relaxed" />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 px-6 py-4 border-t border-[#1E2C44] flex-shrink-0">
+        <div className="flex gap-3 px-6 py-4 border-t border-[color:var(--vv-border)] flex-shrink-0">
           <Button className="flex-1" onClick={handleSend} disabled={sending}>
             {sending ? 'Sending-' : 'Send Counter Offer'}
           </Button>
@@ -231,17 +229,17 @@ function CounterModal({
 function TermRow({ term, prevValue }: { term: Term; prevValue?: string }) {
   const changed = prevValue !== undefined && prevValue !== term.value;
   return (
-    <div className="flex items-start justify-between gap-4 py-3 border-b border-[#1E2C44] last:border-b-0">
+    <div className="flex items-start justify-between gap-4 py-3 border-b border-[color:var(--vv-border)] last:border-b-0">
       <div className="min-w-0">
         <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">{term.label}</p>
         {changed && prevValue && (
-          <p className="text-[10px] text-[#35446A] line-through mt-0.5">{prevValue}</p>
+          <p className="text-[10px] text-[color:var(--vv-text-tertiary)] line-through mt-0.5">{prevValue}</p>
         )}
       </div>
       <p className={`text-[12.5px] font-semibold text-right flex-shrink-0 max-w-[55%] ${changed ? 'text-[#C67A4E]' : 'text-[color:var(--vv-text)]'}`}>
         {term.value}
         {!term.negotiable && (
-          <span className="block text-[9.5px] font-normal text-[#35446A] mt-0.5">Fixed term</span>
+          <span className="block text-[9.5px] font-normal text-[color:var(--vv-text-tertiary)] mt-0.5">Fixed term</span>
         )}
       </p>
     </div>
@@ -256,25 +254,21 @@ function ProposalHistory({
   return (
     <div className="space-y-2">
       {proposals.map((p, idx) => {
-        const cfg = STATUS_CFG[p.status];
         const isCurrent = idx === proposals.length - 1;
         const isActive = idx === activeIdx;
         return (
           <button key={p.version} onClick={() => onSelect(idx)}
-            className="w-full text-left rounded-[10px] border p-3 transition-all"
-            style={isActive ? {
-              background: 'rgba(198,122,78,0.06)',
-              borderColor: 'rgba(198,122,78,0.22)',
-            } : {
-              background: 'rgba(26,28,29,0.7)',
-              borderColor: '#24304A',
-            }}>
+            className={`w-full text-left rounded-[10px] border p-3 transition-all ${
+              isActive
+                ? 'bg-[color:rgba(198,122,78,0.1)] border-[#C67A4E]/30'
+                : 'bg-[#121A2B] border-[color:var(--vv-border)] hover:border-[color:var(--vv-border-strong)]'
+            }`}
+          >
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-1.5">
                 <span className="text-[11px] font-semibold text-[color:var(--vv-text)]">#{p.version}</span>
                 {isCurrent && (
-                  <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold"
-                    style={{ background: 'rgba(198,122,78,0.12)', color: '#C67A4E' }}>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold text-[#C67A4E] bg-[#C67A4E]/10 border border-[#C67A4E]/20">
                     CURRENT
                   </span>
                 )}
@@ -282,7 +276,7 @@ function ProposalHistory({
               <StatusBadge status={p.status} />
             </div>
             <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">{p.label}</p>
-            <p className="text-[10px] text-[#35446A] mt-1">{p.by} - {p.date}</p>
+            <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-1">{p.by} - {p.date}</p>
           </button>
         );
       })}
@@ -303,8 +297,6 @@ function CommentsPanel({
     setText('');
   }
 
-  const myInitials = viewRole === 'professional' ? 'TH' : 'NH';
-
   return (
     <div>
       <p className="text-[12px] font-semibold text-[color:var(--vv-text)] mb-3">Discussion</p>
@@ -315,17 +307,14 @@ function CommentsPanel({
             <div key={c.id} className={`flex gap-2.5 ${isMe ? 'flex-row-reverse' : ''}`}>
               {roleAvatar(c.role, c.author, c.role === 'founder' ? 'NH' : 'TH')}
               <div className={`max-w-[80%] ${isMe ? 'items-end' : 'items-start'} flex flex-col gap-0.5`}>
-                <div className="px-3.5 py-2.5 rounded-[12px] rounded-tl-[4px]"
-                  style={isMe ? {
-                    background: 'rgba(198,122,78,0.09)',
-                    border: '1px solid rgba(198,122,78,0.16)',
-                  } : {
-                    background: 'rgba(33,35,36,0.8)',
-                    border: '1px solid #24304A',
-                  }}>
+                <div className={`px-3.5 py-2.5 rounded-[12px] rounded-tl-[4px] border ${
+                  isMe
+                    ? 'bg-[color:rgba(198,122,78,0.1)] border-[#C67A4E]/20'
+                    : 'bg-[#121A2B] border-[color:var(--vv-border)]'
+                }`}>
                   <p className="text-[12px] text-[color:var(--vv-text)] leading-relaxed">{c.text}</p>
                 </div>
-                <p className="text-[9.5px] text-[#35446A] px-1">{c.author} - {c.ts}</p>
+                <p className="text-[9.5px] text-[color:var(--vv-text-tertiary)] px-1">{c.author} - {c.ts}</p>
               </div>
             </div>
           );
@@ -335,7 +324,7 @@ function CommentsPanel({
         <input type="text" value={text} onChange={e => setText(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
           placeholder="Add a note..."
-          className="flex-1 px-3.5 py-2 rounded-[8px] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] text-[12.5px] text-[color:var(--vv-text)] placeholder-[#35446A] outline-none focus:border-[#C67A4E]/50" />
+          className="flex-1 px-3.5 py-2 rounded-[8px] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] text-[12.5px] text-[color:var(--vv-text)] placeholder-[color:var(--vv-text-tertiary)] outline-none focus:border-[#C67A4E]/50" />
         <Button size="sm" variant="secondary" onClick={handleSend}>Send</Button>
       </div>
     </div>
@@ -346,8 +335,8 @@ function CommentsPanel({
 
 function AcceptedView({ proposal, onContinue }: { proposal: Proposal; onContinue: () => void }) {
   return (
-    <div className="rounded-[16px] border p-6 text-center"
-      style={{ background: 'rgba(34,197,94,0.04)', borderColor: 'rgba(34,197,94,0.2)' }}>
+    <div className="rounded-[16px] border p-6 text-center bg-[#121A2B]"
+      style={{ borderColor: 'rgba(34,197,94,0.22)' }}>
       <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4"
         style={{ background: 'rgba(34,197,94,0.1)', border: '2px solid rgba(34,197,94,0.3)' }}>
         <svg width="26" height="26" fill="none" stroke="#22C55E" strokeWidth="2" viewBox="0 0 24 24">
@@ -356,9 +345,9 @@ function AcceptedView({ proposal, onContinue }: { proposal: Proposal; onContinue
       </div>
       <p className="font-display text-[18px] font-semibold text-[#22C55E] mb-1">Terms Accepted</p>
       <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mb-5">Both parties have agreed to the following terms.</p>
-      <div className="text-left rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden mb-5" style={{ background: 'rgba(26,28,29,0.8)' }}>
+      <div className="text-left rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden mb-5 bg-[#121A2B]">
         {proposal.terms.map(term => (
-          <div key={term.key} className="flex items-center gap-3 px-4 py-2.5 border-b border-[#1E2C44] last:border-b-0">
+          <div key={term.key} className="flex items-center gap-3 px-4 py-2.5 border-b border-[color:var(--vv-border)] last:border-b-0">
             <svg width="13" height="13" fill="none" stroke="#22C55E" strokeWidth="2.5" viewBox="0 0 24 24">
               <path d="M20 6L9 17l-5-5" strokeLinecap="round"/>
             </svg>
@@ -376,8 +365,8 @@ function AcceptedView({ proposal, onContinue }: { proposal: Proposal; onContinue
 
 function DeclinedBanner({ by }: { by: string }) {
   return (
-    <div className="flex items-start gap-3 px-4 py-3.5 rounded-[12px] mb-4"
-      style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)' }}>
+    <div className="flex items-start gap-3 px-4 py-3.5 rounded-[12px] mb-4 bg-[#121A2B]"
+      style={{ border: '1px solid rgba(239,68,68,0.2)' }}>
       <svg width="15" height="15" fill="none" stroke="#EF4444" strokeWidth="2" viewBox="0 0 24 24" className="flex-shrink-0 mt-0.5">
         <circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6" strokeLinecap="round"/>
       </svg>
@@ -491,13 +480,12 @@ export default function NegotiationPanel() {
           </svg>
           Deal Room
         </button>
-        <span className="text-[#35446A]">/</span>
+        <span className="text-[color:var(--vv-text-tertiary)]">/</span>
         <span className="text-[12px] text-[color:var(--vv-text-secondary)]">Negotiation</span>
       </div>
 
       {/* Header card */}
-      <div className="rounded-[16px] border border-[color:var(--vv-border)] p-5 mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
-        style={{ background: 'rgba(26,28,29,0.85)' }}>
+      <div className="rounded-[16px] border border-[color:var(--vv-border)] p-5 mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-[#121A2B]">
         <div className="flex items-center gap-4">
           {/* Business avatar */}
           <div className="w-12 h-12 rounded-[12px] flex items-center justify-center text-[13px] font-bold text-[#C67A4E] flex-shrink-0"
@@ -507,12 +495,12 @@ export default function NegotiationPanel() {
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <p className="font-display text-[16px] font-semibold text-[color:var(--vv-text)]">{CONTEXT.business}</p>
-              <span className="text-[#35446A] hidden sm:inline">-</span>
+              <span className="text-[color:var(--vv-text-tertiary)] hidden sm:inline">-</span>
               <p className="text-[13px] text-[color:var(--vv-text-tertiary)] hidden sm:block">{CONTEXT.professional}</p>
             </div>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className="text-[11px] text-[color:var(--vv-text-tertiary)]">{CONTEXT.type}</span>
-              <span className="text-[#35446A]">-</span>
+              <span className="text-[color:var(--vv-text-tertiary)]">-</span>
               <span className="text-[11px] text-[color:var(--vv-text-tertiary)]">Round {roundNumber}</span>
               <StatusBadge status={negStatus} />
             </div>
@@ -536,14 +524,13 @@ export default function NegotiationPanel() {
           <div className="space-y-4">
 
             {/* Mobile tab bar */}
-            <div className="flex lg:hidden items-center gap-1 p-1 rounded-[10px] border border-[#1E2C44]"
-              style={{ background: 'rgba(26,28,29,0.9)' }}>
+            <div className="flex lg:hidden items-center gap-1 p-1 rounded-[10px] border border-[color:var(--vv-border)] bg-[#121A2B]">
               {([['proposal', 'Proposal'], ['history', 'History'], ['discussion', 'Discussion']] as const).map(([tab, label]) => (
                 <button key={tab} onClick={() => setMobileTab(tab)}
                   className="flex-1 py-1.5 rounded-[7px] text-[12px] font-medium transition-all"
                   style={mobileTab === tab ? {
                     background: 'rgba(198,122,78,0.1)', color: '#C67A4E', border: '1px solid rgba(198,122,78,0.22)',
-                  } : { color: '#5E6D8F' }}>
+                  } : { color: 'var(--vv-text-tertiary)' }}>
                   {label}
                 </button>
               ))}
@@ -551,9 +538,9 @@ export default function NegotiationPanel() {
 
             {/* Proposal panel */}
             <div className={`${mobileTab !== 'proposal' ? 'hidden lg:block' : ''}`}>
-              <div className="rounded-[14px] border border-[color:var(--vv-border)] overflow-hidden" style={{ background: 'rgba(26,28,29,0.85)' }}>
+              <div className="rounded-[14px] border border-[color:var(--vv-border)] overflow-hidden bg-[#121A2B]">
                 {/* Proposal header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-[#1E2C44]">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-[color:var(--vv-border)]">
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="font-display text-[14px] font-semibold text-[color:var(--vv-text)]">
@@ -589,9 +576,8 @@ export default function NegotiationPanel() {
 
                 {/* Note */}
                 {viewing.note && (
-                  <div className="mx-5 mb-4 mt-1 p-3.5 rounded-[10px] border border-[color:var(--vv-border)]"
-                    style={{ background: 'rgba(33,35,36,0.5)' }}>
-                    <p className="text-[10.5px] text-[#35446A] mb-1 font-semibold tracking-wide uppercase">Note from {viewing.by}</p>
+                  <div className="mx-5 mb-4 mt-1 p-3.5 rounded-[10px] border border-[color:var(--vv-border)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)]">
+                    <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] mb-1 font-semibold tracking-wide uppercase">Note from {viewing.by}</p>
                     <p className="text-[12px] text-[color:var(--vv-text-tertiary)] leading-relaxed">{viewing.note}</p>
                   </div>
                 )}
@@ -634,7 +620,7 @@ export default function NegotiationPanel() {
 
             {/* Mobile: Discussion */}
             <div className={`lg:hidden ${mobileTab !== 'discussion' ? 'hidden' : ''}`}>
-              <div className="rounded-[14px] border border-[color:var(--vv-border)] p-4" style={{ background: 'rgba(26,28,29,0.85)' }}>
+              <div className="rounded-[14px] border border-[color:var(--vv-border)] p-4 bg-[#121A2B]">
                 <CommentsPanel comments={comments} viewRole={viewRole} onSend={handleCommentSend} />
               </div>
             </div>
@@ -644,13 +630,13 @@ export default function NegotiationPanel() {
           <div className="hidden lg:flex flex-col gap-4">
 
             {/* History */}
-            <div className="rounded-[14px] border border-[color:var(--vv-border)] p-4" style={{ background: 'rgba(26,28,29,0.85)' }}>
+            <div className="rounded-[14px] border border-[color:var(--vv-border)] p-4 bg-[#121A2B]">
               <p className="text-[12.5px] font-semibold text-[color:var(--vv-text)] mb-3">Proposal History</p>
               <ProposalHistory proposals={proposals} activeIdx={activeIdx} onSelect={setActiveIdx} />
             </div>
 
             {/* Discussion */}
-            <div className="rounded-[14px] border border-[color:var(--vv-border)] p-4" style={{ background: 'rgba(26,28,29,0.85)' }}>
+            <div className="rounded-[14px] border border-[color:var(--vv-border)] p-4 bg-[#121A2B]">
               <CommentsPanel comments={comments} viewRole={viewRole} onSend={handleCommentSend} />
             </div>
           </div>

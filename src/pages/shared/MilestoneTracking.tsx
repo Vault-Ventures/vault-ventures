@@ -322,13 +322,7 @@ function MilestoneDrawer({ milestone, viewRole, onClose, onSubmit, onConfirm, on
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-[420px] flex flex-col overflow-hidden" role="dialog" aria-modal="true" aria-labelledby="milestone-detail-title"
-        style={{
-          background: 'rgba(6,10,16,0.97)',
-          backdropFilter: 'blur(32px) saturate(160%)',
-          borderLeft: '1px solid rgba(180,200,220,0.09)',
-          boxShadow: '-8px 0 48px rgba(0,0,0,0.60)',
-        }}>
+      <div className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-[420px] flex flex-col overflow-hidden bg-[#121A2B] border-l border-[color:var(--vv-border)] shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="milestone-detail-title">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#1c2a3e] flex-shrink-0">
           <div>
@@ -502,7 +496,7 @@ function TimelineItem({ milestone, index, isLast, onClick }: {
           )}
         </div>
         {!isLast && (
-          <div className={`w-px flex-1 mt-1 ${isCompleted ? 'bg-[#22C55E]/30' : 'bg-[#35446A]/40'}`}
+          <div className={`w-px flex-1 mt-1 ${isCompleted ? 'bg-[#22C55E]/30' : 'bg-[color:var(--vv-border-strong)]'}`}
             style={{ minHeight: '24px' }} />
         )}
       </div>
@@ -510,11 +504,10 @@ function TimelineItem({ milestone, index, isLast, onClick }: {
       {/* Card */}
       <button
         onClick={onClick}
-        className="flex-1 mb-4 text-left rounded-[12px] border transition-all group hover:border-[color:var(--vv-border-strong)]"
-        style={{
-          background: isActive ? 'rgba(198,122,78,0.03)' : 'rgba(14,20,28,0.6)',
-          border: isActive ? '1px solid rgba(198,122,78,0.14)' : '1px solid rgba(36,48,74,0.8)',
-        }}>
+        className={`flex-1 mb-4 text-left rounded-[12px] border transition-all group hover:border-[color:var(--vv-border-strong)] bg-[#121A2B] ${
+          isActive ? 'border-[#C67A4E]/30' : 'border-[color:var(--vv-border)]'
+        }`}
+      >
         <div className="px-4 py-3.5">
           <div className="flex items-start justify-between gap-3 mb-2">
             <div className="flex-1 min-w-0">
@@ -663,7 +656,7 @@ export default function MilestoneTracking() {
           </svg>
           Back
         </button>
-        <span className="text-[#35446A]">/</span>
+        <span className="text-[color:var(--vv-text-tertiary)]">/</span>
         <span className="text-[12px] text-[color:var(--vv-text-secondary)]">Milestones</span>
       </div>
 
@@ -723,7 +716,7 @@ export default function MilestoneTracking() {
           <div className="h-full rounded-full transition-all duration-700"
             style={{ width: `${overallProgress}%`, background: 'linear-gradient(135deg, #7A4527, #C67A4E, #E8A878)' }} />
         </div>
-        <div className="flex justify-between text-[10px] text-[#35446A] mt-1.5">
+        <div className="flex justify-between text-[10px] text-[color:var(--vv-text-tertiary)] mt-1.5">
           <span>Start</span>
           <span>Series A Close</span>
         </div>
@@ -731,8 +724,7 @@ export default function MilestoneTracking() {
 
       {/* Active milestone CTA (role-aware) */}
       {active && (
-        <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[14px] p-5 mb-6"
-          style={{ borderColor: 'rgba(198,122,78,0.18)', background: 'rgba(198,122,78,0.025)' }}>
+        <div className="bg-[#121A2B] border border-[#C67A4E]/30 rounded-[14px] p-5 mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">

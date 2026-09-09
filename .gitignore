@@ -19,6 +19,6 @@ logs/
 /.plugins/
 /.opencode-skills/
 
-# Local tool state
-.figma/
 .playwright-mcp/
+
+package-lock.json
