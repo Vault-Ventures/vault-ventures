@@ -16,7 +16,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(\App\Services\BusinessAnalysis\AnalysisProvider::class, \App\Services\BusinessAnalysis\DisabledAnalysisProvider::class);
     }
 
     /**

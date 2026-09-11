@@ -30,6 +30,15 @@ return [
 
     'disks' => [
 
+        'business_documents' => [
+            'driver' => 'local',
+            'root' => storage_path('app/business-documents'),
+            'visibility' => 'private',
+            'serve' => false,
+            'throw' => true,
+            'report' => false,
+        ],
+
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),

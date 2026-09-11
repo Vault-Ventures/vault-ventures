@@ -14,6 +14,68 @@ This document reflects the intended development sequence. Any deviation requires
 
 ## Current Owner-Tracked Backend Status
 
+**Phase 3 — Part 3 — AI Business Analysis & Improvement Guidance: COMPLETED (2026-09-10), provider disabled.** REAL EXTERNAL AI IS NOT IMPLEMENTED OR ENABLED. No live AI analysis is claimed.
+
+- Approved constrained input/output contracts, renderer, immutable analysis storage, four owner-only APIs, current-result reuse/freshness, database-cache lease and Founder allowance implemented. Application binding is disabled; fake adapter is an explicitly injected automated-test fixture only.
+- Focused **41 tests / 462 assertions passed**; full regression **298 tests / 2,486 assertions passed**, PHP 8.3.33.
+- Migration `2026_09_10_000013_create_business_analyses_table` applied on main in batch 8. One table plus supporting assessment index/composite FK. Main table empty; existing data and prior migration entries unchanged.
+- Only three existing source files extended: Business relation, provider registration and routes. Parts 1–2 contracts/behavior, authentication, frontend, environment and BDT convention preserved. No external SDK/network, queue, documents, billing or scoring changes.
+- Exact 23-file inventory, commands and safety evidence: [IMPLEMENTATION_LOG.md](IMPLEMENTATION_LOG.md). Contract/API/limitations: [business-analysis.md](backend/docs/business-analysis.md).
+- **Stop here. Phase 3 Part 4 has not started.** Owner review is next; real provider/private-data transmission needs separate explicit approval. Earlier stopping-point statements below are historical.
+
+**Phase 3 — Part 2 — Readiness Scoring Engine: COMPLETED (2026-09-10).** Approved rubric 1, immutable assessment history, owner-only APIs and synchronous after-commit recalculation are implemented. No changes to the sixteen questionnaire inputs, scoring contract, authentication or frontend.
+
+- Focused: **20 tests / 421 assertions passed**. Full regression: **257 tests / 2,024 assertions passed**, PHP 8.3.33. Includes two independent assessment workers creating/reusing one version under contention.
+- Migration `2026_09_10_000012_create_readiness_assessments_table` applied in main batch 7. Approved supporting input index and composite ownership FK retained. Existing data and all prior migration records unchanged; assessment table empty on main.
+- Equal 12.5% weights, exact arithmetic/half-up rounding, missing-input zero/incomplete behavior, BDT funding overrides, weak areas and fixed suggestions. Historical latest and current reusable result may differ; response freshness makes this explicit.
+- Recalculation failures preserve committed source success, log failure and permit POST retry. No GET calculation or queue. Owner-only Sanctum/CSRF boundaries; no admin bypass or client-selected rubric/output.
+- Exact 21-file inventory and validation: [IMPLEMENTATION_LOG.md](IMPLEMENTATION_LOG.md). Full contract, mappings, templates, API and limitations: [readiness-scoring.md](backend/docs/readiness-scoring.md).
+- **Stop here. Phase 3 Part 3 has not started; separate owner instruction is required.** Earlier stopping-point notes below are historical.
+
+**Phase 3 — Part 1 — Readiness Input & Assessment Foundation: COMPLETED (2026-09-10).** Approved 16-field questionnaire validation, append-only input revisions, and three owner-only APIs are implemented. No scoring, weights/formulas/thresholds, AI analysis, or assessment records.
+
+- One additive migration: `2026_09_10_000011_create_readiness_input_versions_table`, batch 6. No fabricated existing-business inputs.
+- Focused **35 tests / 294 assertions passed**; full regression **237 tests / 1,603 assertions passed**, PHP 8.3.33. Main data checksums unchanged except migration ledger; new table empty.
+- Source baseline: 258 existing files checked; only Business.php and routes/api.php extended. Authentication, frontend, environment, prior requirements/documents/submission behavior, and test safety preserved.
+- Full replacement input revisions, nullable missing answers, strict JSON booleans/options, consistency checks against locked BDT funding, owner-only history, no admin bypass. No public update/delete of revisions.
+- All monetary values throughout Vault Ventures must use BDT (৳) only, including proposed terms and any future readiness-related financial inputs. No currency conversion or duplicate amount fields added.
+- Exact 14-file inventory in [IMPLEMENTATION_LOG.md](IMPLEMENTATION_LOG.md); approved contract and commands in [readiness-foundation.md](backend/docs/readiness-foundation.md).
+- Stopping point: input persistence only. Future assessment source snapshots/revalidation and scoring design require separate approval. **Phase 3 Part 2 has not started.**
+
+**Phase 2 — Part 3 — Business Documents & Submission Workflow: COMPLETED (2026-09-10).** Optional owner-private business plan/pitch deck storage, listing, and audited downloads are implemented. Documents do not affect submission eligibility or status.
+
+- Limits (implementation decisions): PDF only, 2 MiB/file, 10 documents/business; no deletion, replacement, or versioning.
+- Dedicated non-served private disk outside existing storage roots; encrypted bytes; generated paths; no public links. Downloads require owner authorization and record initiation before sending bytes; no completed-receipt claim.
+- Additive migrations `2026_09_10_000009_create_business_documents_table` and `2026_09_10_000010_create_document_access_logs_table` applied in batch 5.
+- Focused **22 tests / 235 assertions passed**; full **202 tests / 1,309 assertions passed**. Existing main data hashes unchanged except migration ledger; both new tables empty. No packages, seeders, or destructive main-database commands.
+- Exact 19-file inventory in [IMPLEMENTATION_LOG.md](IMPLEMENTATION_LOG.md); API, commands, storage/cleanup limitations in [business-documents.md](backend/docs/business-documents.md). Source hashes confirm authentication/frontend/environment and prior submission/requirements code preserved.
+- No disclosure/NDA/Deal Rooms, financial/identity evidence, AI/readiness/matching, review/publication/new statuses, admin or frontend work. Deployment HTTPS, retention/reconciliation, and future sharing controls remain separate concerns.
+- Next: map the next owner-approved scope and readiness/publication/disclosure dependencies. No new official Part assigned or implemented.
+
+**Phase 2 — Part 2 — Business Requirements & Funding Details: COMPLETED (2026-09-10).** Extended existing requirements with optional accepted investment modes, separate preliminary proposals, experience/availability, and salary/equity preferences. No new routes, policies, submission gates, or investment calculations.
+
+- One additive migration: `2026_09_10_000008_add_details_to_business_requirements_table`, applied in batch 4.
+- Focused tests: **74 passed / 516 assertions**. Full regression: **180 passed / 1,074 assertions**, PHP 8.3.33.
+- Existing main-database data counts/checksums unchanged; only the migration ledger gained an entry. No packages, seeders, or destructive operations.
+- Eleven scoped files changed, itemized in the Part 2 [implementation-log entry](IMPLEMENTATION_LOG.md). Routes, policies, authentication, frontend, environment, and test safety remain unchanged, verified by source hashes and regressions.
+- Merged-record validation rejects removing a mode with retained proposed terms; clear them explicitly. Proposals remain private preliminary text. Existing BDT precision and shared skills are preserved.
+- Exclusions remain: publication/discovery, matching/readiness/recommendations, transactions/final agreements/calculations/payments, vacancies/teams, verification/disclosure/NDA, admin workflows, and frontend/authentication changes.
+- Next: map the next owner-approved scope, considering structured readiness inputs and publication/disclosure dependencies. No new official Part is assigned or implemented.
+
+Details: [business requirements documentation](backend/docs/business-submission.md). Earlier next-scope recommendations below are historical.
+
+**Phase 2 — Founder Business Submission & Business Requirements; Part 1 — Business Submission Foundation: COMPLETED (2026-09-10).** This is the owner's approved phase/Part label. The earlier Phase 1 next-scope recommendation below is historical and has now been acted on.
+
+- Delivered private multiple-business drafts/submissions, optional BDT funding and shared skill requirements, ownership authorization, strict validation, six owner-only routes, Resources, and focused tests. Submitted records remain editable; repeat submission is idempotent.
+- Three additive migrations applied in batch 3: `2026_09_10_000005_create_businesses_table`, `2026_09_10_000006_create_business_requirements_table`, `2026_09_10_000007_create_business_requirement_skill_table`.
+- Files: 21 new PHP files plus `backend/docs/business-submission.md`; existing `backend/app/Models/FounderProfile.php` and `backend/routes/api.php` extended. This roadmap and `IMPLEMENTATION_LOG.md` updated. The exact inventory is in the dated implementation-log entry.
+- Verification: focused **46 tests / 329 assertions passed**; full regression **152 tests / 887 assertions passed**, PHP 8.3.33. All six routes and middleware verified. Existing main-database data counts/hashes unchanged; only migration ledger entries added and three empty tables created.
+- Security: session-derived ownership, Founder role/profile checks, no admin bypass, protected-field rejection, restricted parent deletion, existing Sanctum/CSRF/envelopes and test safety preserved. Of 223 existing source/configuration files checked, only the two approved backend extensions changed; frontend, authentication controllers, and environment remain unchanged.
+- Excluded: publication, public discovery/search, readiness, matching, recommendations, verification gates, investment terms, NDA/disclosure, documents, teams, admin workflows, frontend changes, and destructive main-database operations. No packages or seeders added.
+- Next recommendation: review remaining Phase 2 Business Requirements against the specification before approving another implementation scope. No next Part is assigned or implemented. Future assessment/publication will need revision/invalidation and disclosure rules.
+
+Details: [business submission documentation](backend/docs/business-submission.md) and [implementation log](IMPLEMENTATION_LOG.md).
+
 **Phase 1 — Part 4 — Role-Based Profiles & Authorization Foundation: COMPLETED.** Final verification passed on 2026-09-10. Part 1 (Backend API Foundation) and Part 2 (Authentication) were previously completed. Parts are implementation tracking labels; the Master Project Specification does not define official development phase numbering. The historical roadmap sections below are retained without renumbering; their planned backend foundation entries must be read alongside this current status.
 
 - Completed: multi-role participant enrollment, identity-linked Founder profiles, Investor profiles/preferences, Professional profiles/skills, ownership policies, and a separate admin authorization boundary. Five authenticated profile/enrollment/preference routes preserve the existing API conventions.
