@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ParticipantRole;
+use App\Enums\VerificationTier;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -51,6 +52,58 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasOne(ProfessionalProfile::class);
     }
 
+    public function phoneVerificationCodes(): HasMany
+    {
+        return $this->hasMany(PhoneVerificationCode::class);
+    }
+
+    public function verificationRequests(): HasMany
+    {
+        return $this->hasMany(VerificationRequest::class);
+    }
+
+    public function latestVerificationRequest(): HasOne
+    {
+        return $this->hasOne(VerificationRequest::class)->latestOfMany();
+    }
+
+    public function hasVerifiedPhone(): bool
+    {
+        return ! is_null($this->phone_verified_at);
+    }
+
+    public function hasTier0Verification(): bool
+    {
+        return $this->hasVerifiedEmail() && $this->hasVerifiedPhone();
+    }
+
+    public function isIdentityVerified(): bool
+    {
+        return ($this->verification_tier?->value ?? (int) $this->verification_tier) >= 1;
+    }
+
+    public function isTrackRecordVerified(): bool
+    {
+        return ($this->verification_tier?->value ?? (int) $this->verification_tier) >= 2;
+    }
+
+    public function hasVerificationTier(VerificationTier|int $requiredTier): bool
+    {
+        $current = $this->verification_tier instanceof VerificationTier
+            ? $this->verification_tier->value
+            : (int) $this->verification_tier;
+
+        $required = $requiredTier instanceof VerificationTier
+            ? $requiredTier->value
+            : (int) $requiredTier;
+
+        return $current >= $required;
+    }
+
+    protected $attributes = [
+        'verification_tier' => 0,
+    ];
+
     /**
      * The attributes that are mass assignable.
      *
@@ -81,6 +134,8 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return [
             'email_verified_at' => 'datetime',
+            'phone_verified_at' => 'datetime',
+            'verification_tier' => VerificationTier::class,
             'password' => 'hashed',
         ];
     }

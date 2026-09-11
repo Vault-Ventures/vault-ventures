@@ -14,6 +14,10 @@ final class UserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'email_verified_at' => $this->email_verified_at?->toISOString(),
+            'phone' => $this->phone,
+            'phone_verified_at' => $this->phone_verified_at?->toISOString(),
+            'verification_tier' => $this->verification_tier->value,
+            'verification_tier_label' => $this->verification_tier->label(),
         ];
     }
 }

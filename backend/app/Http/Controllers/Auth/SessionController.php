@@ -29,7 +29,12 @@ final class SessionController extends Controller
         Auth::guard('web')->login($user);
         $request->session()->regenerate();
 
-        return ApiResponse::success((new UserResource($user))->resolve(), 'Registration successful.', 201);
+        return ApiResponse::success([
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'email_verified_at' => null,
+        ], 'Registration successful.', 201);
     }
 
     public function login(LoginRequest $request): JsonResponse

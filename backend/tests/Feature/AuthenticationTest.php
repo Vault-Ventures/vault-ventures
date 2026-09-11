@@ -167,6 +167,7 @@ class AuthenticationTest extends TestCase
         $this->assertSame($known->json(), $unknown->json());
         Notification::assertSentTo($user, ResetPassword::class, function ($notification) use ($known) {
             $known->assertDontSee($notification->token);
+
             return true;
         });
     }

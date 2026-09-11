@@ -18,8 +18,7 @@ class ApiFoundationTest extends TestCase
 
     public function test_form_request_returns_only_validated_data_with_created_status(): void
     {
-        Route::post('/api/_test/validate', fn (FoundationRequest $request) =>
-            ApiResponse::success($request->validated(), 'Created.', 201));
+        Route::post('/api/_test/validate', fn (FoundationRequest $request) => ApiResponse::success($request->validated(), 'Created.', 201));
 
         $this->postJson('/api/_test/validate', ['label' => 'Example', 'extra' => 'ignored'])
             ->assertCreated()->assertExactJson([
@@ -29,8 +28,7 @@ class ApiFoundationTest extends TestCase
 
     public function test_validation_errors_are_json_even_when_html_is_requested(): void
     {
-        Route::post('/api/_test/validate', fn (FoundationRequest $request) =>
-            ApiResponse::success($request->validated()));
+        Route::post('/api/_test/validate', fn (FoundationRequest $request) => ApiResponse::success($request->validated()));
 
         $this->post('/api/_test/validate', [], ['Accept' => 'text/html'])
             ->assertUnprocessable()->assertExactJson([

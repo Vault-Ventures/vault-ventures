@@ -311,15 +311,15 @@ Identity and track-record verification levels (separate from reputation).
 
 | Tier | Status | Requirements | Use Case |
 |------|--------|--------------|----------|
-| **0** | Unverified | Email only | Early access, limited platform features |
-| **1** | Identity Verified | Government ID + proof of address | Full platform access, can create businesses, can invest |
-| **2** | Track-record Verified | Background check + experience verification | Investor-ready status, can access Tier 2-protected deals |
+| **0** | Email & Phone Verified | Email + phone verification only | Basic verified account, limited platform features |
+| **1** | Identity Verified | Government ID document evidence | Full platform access, can create businesses, can invest |
+| **2** | Track-Record Verified | Past track record & verified deal history | Investor-ready status (qualification deferred to future modules) |
 
 **Rules:**
-- Tier progression is administrative (verified by humans, not automatic)
-- Tier 0 users can view public info only
-- Tier 1+ can participate in deals
-- Tier 2 can access Stage 3 (NDA-protected) information
+- Tier progression is administrative (verified by administrators, not automatic)
+- Tier 0 users have basic verified contact details
+- Tier 1+ can participate in deals and submit verification requests
+- Tier 2 qualification is deferred to future on-platform verified activity/deal modules
 - Reputation is separate and does NOT automatically promote tier
 
 **Status in MVP:**
