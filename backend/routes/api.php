@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminReputationController;
 use App\Http\Controllers\AdminVerificationRequestController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PhoneVerificationController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\BusinessNdaController;
 use App\Http\Controllers\BusinessRequirementController;
 use App\Http\Controllers\BusinessSubmissionController;
 use App\Http\Controllers\DealController;
+use App\Http\Controllers\DealFeedbackController;
 use App\Http\Controllers\DealMilestoneController;
 use App\Http\Controllers\InvestorPreferenceController;
 use App\Http\Controllers\MatchDetailController;
@@ -23,6 +25,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReadinessAssessmentController;
 use App\Http\Controllers\ReadinessInputController;
 use App\Http\Controllers\RecommendationController;
+use App\Http\Controllers\ReputationController;
 use App\Http\Controllers\VerificationEvidenceController;
 use App\Http\Controllers\VerificationRequestController;
 use App\Http\Middleware\RequireSpaSession;
@@ -101,6 +104,9 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
         ->whereNumber('deal');
     Route::get('/deals/{deal}/funding-summary', [DealMilestoneController::class, 'fundingSummary'])
         ->whereNumber('deal');
+    Route::get('/deals/{deal}/feedback', [DealFeedbackController::class, 'show'])
+        ->whereNumber('deal');
+    Route::get('/reputation', [ReputationController::class, 'show']);
 
     Route::middleware(RequireSpaSession::class)->group(function () {
         Route::post('/businesses', [BusinessController::class, 'store']);
@@ -143,6 +149,8 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
             ->whereNumber('deal');
         Route::post('/deals/{deal}/complete', [DealMilestoneController::class, 'complete'])
             ->whereNumber('deal');
+        Route::post('/deals/{deal}/feedback', [DealFeedbackController::class, 'store'])
+            ->whereNumber('deal');
         Route::post('/businesses/{business}/disclosure/confirm-stage-4', [BusinessDisclosureController::class, 'confirmStageFour'])
             ->whereNumber('business');
         Route::post('/businesses/{business}/nda/request', [BusinessNdaController::class, 'requestNda'])
@@ -168,9 +176,12 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
     });
 });
 
+Route::middleware('auth:sanctum')->get('/users/{user}/reputation', [ReputationController::class, 'showUser'])->whereNumber('user');
+
 Route::prefix('admin')->middleware('auth:sanctum')->group(function () {
     Route::get('/verification-requests', [AdminVerificationRequestController::class, 'index']);
     Route::get('/verification-requests/{verification_request}', [AdminVerificationRequestController::class, 'show'])->whereNumber('verification_request');
+    Route::get('/reputation/users/{user}', [AdminReputationController::class, 'showUser'])->whereNumber('user');
     Route::middleware(RequireSpaSession::class)->group(function () {
         Route::post('/verification-requests/{verification_request}/approve', [AdminVerificationRequestController::class, 'approve'])->whereNumber('verification_request');
         Route::post('/verification-requests/{verification_request}/reject', [AdminVerificationRequestController::class, 'reject'])->whereNumber('verification_request');

@@ -67,6 +67,16 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasOne(VerificationRequest::class)->latestOfMany();
     }
 
+    public function givenFeedbacks(): HasMany
+    {
+        return $this->hasMany(DealFeedback::class, 'reviewer_user_id');
+    }
+
+    public function receivedFeedbacks(): HasMany
+    {
+        return $this->hasMany(DealFeedback::class, 'recipient_user_id');
+    }
+
     public function hasVerifiedPhone(): bool
     {
         return ! is_null($this->phone_verified_at);

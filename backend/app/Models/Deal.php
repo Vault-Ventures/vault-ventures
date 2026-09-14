@@ -66,4 +66,9 @@ class Deal extends Model
     {
         return $this->hasMany(DealMilestone::class)->orderBy('sequence_order');
     }
+
+    public function feedbacks(): HasMany
+    {
+        return $this->hasMany(DealFeedback::class);
+    }
 }
