@@ -6,12 +6,15 @@ use App\Http\Controllers\Auth\PhoneVerificationController;
 use App\Http\Controllers\Auth\SessionController;
 use App\Http\Controllers\Auth\VerificationController;
 use App\Http\Controllers\BusinessAnalysisController;
+use App\Http\Controllers\BusinessConnectionController;
 use App\Http\Controllers\BusinessController;
 use App\Http\Controllers\BusinessDisclosureController;
 use App\Http\Controllers\BusinessDocumentController;
 use App\Http\Controllers\BusinessNdaController;
 use App\Http\Controllers\BusinessRequirementController;
 use App\Http\Controllers\BusinessSubmissionController;
+use App\Http\Controllers\DealController;
+use App\Http\Controllers\DealMilestoneController;
 use App\Http\Controllers\InvestorPreferenceController;
 use App\Http\Controllers\MatchDetailController;
 use App\Http\Controllers\ParticipantRoleController;
@@ -82,6 +85,23 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
         ->whereNumber('business');
     Route::get('/businesses/{business}/nda', [BusinessNdaController::class, 'show'])
         ->whereNumber('business');
+    Route::get('/businesses/{business}/connection-status', [BusinessConnectionController::class, 'status'])
+        ->whereNumber('business');
+    Route::get('/businesses/{business}/connection', [BusinessConnectionController::class, 'status'])
+        ->whereNumber('business');
+    Route::get('/deals/{deal}', [DealController::class, 'show'])
+        ->whereNumber('deal');
+    Route::get('/deals/{deal}/history', [DealController::class, 'history'])
+        ->whereNumber('deal');
+    Route::get('/deals/{deal}/negotiation', [DealController::class, 'getNegotiation'])
+        ->whereNumber('deal');
+    Route::get('/deals/{deal}/agreement', [DealController::class, 'getAgreement'])
+        ->whereNumber('deal');
+    Route::get('/deals/{deal}/milestones', [DealMilestoneController::class, 'index'])
+        ->whereNumber('deal');
+    Route::get('/deals/{deal}/funding-summary', [DealMilestoneController::class, 'fundingSummary'])
+        ->whereNumber('deal');
+
     Route::middleware(RequireSpaSession::class)->group(function () {
         Route::post('/businesses', [BusinessController::class, 'store']);
         Route::patch('/businesses/{business}', [BusinessController::class, 'update'])->whereNumber('business');
@@ -89,6 +109,40 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
         Route::post('/businesses/{business}/submit', [BusinessSubmissionController::class, 'store'])->whereNumber('business');
         Route::post('/businesses/{business}/express-interest', [BusinessDisclosureController::class, 'expressInterest'])
             ->whereNumber('business');
+        Route::post('/businesses/{business}/interests', [BusinessConnectionController::class, 'expressInterest'])
+            ->whereNumber('business');
+        Route::post('/businesses/{business}/reciprocal-interest', [BusinessConnectionController::class, 'expressReciprocalInterest'])
+            ->whereNumber('business');
+        Route::post('/businesses/{business}/reciprocate-interest', [BusinessConnectionController::class, 'expressReciprocalInterest'])
+            ->whereNumber('business');
+        Route::post('/connections/{connection}/deal', [DealController::class, 'createFromConnection'])
+            ->whereNumber('connection');
+        Route::post('/deals/{deal}/transition', [DealController::class, 'transition'])
+            ->whereNumber('deal');
+        Route::post('/deals/{deal}/negotiation/propose', [DealController::class, 'proposeNegotiation'])
+            ->whereNumber('deal');
+        Route::post('/deals/{deal}/negotiation/{proposal}/respond', [DealController::class, 'respondNegotiation'])
+            ->whereNumber('deal')->whereNumber('proposal');
+        Route::post('/deals/{deal}/agreement/generate', [DealController::class, 'generateAgreement'])
+            ->whereNumber('deal');
+        Route::post('/deals/{deal}/agreement/sign', [DealController::class, 'signAgreement'])
+            ->whereNumber('deal');
+        Route::post('/deals/{deal}/milestones', [DealMilestoneController::class, 'store'])
+            ->whereNumber('deal');
+        Route::put('/deals/{deal}/milestones/{milestone}', [DealMilestoneController::class, 'update'])
+            ->whereNumber('deal')->whereNumber('milestone');
+        Route::post('/deals/{deal}/milestones/{milestone}/progress', [DealMilestoneController::class, 'progress'])
+            ->whereNumber('deal')->whereNumber('milestone');
+        Route::post('/deals/{deal}/milestones/{milestone}/submit', [DealMilestoneController::class, 'submit'])
+            ->whereNumber('deal')->whereNumber('milestone');
+        Route::post('/deals/{deal}/milestones/{milestone}/confirm', [DealMilestoneController::class, 'confirm'])
+            ->whereNumber('deal')->whereNumber('milestone');
+        Route::post('/deals/{deal}/milestones/{milestone}/dispute', [DealMilestoneController::class, 'dispute'])
+            ->whereNumber('deal')->whereNumber('milestone');
+        Route::post('/deals/{deal}/activate-milestones', [DealMilestoneController::class, 'activateMilestones'])
+            ->whereNumber('deal');
+        Route::post('/deals/{deal}/complete', [DealMilestoneController::class, 'complete'])
+            ->whereNumber('deal');
         Route::post('/businesses/{business}/disclosure/confirm-stage-4', [BusinessDisclosureController::class, 'confirmStageFour'])
             ->whereNumber('business');
         Route::post('/businesses/{business}/nda/request', [BusinessNdaController::class, 'requestNda'])

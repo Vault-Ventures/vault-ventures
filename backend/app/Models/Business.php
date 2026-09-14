@@ -44,6 +44,21 @@ class Business extends Model
         return $this->hasMany(BusinessNda::class);
     }
 
+    public function interests(): HasMany
+    {
+        return $this->hasMany(BusinessInterest::class);
+    }
+
+    public function connections(): HasMany
+    {
+        return $this->hasMany(BusinessConnection::class);
+    }
+
+    public function deals(): HasMany
+    {
+        return $this->hasMany(Deal::class);
+    }
+
     protected function casts(): array
     {
         return ['status' => BusinessStatus::class, 'submitted_at' => 'datetime'];
