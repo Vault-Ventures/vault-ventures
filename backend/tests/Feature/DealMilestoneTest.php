@@ -789,6 +789,80 @@ class DealMilestoneTest extends TestCase
         $this->actingAs($unrelated)->postJson("/api/me/deals/{$deal->id}/complete")->assertForbidden();
     }
 
+    public function test_counterparty_forbidden_from_creating_or_updating_milestones(): void
+    {
+        $founder = $this->createFounder('founder.auth@example.com');
+        $investor = $this->createInvestor('investor.auth@example.com');
+        $business = $this->createBusiness($founder);
+        $connection = $this->createConnection($business, $founder, $investor);
+        $deal = $this->createDeal($connection, DealStage::Agreement);
+        $this->setupAgreement($deal, 100000.00);
+
+        // 1. Founder can create a milestone
+        $createResp = $this->actingAs($founder)->postJson("/api/me/deals/{$deal->id}/milestones", [
+            'sequence_order' => 1,
+            'title' => 'Initial Tranche',
+            'target_amount' => 50000.00,
+            'target_date' => today()->addMonths(2)->toDateString(),
+        ]);
+        $createResp->assertCreated();
+        $milestoneId = $createResp->json('data.id');
+
+        // 2. Investor cannot create a milestone
+        $investorCreate = $this->actingAs($investor)->postJson("/api/me/deals/{$deal->id}/milestones?role=investor", [
+            'sequence_order' => 2,
+            'title' => 'Unauthorized Tranche',
+            'target_amount' => 50000.00,
+        ]);
+        $investorCreate->assertForbidden();
+
+        // 3. Investor cannot update/re-price a milestone
+        $investorUpdate = $this->actingAs($investor)->putJson("/api/me/deals/{$deal->id}/milestones/{$milestoneId}?role=investor", [
+            'title' => 'Modified Title',
+            'target_amount' => 75000.00,
+        ]);
+        $investorUpdate->assertForbidden();
+
+        // 4. Founder can update/re-price the milestone
+        $founderUpdate = $this->actingAs($founder)->putJson("/api/me/deals/{$deal->id}/milestones/{$milestoneId}", [
+            'title' => 'Updated Tranche',
+            'target_amount' => 100000.00,
+        ]);
+        $founderUpdate->assertOk()
+            ->assertJsonPath('data.title', 'Updated Tranche');
+        $this->assertEquals(100000.00, (float) $founderUpdate->json('data.target_amount'));
+    }
+
+    public function test_professional_counterparty_forbidden_from_creating_or_updating_milestones(): void
+    {
+        $founder = $this->createFounder('fpro@example.com');
+        $pro = $this->createProfessional('pro.auth@example.com');
+        $business = $this->createBusiness($founder);
+        $connection = $this->createConnection($business, $founder, $pro, ParticipantRole::Professional);
+        $deal = $this->createDeal($connection, DealStage::Agreement);
+
+        // 1. Founder creates milestone
+        $createResp = $this->actingAs($founder)->postJson("/api/me/deals/{$deal->id}/milestones", [
+            'sequence_order' => 1,
+            'title' => 'Deliverable 1',
+            'target_amount' => 0.00,
+        ]);
+        $createResp->assertCreated();
+        $milestoneId = $createResp->json('data.id');
+
+        // 2. Professional counterparty cannot create milestone
+        $this->actingAs($pro)->postJson("/api/me/deals/{$deal->id}/milestones?role=professional", [
+            'sequence_order' => 2,
+            'title' => 'Pro Created Milestone',
+            'target_amount' => 0.00,
+        ])->assertForbidden();
+
+        // 3. Professional counterparty cannot update milestone
+        $this->actingAs($pro)->putJson("/api/me/deals/{$deal->id}/milestones/{$milestoneId}?role=professional", [
+            'title' => 'Pro Updated Milestone',
+        ])->assertForbidden();
+    }
+
     public function test_cannot_create_milestone_after_funding_activation(): void
     {
         $founder = $this->createFounder('f1@example.com');
