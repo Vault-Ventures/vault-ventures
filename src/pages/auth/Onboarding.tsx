@@ -2,21 +2,9 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { IconCheck } from '../../components/layout/Icons';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth, NormalRole } from '../../context/AuthContext';
 
-type Role = 'founder' | 'investor' | 'professional';
-
-// Read roles from session (set during registration) or default to founder
-function getRegisteredRoles(): Role[] {
-  try {
-    const stored = sessionStorage.getItem('vv_reg_roles');
-    if (stored) {
-      const roles = JSON.parse(stored) as Role[];
-      if (Array.isArray(roles) && roles.length > 0) return roles;
-    }
-  } catch {}
-  return ['founder'];
-}
+type Role = NormalRole;
 
 // ─── Shared ───────────────────────────────────────────────────────────────────
 
@@ -107,7 +95,6 @@ function TagSelector({ label, options, selected, onChange, description }: {
 function OnboardingProgress({ roles, currentStep }: { roles: Role[]; currentStep: number }) {
   const roleLabels: Record<Role, string> = { founder: 'Founder', investor: 'Investor', professional: 'Professional' };
   const steps = ['Account', 'Roles', ...roles.map(r => roleLabels[r]), 'Complete'];
-  // currentStep: 0=founder setup, 1=investor setup, etc; offset by 2 for Account+Roles
   const activeIndex = currentStep + 2;
 
   return (
@@ -142,37 +129,30 @@ function OnboardingProgress({ roles, currentStep }: { roles: Role[]; currentStep
 
 // ─── Role setup forms ─────────────────────────────────────────────────────────
 
-function FounderSetup({ onNext, onBack, onSkip }: { onNext: () => void; onBack: () => void; onSkip: () => void }) {
+function FounderSetup({ onNext, onSkip }: { onNext: () => void; onBack: () => void; onSkip: () => void }) {
   const [business, setBusiness] = useState('');
   const [industry, setIndustry] = useState('');
   const [stage, setStage] = useState('');
   const [experience, setExperience] = useState('');
   const [skills, setSkills] = useState<string[]>([]);
-  const [interests, setInterests] = useState<string[]>([]);
-
-  const INDUSTRIES = ['FinTech', 'HealthTech', 'EdTech', 'SaaS', 'Logistics', 'AI/ML', 'Consumer', 'CleanTech', 'BioTech', 'Other'];
-  const STAGES = ['Pre-Idea', 'Idea', 'Pre-Seed', 'Seed', 'Series A', 'Series B+'];
-  const SKILLS = ['Product', 'Engineering', 'Design', 'Sales', 'Marketing', 'Finance', 'Operations', 'Legal', 'Data'];
-  const INTERESTS = ['Angel Investment', 'Strategic Advisors', 'Technical Co-founder', 'GTM Partners', 'Enterprise Sales'];
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-1">
-        <span className="w-6 h-6 rounded-md bg-[#C67A4E]/10 border border-[#C67A4E]/30 flex items-center justify-center text-[10px] font-bold text-[#C67A4E]">F</span>
-        <h2 className="font-display text-[18px] font-semibold text-[color:var(--vv-text)]">Founder Setup</h2>
+    <div className="space-y-4">
+      <div>
+        <p className="text-[10px] uppercase tracking-widest text-[#C67A4E] font-semibold mb-1">Founder Setup</p>
+        <h2 className="font-display text-[17px] font-semibold text-[color:var(--vv-text)]">Tell us about your venture</h2>
+        <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mt-0.5">This initial information will help initialize your profile.</p>
       </div>
-      <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mb-5">Tell us about your business to improve your matches.</p>
-      <div className="space-y-3.5 mb-6">
-        <Field id="f-biz" label="Business / Company name" placeholder="e.g. NovaTech AI" value={business} onChange={setBusiness} />
-        <SelectField id="f-industry" label="Industry" value={industry} onChange={setIndustry} options={INDUSTRIES} />
-        <SelectField id="f-stage" label="Business stage" value={stage} onChange={setStage} options={STAGES} />
-        <SelectField id="f-exp" label="Founder experience" value={experience} onChange={setExperience}
-          options={['First-time founder', '1–2 previous companies', '3+ previous companies', 'Exited founder']} />
-        <TagSelector label="Your skills" options={SKILLS} selected={skills} onChange={setSkills}
-          description="Select skills you bring as a founder." />
-        <TagSelector label="What you're looking for" options={INTERESTS} selected={interests} onChange={setInterests} />
-      </div>
-      <div className="flex gap-2">
+      <Field id="ob-biz" label="Business name" placeholder="e.g. NovaTech Solutions" value={business} onChange={setBusiness} />
+      <SelectField id="ob-ind" label="Primary industry" value={industry} onChange={setIndustry}
+        options={['FinTech', 'HealthTech', 'Enterprise SaaS', 'Consumer', 'CleanTech', 'AI & Data', 'E-commerce', 'Other']} />
+      <SelectField id="ob-stage" label="Current stage" value={stage} onChange={setStage}
+        options={['Idea / Concept', 'MVP / Prototype', 'Early Traction', 'Growth / Scaling']} />
+      <SelectField id="ob-exp" label="Founder experience" value={experience} onChange={setExperience}
+        options={['First-time founder', 'Serial founder (1-2 exits)', 'Experienced operator', 'Academic / Research']} />
+      <TagSelector label="Key domain strengths" options={['Product', 'Engineering', 'Sales & GTM', 'Finance & Ops', 'Design & UX', 'Marketing']}
+        selected={skills} onChange={setSkills} description="Select up to 3 core areas" />
+      <div className="flex gap-2 pt-2">
         <Button className="flex-1" onClick={onNext}>Continue</Button>
         <Button variant="ghost" onClick={onSkip} className="text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)]">Complete later</Button>
       </div>
@@ -180,36 +160,28 @@ function FounderSetup({ onNext, onBack, onSkip }: { onNext: () => void; onBack: 
   );
 }
 
-function InvestorSetup({ onNext, onBack, onSkip }: { onNext: () => void; onBack: () => void; onSkip: () => void }) {
+function InvestorSetup({ onNext, onSkip }: { onNext: () => void; onBack: () => void; onSkip: () => void }) {
   const [investorType, setInvestorType] = useState('');
-  const [stage, setStage] = useState('');
-  const [range, setRange] = useState('');
-  const [location, setLocation] = useState('');
-  const [involvement, setInvolvement] = useState('');
+  const [ticketSize, setTicketSize] = useState('');
   const [industries, setIndustries] = useState<string[]>([]);
-
-  const TYPES = ['Angel Investor', 'Venture Capital', 'Family Office', 'Corporate VC', 'Syndicate Lead', 'Private Equity'];
-  const STAGES = ['Pre-Seed', 'Seed', 'Series A', 'Series B', 'Series C+', 'Growth', 'All Stages'];
-  const RANGES = ['Under ৳25L', '৳25L–৳1Cr', '৳1Cr–৳5Cr', '৳5Cr–৳20Cr', '৳20Cr+', 'Varies'];
-  const INVOLVEMENT = ['Hands-on advisor', 'Board seat', 'Passive investor', 'Strategic connector', 'Open to discussion'];
-  const INDUSTRIES = ['FinTech', 'HealthTech', 'EdTech', 'SaaS', 'Logistics', 'AI/ML', 'Consumer', 'CleanTech', 'BioTech'];
+  const [stages, setStages] = useState<string[]>([]);
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-1">
-        <span className="w-6 h-6 rounded-md bg-[#C9A24B]/10 border border-[#C9A24B]/30 flex items-center justify-center text-[10px] font-bold text-[#C9A24B]">I</span>
-        <h2 className="font-display text-[18px] font-semibold text-[color:var(--vv-text)]">Investor Setup</h2>
+    <div className="space-y-4">
+      <div>
+        <p className="text-[10px] uppercase tracking-widest text-[#C9A24B] font-semibold mb-1">Investor Setup</p>
+        <h2 className="font-display text-[17px] font-semibold text-[color:var(--vv-text)]">Your investment thesis</h2>
+        <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mt-0.5">Set parameters for opportunity matching.</p>
       </div>
-      <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mb-5">Define your investment thesis for better startup matches.</p>
-      <div className="space-y-3.5 mb-6">
-        <SelectField id="i-type" label="Investor type" value={investorType} onChange={setInvestorType} options={TYPES} />
-        <TagSelector label="Preferred industries" options={INDUSTRIES} selected={industries} onChange={setIndustries} />
-        <SelectField id="i-stage" label="Preferred stage" value={stage} onChange={setStage} options={STAGES} />
-        <SelectField id="i-range" label="Investment range" value={range} onChange={setRange} options={RANGES} />
-        <Field id="i-loc" label="Location" placeholder="e.g. London, UK" value={location} onChange={setLocation} />
-        <SelectField id="i-inv" label="Involvement preference" value={involvement} onChange={setInvolvement} options={INVOLVEMENT} />
-      </div>
-      <div className="flex gap-2">
+      <SelectField id="ob-inv-type" label="Investor profile" value={investorType} onChange={setInvestorType}
+        options={['Angel Investor', 'Family Office', 'Venture Capital', 'Corporate VC', 'Syndicate Lead']} />
+      <SelectField id="ob-ticket" label="Preferred check size" value={ticketSize} onChange={setTicketSize}
+        options={['৳10K - ৳50K', '৳50K - ৳250K', '৳250K - ৳1M', '৳1M+']} />
+      <TagSelector label="Target sectors" options={['FinTech', 'HealthTech', 'Enterprise SaaS', 'CleanTech', 'AI & Data', 'Consumer']}
+        selected={industries} onChange={setIndustries} description="Select all that fit your mandate" />
+      <TagSelector label="Target stages" options={['Pre-Seed', 'Seed', 'Series A', 'Series B+']}
+        selected={stages} onChange={setStages} />
+      <div className="flex gap-2 pt-2">
         <Button className="flex-1" onClick={onNext}>Continue</Button>
         <Button variant="ghost" onClick={onSkip} className="text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)]">Complete later</Button>
       </div>
@@ -217,37 +189,27 @@ function InvestorSetup({ onNext, onBack, onSkip }: { onNext: () => void; onBack:
   );
 }
 
-function ProfessionalSetup({ onNext, onBack, onSkip }: { onNext: () => void; onBack: () => void; onSkip: () => void }) {
-  const [experience, setExperience] = useState('');
-  const [availability, setAvailability] = useState('');
-  const [workPref, setWorkPref] = useState('');
-  const [location, setLocation] = useState('');
+function ProfessionalSetup({ onNext, onSkip }: { onNext: () => void; onBack: () => void; onSkip: () => void }) {
+  const [title, setTitle] = useState('');
   const [skills, setSkills] = useState<string[]>([]);
-  const [industries, setIndustries] = useState<string[]>([]);
-
-  const SKILLS = ['Product Management', 'Engineering', 'Design / UX', 'Marketing', 'Sales', 'Finance / CFO', 'Legal / Compliance', 'Data Science', 'Operations', 'HR / Talent'];
-  const INDUSTRIES = ['FinTech', 'HealthTech', 'EdTech', 'SaaS', 'Logistics', 'AI/ML', 'Consumer', 'CleanTech', 'BioTech'];
-  const EXP = ['0–2 years', '3–5 years', '6–10 years', '10+ years', 'Executive / C-suite'];
-  const AVAIL = ['Full-time', 'Part-time', 'Advisory only', 'Project-based', 'Open'];
-  const WORK = ['Remote', 'Hybrid', 'On-site', 'Flexible'];
+  const [rate, setRate] = useState('');
+  const [availability, setAvailability] = useState('');
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-1">
-        <span className="w-6 h-6 rounded-md bg-[#22C55E]/10 border border-[#22C55E]/30 flex items-center justify-center text-[10px] font-bold text-[#22C55E]">P</span>
-        <h2 className="font-display text-[18px] font-semibold text-[color:var(--vv-text)]">Professional Setup</h2>
+    <div className="space-y-4">
+      <div>
+        <p className="text-[10px] uppercase tracking-widest text-[#22C55E] font-semibold mb-1">Professional Setup</p>
+        <h2 className="font-display text-[17px] font-semibold text-[color:var(--vv-text)]">Your expertise & availability</h2>
+        <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mt-0.5">Configure your profile for matching opportunities.</p>
       </div>
-      <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mb-5">Tell us about your expertise to match you with the right opportunities.</p>
-      <div className="space-y-3.5 mb-6">
-        <TagSelector label="Your skills" options={SKILLS} selected={skills} onChange={setSkills}
-          description="Select your primary professional skills." />
-        <TagSelector label="Industry experience" options={INDUSTRIES} selected={industries} onChange={setIndustries} />
-        <SelectField id="p-exp" label="Years of experience" value={experience} onChange={setExperience} options={EXP} />
-        <SelectField id="p-avail" label="Availability" value={availability} onChange={setAvailability} options={AVAIL} />
-        <SelectField id="p-work" label="Work preference" value={workPref} onChange={setWorkPref} options={WORK} />
-        <Field id="p-loc" label="Location" placeholder="e.g. Berlin, Germany" value={location} onChange={setLocation} />
-      </div>
-      <div className="flex gap-2">
+      <Field id="ob-title" label="Headline / Primary Title" placeholder="e.g. Fractional CTO | Senior ML Engineer" value={title} onChange={setTitle} />
+      <TagSelector label="Core skills" options={['React/TypeScript', 'Python/ML', 'Go/Cloud', 'UI/UX Design', 'Product Strategy', 'Growth Marketing', 'Financial Modeling', 'Legal/Contracts']}
+        selected={skills} onChange={setSkills} description="Select skills relevant to startup engagements" />
+      <SelectField id="ob-rate" label="Hourly rate / compensation" value={rate} onChange={setRate}
+        options={['৳50 - ৳100/hr', '৳100 - ৳175/hr', '৳175 - ৳250/hr', '৳250+/hr', 'Equity / Advisory only']} />
+      <SelectField id="ob-avail" label="Weekly availability" value={availability} onChange={setAvailability}
+        options={['5-10 hrs/week (Advisory)', '10-20 hrs/week (Part-time)', '20-40 hrs/week (Full project)', 'Available immediately']} />
+      <div className="flex gap-2 pt-2">
         <Button className="flex-1" onClick={onNext}>Continue</Button>
         <Button variant="ghost" onClick={onSkip} className="text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)]">Complete later</Button>
       </div>
@@ -259,15 +221,14 @@ function ProfessionalSetup({ onNext, onBack, onSkip }: { onNext: () => void; onB
 
 export default function Onboarding() {
   const navigate = useNavigate();
-  const { completeOnboarding } = useAuth();
-  const roles = getRegisteredRoles();
+  const { session } = useAuth();
+  const roles: Role[] = session.roles.length > 0 ? session.roles : ['founder'];
   const [step, setStep] = useState(0); // index into roles[]
 
   function next() {
     if (step < roles.length - 1) {
       setStep(s => s + 1);
     } else {
-      completeOnboarding(roles);
       navigate('/onboarding/complete?role=' + roles[0]);
     }
   }
@@ -281,11 +242,10 @@ export default function Onboarding() {
   }
 
   function skip() {
-    completeOnboarding(roles);
     navigate('/onboarding/complete?role=' + roles[0] + '&skip=1');
   }
 
-  const currentRole = roles[step];
+  const currentRole = roles[step] || 'founder';
 
   const formMap: Record<Role, React.ReactNode> = {
     founder: <FounderSetup onNext={next} onBack={back} onSkip={skip} />,

@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { IconCheck } from '../../components/layout/Icons';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth, NormalRole } from '../../context/AuthContext';
+import { ApiError } from '../../services/api';
 
-type Role = 'founder' | 'investor' | 'professional';
+type Role = NormalRole;
 
 const ROLES: { id: Role; label: string; desc: string; icon: React.ReactNode; color: string }[] = [
   {
@@ -126,7 +127,8 @@ function StepProgress({ step }: { step: number }) {
 
 // ─── Steps ─────────────────────────────────────────────────────────────────────
 
-function AccountStep({ onNext, onBack }: { onNext: (data: { name: string; email: string }) => void; onBack: () => void }) {
+function AccountStep({ onNext }: { onNext: (email: string) => void }) {
+  const { register } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
@@ -135,17 +137,46 @@ function AccountStep({ onNext, onBack }: { onNext: (data: { name: string; email:
   const [showConfirm, setShowConfirm] = useState(false);
   const [touched, setTouched] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [generalError, setGeneralError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const pwWeak = pw.length > 0 && pw.length < 8;
+  const pwValid = pw.length >= 12 && /[A-Z]/.test(pw) && /[a-z]/.test(pw) && /[0-9]/.test(pw);
   const pwMismatch = !!confirm && pw !== confirm;
-  const valid = name.trim() && email.includes('@') && pw.length >= 8 && pw === confirm;
+  const valid = name.trim() && email.includes('@') && pwValid && pw === confirm;
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     setTouched(true);
+    setGeneralError('');
+    setFieldErrors({});
+
     if (!valid) return;
     setLoading(true);
-    setTimeout(() => { setLoading(false); onNext({ name, email }); }, 600);
+
+    try {
+      await register({
+        name: name.trim(),
+        email: email.trim(),
+        password: pw,
+        password_confirmation: confirm,
+      });
+      onNext(email.trim());
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        if (err.details) {
+          const errors: Record<string, string> = {};
+          if (err.details.name) errors.name = err.details.name[0];
+          if (err.details.email) errors.email = err.details.email[0];
+          if (err.details.password) errors.password = err.details.password[0];
+          setFieldErrors(errors);
+        }
+        setGeneralError(err.message || 'Registration failed. Please check your inputs.');
+      } else {
+        setGeneralError('Unable to connect to server. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   const eyeIcon = (show: boolean, toggle: () => void) => (
@@ -169,15 +200,22 @@ function AccountStep({ onNext, onBack }: { onNext: (data: { name: string; email:
       <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mb-6">
         Already have an account? <Link to="/login" className="text-[#C67A4E] hover:underline">Sign in</Link>
       </p>
+
+      {generalError && (
+        <div className="mb-4 px-3 py-2.5 bg-[#F04438]/8 border border-[#F04438]/30 rounded-md">
+          <p className="text-[12px] text-[#F04438]">{generalError}</p>
+        </div>
+      )}
+
       <form onSubmit={submit} className="space-y-3.5">
         <Field id="reg-name" label="Full name" value={name} onChange={setName} placeholder="Alex Morgan"
-          error={touched && !name.trim() ? 'Full name is required.' : undefined} />
+          error={fieldErrors.name || (touched && !name.trim() ? 'Full name is required.' : undefined)} />
         <Field id="reg-email" label="Email address" type="email" value={email} onChange={setEmail} placeholder="you@example.com"
-          error={touched && !email.includes('@') ? 'A valid email address is required.' : undefined} />
+          error={fieldErrors.email || (touched && !email.includes('@') ? 'A valid email address is required.' : undefined)} />
         <Field id="reg-pw" label="Password" type={showPw ? 'text' : 'password'} value={pw} onChange={setPw}
-          placeholder="Min. 8 characters"
-          hint={pw.length === 0 ? undefined : undefined}
-          error={pwWeak ? 'At least 8 characters required.' : undefined}
+          placeholder="Min. 12 characters"
+          hint="Minimum 12 characters with uppercase, lowercase, and numbers."
+          error={fieldErrors.password || (touched && !pwValid ? 'Password must be at least 12 characters with uppercase, lowercase, and a number.' : undefined)}
           suffix={eyeIcon(showPw, () => setShowPw(v => !v))} />
         <Field id="reg-confirm" label="Confirm password" type={showConfirm ? 'text' : 'password'} value={confirm} onChange={setConfirm}
           placeholder="Repeat password"
@@ -195,8 +233,11 @@ function AccountStep({ onNext, onBack }: { onNext: (data: { name: string; email:
   );
 }
 
-function RoleStep({ onNext, onBack }: { onNext: (roles: Role[]) => void; onBack: () => void }) {
+function RoleStep({ onNext }: { onNext: () => void }) {
+  const { enrollRoles } = useAuth();
   const [selected, setSelected] = useState<Set<Role>>(new Set());
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   function toggle(role: Role) {
     setSelected(prev => {
@@ -206,10 +247,36 @@ function RoleStep({ onNext, onBack }: { onNext: (roles: Role[]) => void; onBack:
     });
   }
 
+  async function handleContinue() {
+    if (selected.size === 0) return;
+    setError('');
+    setLoading(true);
+
+    try {
+      await enrollRoles(Array.from(selected));
+      onNext();
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        setError(err.message || 'Failed to enroll selected roles.');
+      } else {
+        setError('Unable to save roles. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div>
       <h1 className="font-display text-[20px] font-semibold text-[color:var(--vv-text)] mb-1">How will you use Vault Ventures?</h1>
       <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mb-6">Select one or more roles. You can add more later.</p>
+
+      {error && (
+        <div className="mb-4 px-3 py-2.5 bg-[#F04438]/8 border border-[#F04438]/30 rounded-md">
+          <p className="text-[12px] text-[#F04438]">{error}</p>
+        </div>
+      )}
+
       <div className="space-y-2.5 mb-6">
         {ROLES.map(r => {
           const active = selected.has(r.id);
@@ -238,7 +305,7 @@ function RoleStep({ onNext, onBack }: { onNext: (roles: Role[]) => void; onBack:
           );
         })}
       </div>
-      <Button className="w-full" disabled={selected.size === 0} onClick={() => onNext(Array.from(selected))}>
+      <Button className="w-full" disabled={selected.size === 0} loading={loading} onClick={handleContinue}>
         Continue {selected.size > 0 && `with ${selected.size} role${selected.size > 1 ? 's' : ''}`}
       </Button>
       <p className="text-[11px] text-[color:var(--vv-text-tertiary)] text-center mt-3">One account holds all your selected roles.</p>
@@ -246,11 +313,30 @@ function RoleStep({ onNext, onBack }: { onNext: (roles: Role[]) => void; onBack:
   );
 }
 
-function VerifyStep({ email, onBack }: { email: string; onBack: () => void }) {
+function VerifyStep({ email }: { email: string }) {
   const navigate = useNavigate();
+  const { resendVerificationNotification } = useAuth();
   const [resent, setResent] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
 
-  function resend() { setResent(true); setTimeout(() => setResent(false), 3000); }
+  async function resend() {
+    setResending(true);
+    setStatusMessage('');
+    try {
+      await resendVerificationNotification();
+      setResent(true);
+      setStatusMessage('Verification email resent successfully.');
+      setTimeout(() => {
+        setResent(false);
+        setStatusMessage('');
+      }, 4000);
+    } catch {
+      setStatusMessage('Unable to resend email. Please try again later.');
+    } finally {
+      setResending(false);
+    }
+  }
 
   return (
     <div>
@@ -265,19 +351,22 @@ function VerifyStep({ email, onBack }: { email: string; onBack: () => void }) {
       </p>
       <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mb-6">Click the link in the email to confirm your account and continue setup.</p>
 
+      {statusMessage && (
+        <div className="mb-4 px-3 py-2 bg-[#22C55E]/10 border border-[#22C55E]/30 rounded-md">
+          <p className="text-[12px] text-[#22C55E]">{statusMessage}</p>
+        </div>
+      )}
+
       <div className="space-y-2.5 mb-6">
         <Button className="w-full" onClick={() => navigate('/onboarding')}>
           Continue to Profile Setup
         </Button>
-        <Button variant="secondary" className="w-full" onClick={resend} disabled={resent}>
+        <Button variant="secondary" className="w-full" onClick={resend} disabled={resent || resending} loading={resending}>
           {resent ? 'Email resent' : 'Resend email'}
         </Button>
       </div>
 
       <div className="flex flex-col gap-2 items-center">
-        <button className="text-[11.5px] text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] transition-colors">
-          Change email address
-        </button>
         <Link to="/login" className="text-[11.5px] text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] transition-colors">
           Back to Sign in
         </Link>
@@ -290,19 +379,15 @@ function VerifyStep({ email, onBack }: { email: string; onBack: () => void }) {
 
 export default function Register() {
   const navigate = useNavigate();
-  const { beginRegistration } = useAuth();
   const [step, setStep] = useState(0);
   const [email, setEmail] = useState('');
 
-  function handleAccount(data: { name: string; email: string }) {
-    beginRegistration(data);
-    setEmail(data.email);
+  function handleAccountSuccess(registeredEmail: string) {
+    setEmail(registeredEmail);
     setStep(1);
   }
 
-  function handleRoles(roles: Role[]) {
-    // Store roles for onboarding (in real app this would be in auth state)
-    sessionStorage.setItem('vv_reg_roles', JSON.stringify(roles));
+  function handleRolesSuccess() {
     setStep(2);
   }
 
@@ -357,9 +442,9 @@ export default function Register() {
 
           <StepProgress step={step} />
 
-          {step === 0 && <AccountStep onNext={handleAccount} onBack={() => navigate('/login')} />}
-          {step === 1 && <RoleStep onNext={handleRoles} onBack={() => setStep(0)} />}
-          {step === 2 && <VerifyStep email={email} onBack={() => setStep(1)} />}
+          {step === 0 && <AccountStep onNext={handleAccountSuccess} />}
+          {step === 1 && <RoleStep onNext={handleRolesSuccess} />}
+          {step === 2 && <VerifyStep email={email} />}
         </div>
       </div>
     </div>

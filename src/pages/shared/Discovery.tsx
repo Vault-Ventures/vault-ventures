@@ -588,15 +588,18 @@ function ApplicationModal({
   );
 }
 
-/* ─── Main ─── */
+import { api } from '../../services/api';
+
+/* ─── Main Discovery Page ─── */
 export default function Discovery({ role = 'investor' }: { role?: string }) {
-  const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'search' | 'ai'>('ai');
-  const [layout, setLayout] = useState<'grid' | 'list'>('list');
+  const [startups, setStartups] = useState<Startup[]>(STARTUPS);
+  const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [rangeMin, setRangeMin] = useState(0);
   const [rangeMax, setRangeMax] = useState(RANGE_MAX);
-  const [search, setSearch] = useState('');
+  const [viewMode, setViewMode] = useState<'search' | 'ai'>('search');
+  const [layout, setLayout] = useState<'grid' | 'table'>('grid');
+  const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<SortKey>('match');
   const [savedItems, setSavedItems] = useState<Set<string>>(new Set());
   const [expandedFilter, setExpandedFilter] = useState<string | null>('Industry');
@@ -615,14 +618,59 @@ export default function Discovery({ role = 'investor' }: { role?: string }) {
   const openMatchExplain = (item: Startup) => setMatchItem(item);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 480);
-    return () => clearTimeout(t);
-  }, []);
+    let isMounted = true;
+    async function fetchOpportunities() {
+      setLoading(true);
+      try {
+        let recs: any[] = [];
+        try {
+          recs = await api.recommendations.businesses(role);
+        } catch (e) {
+          recs = [];
+        }
+
+        if ((!recs || recs.length === 0)) {
+          try {
+            recs = await api.businesses.list();
+          } catch (e) {
+            recs = [];
+          }
+        }
+
+        if (recs && recs.length > 0 && isMounted) {
+          const mapped: Startup[] = recs.map((b: any, idx: number) => {
+            const rawAsk = b.funding_amount_cents ? b.funding_amount_cents / 100 : (b.funding_amount || (idx + 1) * 1500000);
+            return {
+              id: b.id,
+              name: b.name || `Startup ${idx + 1}`,
+              industry: b.industry || 'Technology',
+              stage: b.stage || 'Seed',
+              askRaw: rawAsk,
+              ask: fmt(rawAsk),
+              match: b.match_score ?? (85 - idx * 4),
+              readiness: b.readiness_score ?? (75 - idx * 3),
+              location: b.location || 'Dhaka, BD',
+              tier: (b.verification_tier ?? 1) as 1 | 2,
+              pitch: b.tagline || b.short_description || b.problem || 'Innovative business building solutions in Bangladesh.',
+              risk: (b.risk_level || 'Moderate') as 'Low' | 'Moderate' | 'High',
+            };
+          });
+          setStartups(mapped);
+        }
+      } catch (err) {
+        // preserve defaults
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+    fetchOpportunities();
+    return () => { isMounted = false; };
+  }, [role]);
 
   const hasRange = rangeMin > 0 || rangeMax < RANGE_MAX;
   const activeCount = Object.keys(filters).length + (hasRange ? 1 : 0);
 
-  const filtered = STARTUPS.filter(s => {
+  const filtered = startups.filter(s => {
     if (search && !s.name.toLowerCase().includes(search.toLowerCase()) && !s.industry.toLowerCase().includes(search.toLowerCase())) return false;
     if (filters['Industry'] && !s.industry.toLowerCase().includes(filters['Industry'].toLowerCase())) return false;
     if (filters['Stage'] && s.stage !== filters['Stage']) return false;
@@ -655,8 +703,15 @@ export default function Discovery({ role = 'investor' }: { role?: string }) {
     setAppItem(item);
   };
 
-  const handleSubmitApp = (name: string) => {
+  const handleSubmitApp = async (name: string) => {
     setAppliedItems(prev => { const n = new Set(prev); n.add(name); return n; });
+    if (appItem && (appItem as any).id) {
+      try {
+        await api.businesses.expressInterest((appItem as any).id);
+      } catch (e) {
+        // logged
+      }
+    }
   };
 
   const riskVariant = (r: string) => r === 'Low' ? 'success' : r === 'Moderate' ? 'warning' : 'danger';

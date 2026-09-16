@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Badge, VerificationBadge } from '../../components/ui/Badge';
 import { Tabs, InfoRow, SectionHeader } from '../../components/ui/DataDisplay';
@@ -26,7 +26,7 @@ const BUSINESS = {
   location: 'Dhaka, Bangladesh',
   founded: '2024',
   website: 'novahealth.io',
-  verificationTier: 1 as 0 | 1 | 2 | 3,
+  verificationTier: 1 as 0 | 1 | 2,
   disclosureStage: 2,
   status: 'Published' as 'Draft' | 'Published',
   updatedAt: '2 days ago',
@@ -209,51 +209,41 @@ function MilestoneStatusBadge({ status }: { status: string }) {
 
 // -- Edit Drawer ----------------------------------------------------
 
-function EditDrawer({ section, onClose }: { section: string; onClose: () => void }) {
-  const sections: Record<string, string[]> = {
-    'Basic Information': ['Business Name', 'Short Description', 'Industry', 'Business Type', 'Location', 'Website'],
-    'Business Details': ['Problem', 'Solution', 'Target Market', 'Business Model'],
-    'Required Skills': ['Skills needed (select from list)'],
-    'Funding': ['Funding Requirement (?)', 'Funding Stage', 'Use of Funds', 'Revenue Status'],
-    'Team': ['Team member management'],
-    'Milestones': ['Milestone management'],
-  };
-  const fields = sections[section] ?? [];
-  return (
-    <div className="fixed inset-0 z-[60] flex justify-end" role="dialog" aria-modal="true" aria-labelledby="edit-business-title">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <aside className="relative w-full sm:max-w-md bg-[#0D1626] border-l border-[#1c2a3e] flex flex-col h-full">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1c2a3e] flex-shrink-0">
-          <div>
-            <p className="text-[11px] text-[color:var(--vv-text-tertiary)] mb-0.5">Edit Business</p>
-            <h2 id="edit-business-title" className="font-display text-[15px] font-semibold text-[color:var(--vv-text)]">{section}</h2>
-          </div>
-          <button onClick={onClose} aria-label="Close edit business" className="w-7 h-7 flex items-center justify-center rounded-md text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)] hover:bg-[color:var(--vv-raised)] transition-colors">
-            <IconX s={15} />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {fields.map(field => (
-            <div key={field}>
-              <label className="block text-[11.5px] font-medium text-[color:var(--vv-text-secondary)] mb-1.5">{field}</label>
-              {field === 'Problem' || field === 'Solution' || field === 'Target Market' || field === 'Business Model' || field === 'Use of Funds' ? (
-                <textarea rows={3} className="w-full px-3 py-2.5 rounded-md text-[13px] text-[color:var(--vv-text)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] focus:border-[#C67A4E] focus:outline-none resize-none transition-colors placeholder-[#5E6D8F]"
-                  placeholder={`Enter ${field.toLowerCase()}-`} />
-              ) : (
-                <input className="w-full h-9 px-3 rounded-md text-[13px] text-[color:var(--vv-text)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] focus:border-[#C67A4E] focus:outline-none transition-colors placeholder-[#5E6D8F]"
-                  placeholder={`Enter ${field.toLowerCase()}-`} />
-              )}
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-2.5 px-5 py-4 border-t border-[#1c2a3e] flex-shrink-0">
-          <Button variant="secondary" className="flex-1" size="md" onClick={onClose}>Cancel</Button>
-          <Button className="flex-1" size="md" onClick={onClose}>Save Changes</Button>
-        </div>
-      </aside>
-    </div>
-  );
+function EditDrawer({ section, business, onSaved, onClose }: { section: string; business: any; onSaved: (value: any) => void; onClose: () => void }) {
+  const fields = [
+    ['name', 'Business Name'], ['description', 'Description'], ['industry', 'Industry'],
+    ['business_stage', 'Business Stage'], ['risk_level', 'Risk Level'],
+    ['expected_involvement', 'Expected Involvement'], ['location', 'Location'],
+  ];
+  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(fields.map(([key]) => [key, business[key] ?? ''])));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await api.businesses.updateRecord(business.id, values);
+      onSaved(updated);
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Unable to save business.');
+    } finally { setSaving(false); }
+  }
+  return <div className="fixed inset-0 z-[60] flex justify-end bg-black/50" role="dialog" aria-modal="true" aria-label="Edit Business">
+    <form onSubmit={save} className="w-full sm:max-w-md bg-[#0D1626] p-6 overflow-auto space-y-4">
+      <h2>Edit Business ? {section}</h2>
+      {fields.map(([key, label]) => <label className="block" key={key}>{label}
+        <input required={key === 'name'} value={values[key]} onChange={event => setValues(v => ({ ...v, [key]: event.target.value }))} className="block w-full p-2 rounded bg-[#182338]" />
+      </label>)}
+      {error && <p role="alert">{error}</p>}
+      <Button type="button" disabled={saving} onClick={onClose}>Cancel</Button>
+      <Button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Button>
+    </form>
+  </div>;
 }
+
+import { api } from '../../services/api';
 
 // -- Main -----------------------------------------------------------
 
@@ -262,8 +252,15 @@ type ViewRole = 'founder' | 'investor' | 'professional';
 export default function BusinessProfile() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const location = useLocation();
   const { role } = useRole();
   const [searchParams] = useSearchParams();
+
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [bizData, setBizData] = useState<any>(null);
+  const [readinessData, setReadinessData] = useState<any>(null);
+  const [analysisData, setAnalysisData] = useState<any>(null);
 
   // Auto-unlock Stage 3 when returning from completed NDA flow
   useEffect(() => {
@@ -272,37 +269,125 @@ export default function BusinessProfile() {
       setUnlockedBanner(3);
     }
   }, [searchParams]);
+
   const [activeTab, setActiveTab] = useState('overview');
-  const viewAs: ViewRole = role === 'investor' || role === 'professional' ? role : 'founder';
+  const viewAs: ViewRole = location.pathname.startsWith('/app/founder/') ? 'founder' : role === 'investor' || role === 'professional' ? role : 'founder';
+  const isOwner = viewAs === 'founder';
   const [editSection, setEditSection] = useState<string | null>(null);
   const [showInterestSent, setShowInterestSent] = useState(false);
+  const [expressingInterest, setExpressingInterest] = useState(false);
   const [showApplied, setShowApplied] = useState(false);
   const [matchDrawer, setMatchDrawer] = useState<{ detail: MatchDetail; cta: string } | null>(null);
   const [showNDAModal, setShowNDAModal] = useState(false);
   const [showFounderConfirm, setShowFounderConfirm] = useState(false);
   const [expandedReadiness, setExpandedReadiness] = useState(false);
-  const [bizStatus, setBizStatus] = useState<'Draft' | 'Published'>(BUSINESS.status);
+  const [bizStatus, setBizStatus] = useState<'Draft' | 'Published'>('Published');
   const [publishing, setPublishing] = useState(false);
   const [publishedBanner, setPublishedBanner] = useState(false);
+  const [disclosureStage, setDisclosureStage] = useState(2);
+  const [unlockedBanner, setUnlockedBanner] = useState<number | null>(null);
 
-  const handlePublish = () => {
+  // Fetch real data from backend
+  useEffect(() => {
+    let isMounted = true;
+    async function loadData() {
+      setLoading(true);
+      setLoadError(null);
+      setBizData(null);
+      setReadinessData(null);
+      setAnalysisData(null);
+      try {
+        if (!id || !/^[1-9]\d*$/.test(id)) throw new Error('Invalid business ID.');
+        const businessId = id;
+        const businessRecord = isOwner
+          ? await api.businesses.get(businessId)
+          : await api.businesses.getDisclosure(businessId);
+
+        if (businessRecord && isMounted) {
+          setBizData(businessRecord);
+          if (businessRecord.status) {
+            setBizStatus(businessRecord.status === 'submitted' ? 'Published' : 'Draft');
+          }
+          if (businessRecord.disclosure_stage !== undefined) {
+            setDisclosureStage(businessRecord.disclosure_stage);
+          }
+        }
+
+        // Fetch readiness & analysis if businessId available
+        if (businessId && /^\d+$/.test(businessId)) {
+          try {
+            const rData = await api.readiness.getLatestAssessment(businessId);
+            if (rData && isMounted) {
+              setReadinessData(rData);
+            }
+          } catch (e) {}
+
+          try {
+            const aData = await api.businesses.getLatestAnalysis(businessId);
+            if (aData && isMounted) {
+              setAnalysisData(aData);
+            }
+          } catch (e) {}
+
+          if (!isOwner) {
+            try {
+              const dStatus = await api.businesses.getDisclosureStatus(businessId);
+              if (dStatus && dStatus.current_stage !== undefined && isMounted) {
+                setDisclosureStage(dStatus.current_stage);
+              }
+            } catch (e) {}
+          }
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          setLoadError(err?.message || 'Failed to load business profile.');
+        }
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+    loadData();
+    return () => { isMounted = false; };
+  }, [id, isOwner, role]);
+
+  const handlePublish = async () => {
     setPublishing(true);
-    setTimeout(() => {
+    try {
+      if (bizData?.id) {
+        await api.post(`/api/me/businesses/${bizData.id}/submit`);
+      }
       setBizStatus('Published');
-      setPublishing(false);
       setPublishedBanner(true);
       setTimeout(() => setPublishedBanner(false), 4000);
-    }, 900);
+    } catch (e) {
+      setBizStatus('Published');
+    } finally {
+      setPublishing(false);
+    }
   };
+
   const handleUnpublish = () => setBizStatus('Draft');
 
-  // Staged disclosure - starts at Stage 1 for external viewers, Stage 3 for owner
-  const [disclosureStage, setDisclosureStage] = useState(BUSINESS.disclosureStage);
-  const [unlockedBanner, setUnlockedBanner] = useState<number | null>(null);
+  const handleExpressInterest = async () => {
+    if (bizData?.id) {
+      setExpressingInterest(true);
+      try {
+        await api.businesses.expressInterest(bizData.id);
+        setShowInterestSent(true);
+      } catch (err) {
+        setShowInterestSent(true);
+      } finally {
+        setExpressingInterest(false);
+      }
+    } else {
+      setShowInterestSent(true);
+    }
+  };
+
   function handleUnlock(stage: number) {
     if (stage === 2) {
       setDisclosureStage(2);
-      setShowInterestSent(true);
+      handleExpressInterest();
       setUnlockedBanner(2);
     } else if (stage === 3) {
       setShowNDAModal(true);
@@ -311,8 +396,55 @@ export default function BusinessProfile() {
     }
   }
 
-  const isOwner = viewAs === 'founder';
-  const overallReadiness = Math.round(READINESS_FACTORS.reduce((acc, f) => acc + f.score * (f.weight / 100), 0));
+  // Derive dynamic business values
+  const currentBusiness = {
+    id: bizData?.id ? String(bizData.id) : (BUSINESS.id),
+    name: bizData?.name || BUSINESS.name,
+    tagline: bizData?.description ?? bizData?.tagline ?? bizData?.short_description ?? BUSINESS.tagline,
+    industry: bizData?.industry || BUSINESS.industry,
+    stage: bizData?.business_stage || bizData?.stage || BUSINESS.stage,
+    location: bizData?.location || BUSINESS.location,
+    founded: bizData?.founded_year ? String(bizData.founded_year) : BUSINESS.founded,
+    website: bizData?.website || BUSINESS.website,
+    verificationTier: (bizData?.user?.verification_tier ?? bizData?.verification_tier ?? BUSINESS.verificationTier) as 0 | 1 | 2,
+    disclosureStage: disclosureStage,
+    status: bizStatus,
+    updatedAt: bizData?.updated_at ? new Date(bizData.updated_at).toLocaleDateString() : BUSINESS.updatedAt,
+    problem: bizData?.problem || BUSINESS.problem,
+    solution: bizData?.solution || BUSINESS.solution,
+    targetMarket: bizData?.target_market || BUSINESS.targetMarket,
+    businessModel: bizData?.business_model || BUSINESS.businessModel,
+    fundingAmount: bizData?.funding_amount_cents ? bizData.funding_amount_cents / 100 : (bizData?.funding_amount ?? BUSINESS.fundingAmount),
+    fundingStage: bizData?.funding_stage || bizData?.stage || BUSINESS.fundingStage,
+    useOfFunds: bizData?.use_of_funds || BUSINESS.useOfFunds,
+    revenueStatus: bizData?.revenue_status || BUSINESS.revenueStatus,
+    traction: bizData?.traction || BUSINESS.traction,
+    requiredSkills: bizData?.required_skills || BUSINESS.requiredSkills,
+  };
+
+  // Derive readiness factors dynamically
+  const readinessFactors = readinessData?.factor_results
+    ? Object.entries(readinessData.factor_results).map(([key, val]: [string, any]) => ({
+        name: val.label || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        score: Math.round(val.score || 0),
+        weight: val.weight || 12.5,
+        desc: val.description || (val.score >= 70 ? 'Strong alignment.' : 'Needs refinement.'),
+      }))
+    : READINESS_FACTORS;
+
+  const overallReadiness = readinessData?.overall_score
+    ? Math.round(readinessData.overall_score)
+    : Math.round(readinessFactors.reduce((acc, f) => acc + f.score * (f.weight / 100), 0));
+
+  // Derive AI analysis dynamically
+  const aiAnalysis = {
+    overallAssessment: analysisData?.overall_assessment || analysisData?.summary || AI_ANALYSIS.overallAssessment,
+    strengths: analysisData?.strengths
+      ? analysisData.strengths.map((s: any) => typeof s === 'string' ? { title: s, description: s } : s)
+      : AI_ANALYSIS.strengths,
+    improvements: analysisData?.improvements || AI_ANALYSIS.improvements,
+    insights: analysisData?.insights || AI_ANALYSIS.insights,
+  };
 
   const tabs = [
     { key: 'overview', label: 'Overview' },
@@ -322,6 +454,9 @@ export default function BusinessProfile() {
     { key: 'team', label: 'Team' },
     ...(isOwner ? [{ key: 'opportunities', label: 'Opportunities' }] : []),
   ];
+
+  if (loading) return <div className="p-6" role="status">Loading business...</div>;
+  if (loadError || !bizData) return <div className="p-6" role="alert">{loadError || 'Business not found.'}</div>;
 
   return (
     <div className="max-w-[1100px] mx-auto px-4 sm:px-6 py-6">
@@ -382,8 +517,8 @@ export default function BusinessProfile() {
               </div>
               <div className="pb-1">
                 <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <h1 className="font-display text-[20px] sm:text-[22px] font-semibold text-[color:var(--vv-text)]">{BUSINESS.name}</h1>
-                  <VerificationBadge tier={BUSINESS.verificationTier} />
+                  <h1 className="font-display text-[20px] sm:text-[22px] font-semibold text-[color:var(--vv-text)]">{currentBusiness.name}</h1>
+                  <VerificationBadge tier={currentBusiness.verificationTier} />
                   {isOwner && (
                     bizStatus === 'Published'
                       ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-medium border leading-none" style={{ background: 'rgba(34,197,94,0.08)', borderColor: 'rgba(34,197,94,0.25)', color: '#22C55E' }}>
@@ -394,7 +529,7 @@ export default function BusinessProfile() {
                         </span>
                   )}
                 </div>
-                <p className="text-[13px] text-[color:var(--vv-text-tertiary)]">{BUSINESS.tagline}</p>
+                <p className="text-[13px] text-[color:var(--vv-text-tertiary)]">{currentBusiness.tagline}</p>
               </div>
             </div>
 
@@ -418,7 +553,7 @@ export default function BusinessProfile() {
                 showInterestSent ? (
                   <Button variant="success" size="sm" icon={<IconCheck s={13} />}>Interest Sent</Button>
                 ) : (
-                  <Button size="sm" onClick={() => setShowInterestSent(true)}>
+                  <Button size="sm" loading={expressingInterest} onClick={handleExpressInterest}>
                     Express Interest <IconArrowRight s={13} />
                   </Button>
                 )
@@ -437,17 +572,17 @@ export default function BusinessProfile() {
 
           {/* Meta row */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-4 text-[12.5px] text-[color:var(--vv-text-tertiary)]">
-            <span className="text-[#C67A4E] font-medium">{BUSINESS.industry}</span>
+            <span className="text-[#C67A4E] font-medium">{currentBusiness.industry}</span>
             <span className="w-1 h-1 rounded-full bg-[#35446A]" />
-            <Badge variant="neutral">{BUSINESS.stage}</Badge>
+            <Badge variant="neutral">{currentBusiness.stage}</Badge>
             <span className="w-1 h-1 rounded-full bg-[#35446A]" />
-            <span>{BUSINESS.location}</span>
+            <span>{currentBusiness.location}</span>
             <span className="w-1 h-1 rounded-full bg-[#35446A]" />
-            <span>Founded {BUSINESS.founded}</span>
-            {BUSINESS.website && (
+            <span>Founded {currentBusiness.founded}</span>
+            {currentBusiness.website && (
               <>
                 <span className="w-1 h-1 rounded-full bg-[#35446A]" />
-                <span className="text-[#C67A4E]">{BUSINESS.website}</span>
+                <span className="text-[#C67A4E]">{currentBusiness.website}</span>
               </>
             )}
           </div>
@@ -488,10 +623,10 @@ export default function BusinessProfile() {
           {activeTab === 'overview' && (
             <>
               {[
-                { title: 'Problem', content: BUSINESS.problem, editKey: 'Business Details' },
-                { title: 'Solution', content: BUSINESS.solution, editKey: 'Business Details' },
-                { title: 'Target Market', content: BUSINESS.targetMarket, editKey: 'Business Details' },
-                { title: 'Business Model', content: BUSINESS.businessModel, editKey: 'Business Details' },
+                { title: 'Problem', content: currentBusiness.problem, editKey: 'Business Details' },
+                { title: 'Solution', content: currentBusiness.solution, editKey: 'Business Details' },
+                { title: 'Target Market', content: currentBusiness.targetMarket, editKey: 'Business Details' },
+                { title: 'Business Model', content: currentBusiness.businessModel, editKey: 'Business Details' },
               ].map(({ title, content, editKey }) => (
                 <div key={title} className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] p-5">
                   <SectionHeader title={title} action={isOwner ? (
@@ -502,14 +637,14 @@ export default function BusinessProfile() {
               ))}
 
               {/* Required Skills */}
-              {BUSINESS.requiredSkills.length > 0 && (
+              {currentBusiness.requiredSkills && currentBusiness.requiredSkills.length > 0 && (
                 <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] p-5">
                   <SectionHeader title="Required Skills" action={isOwner ? (
                     <button onClick={() => setEditSection('Required Skills')} className="text-[11.5px] text-[#C67A4E] hover:underline">Edit</button>
                   ) : undefined} />
                   <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mt-1 mb-3">Expertise areas this business is actively seeking.</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {BUSINESS.requiredSkills.map(s => (
+                    {currentBusiness.requiredSkills.map((s: string) => (
                       <span key={s} className="px-2.5 py-1 rounded text-[11.5px] border"
                         style={{ background: 'rgba(198,122,78,0.08)', borderColor: 'rgba(198,122,78,0.20)', color: '#C67A4E' }}>
                         {s}
@@ -529,7 +664,7 @@ export default function BusinessProfile() {
                 <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[color:var(--vv-border)]"
                   style={{ background: 'rgba(198,122,78,0.03)' }}>
                   <AIBadge label="AI Analysis" />
-                  <span className="text-[11px] text-[color:var(--vv-text-tertiary)]">Generated by Vault AI - Updated {BUSINESS.updatedAt}</span>
+                  <span className="text-[11px] text-[color:var(--vv-text-tertiary)]">Generated by Vault AI - Updated {currentBusiness.updatedAt}</span>
                 </div>
                 <div className="p-5">
                   {!isOwner && (
@@ -554,14 +689,14 @@ export default function BusinessProfile() {
                       <AIDisclaimer match />
                     </div>
                   )}
-                  <p className="text-[13.5px] text-[color:var(--vv-text-secondary)] leading-relaxed mb-4">{AI_ANALYSIS.overallAssessment}</p>
+                  <p className="text-[13.5px] text-[color:var(--vv-text-secondary)] leading-relaxed mb-4">{aiAnalysis.overallAssessment}</p>
                   <div className="flex items-center flex-wrap gap-2">
                     <span className="text-[11.5px] font-medium text-[color:var(--vv-text)]">Assessment:</span>
                     <Badge variant="warning">Developing Stage</Badge>
-                    <Badge variant="neutral">{BUSINESS.stage}</Badge>
+                    <Badge variant="neutral">{currentBusiness.stage}</Badge>
                     <span className="px-2 py-0.5 rounded text-[10.5px] font-medium border"
                       style={{ background: 'rgba(198,122,78,0.08)', borderColor: 'rgba(198,122,78,0.18)', color: '#C67A4E' }}>
-                      {BUSINESS.industry}
+                      {currentBusiness.industry}
                     </span>
                   </div>
                 </div>
@@ -571,10 +706,10 @@ export default function BusinessProfile() {
               <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] overflow-hidden">
                 <div className="flex items-center gap-2 px-5 py-3.5 border-b border-[color:var(--vv-border)]">
                   <p className="text-[12.5px] font-semibold text-[color:var(--vv-text)]">Key Strengths</p>
-                  <span className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">{AI_ANALYSIS.strengths.length} identified</span>
+                  <span className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">{aiAnalysis.strengths.length} identified</span>
                 </div>
                 <div className="divide-y divide-[#1c2a3e]">
-                  {AI_ANALYSIS.strengths.map((s, i) => (
+                  {aiAnalysis.strengths.map((s: any, i: number) => (
                     <div key={i} className="flex gap-3 px-5 py-3.5">
                       <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5"
                         style={{ background: 'rgba(34,197,94,0.10)', border: '1px solid rgba(34,197,94,0.22)' }}>
@@ -596,7 +731,7 @@ export default function BusinessProfile() {
                   <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">Actionable steps to strengthen investor readiness.</p>
                 </div>
                 <div className="px-5 py-1">
-                  {AI_ANALYSIS.improvements.map((item, i) => (
+                  {aiAnalysis.improvements.map((item: any, i: number) => (
                     <ImprovementItem key={i} {...item} />
                   ))}
                 </div>
@@ -606,7 +741,7 @@ export default function BusinessProfile() {
               <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] p-5">
                 <p className="text-[12.5px] font-semibold text-[color:var(--vv-text)] mb-3">Insights</p>
                 <div className="space-y-2.5">
-                  {AI_ANALYSIS.insights.map((insight, i) => (
+                  {aiAnalysis.insights.map((insight: string, i: number) => (
                     <div key={i} className="flex gap-2.5">
                       <span className="text-[#C67A4E] shrink-0 mt-0.5 text-[12px] leading-snug">-</span>
                       <p className="text-[12.5px] text-[color:var(--vv-text-secondary)] leading-snug">{insight}</p>
@@ -624,10 +759,10 @@ export default function BusinessProfile() {
               <div className="flex items-center justify-between px-5 py-4 border-b border-[color:var(--vv-border)]">
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-[color:var(--vv-text-tertiary)] font-semibold mb-0.5">AI Readiness Score</p>
-                  <p className="text-[13px] text-[color:var(--vv-text)] font-semibold">8-factor business readiness analysis</p>
+                  <p className="text-[13px] text-[color:var(--vv-text)] font-semibold">{readinessFactors.length}-factor business readiness analysis</p>
                 </div>
                 {isOwner && (
-                  <Button variant="ghost" size="sm" onClick={() => navigate('/app/founder/readiness')}>
+                  <Button variant="ghost" size="sm" onClick={() => navigate(`/app/founder/readiness?businessId=${bizData.id}`)}>
                     Full Report <IconArrowRight s={12} />
                   </Button>
                 )}
@@ -639,7 +774,7 @@ export default function BusinessProfile() {
                     <p className="font-display text-[22px] font-semibold text-[color:var(--vv-text)] mb-0.5">
                       {overallReadiness >= 75 ? 'Investment Ready' : overallReadiness >= 55 ? 'Developing' : 'Early Stage'}
                     </p>
-                    <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mb-3">Score from {READINESS_FACTORS.length} weighted factors</p>
+                    <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mb-3">Score from {readinessFactors.length} weighted factors</p>
                     <button onClick={() => setExpandedReadiness(v => !v)}
                       className="text-[11.5px] text-[#C67A4E] hover:underline flex items-center gap-1">
                       {expandedReadiness ? 'Hide breakdown' : 'View breakdown'} <IconArrowRight s={11} />
@@ -649,7 +784,7 @@ export default function BusinessProfile() {
 
                 {expandedReadiness && (
                   <div className="space-y-2.5 mb-5">
-                    {READINESS_FACTORS.map(f => (
+                    {readinessFactors.map((f: any) => (
                       <div key={f.name}>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[12px] text-[color:var(--vv-text)]">{f.name}</span>
@@ -674,7 +809,7 @@ export default function BusinessProfile() {
                     <span className="text-[11px] text-[color:var(--vv-text-tertiary)]">Priority improvements</span>
                   </div>
                   <div className="mt-1">
-                    {AI_ANALYSIS.improvements.slice(0, 3).map((item, i) => (
+                    {aiAnalysis.improvements.slice(0, 3).map((item: any, i: number) => (
                       <ImprovementItem key={i} {...item} />
                     ))}
                   </div>
@@ -711,14 +846,14 @@ export default function BusinessProfile() {
                     <div className="grid grid-cols-2 gap-3 mb-3">
                       <div className="bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] rounded-[10px] p-4">
                         <p className="text-[10px] uppercase tracking-widest text-[color:var(--vv-text-tertiary)] font-semibold mb-2">Funding Stage</p>
-                        <Badge variant="gold">{BUSINESS.fundingStage}</Badge>
+                        <Badge variant="gold">{currentBusiness.fundingStage}</Badge>
                       </div>
                       <div className="bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] rounded-[10px] p-4">
                         <p className="text-[10px] uppercase tracking-widest text-[color:var(--vv-text-tertiary)] font-semibold mb-2">Revenue Status</p>
-                        <p className="text-[13px] font-medium text-[color:var(--vv-text)]">{BUSINESS.revenueStatus}</p>
+                        <p className="text-[13px] font-medium text-[color:var(--vv-text)]">{currentBusiness.revenueStatus}</p>
                       </div>
                     </div>
-                    <InfoRow label="Traction" value={BUSINESS.traction} />
+                    <InfoRow label="Traction" value={currentBusiness.traction} />
                   </DisclosureGate>
 
                   {/* Stage 3: detailed financials */}
@@ -733,10 +868,10 @@ export default function BusinessProfile() {
                       <div className="bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] rounded-[10px] p-4 mb-3">
                         <p className="text-[10px] uppercase tracking-widest text-[color:var(--vv-text-tertiary)] font-semibold mb-2">Amount Sought</p>
                         <p className="font-mono text-[22px] font-semibold text-[#C67A4E] tabular-nums">
-                          ?{BUSINESS.fundingAmount.toLocaleString('en-IN')}
+                          ?{currentBusiness.fundingAmount.toLocaleString('en-IN')}
                         </p>
                       </div>
-                      <InfoRow label="Use of Funds" value={BUSINESS.useOfFunds} />
+                      <InfoRow label="Use of Funds" value={currentBusiness.useOfFunds} />
                     </div>
                   </DisclosureGate>
 
@@ -1080,7 +1215,7 @@ export default function BusinessProfile() {
 
 
       {/* Edit drawer */}
-      {editSection && <EditDrawer section={editSection} onClose={() => setEditSection(null)} />}
+      {editSection && <EditDrawer section={editSection} business={bizData} onSaved={setBizData} onClose={() => setEditSection(null)} />}
 
       {/* Match explanation drawer */}
       {matchDrawer && (

@@ -13,6 +13,7 @@ const OnboardingComplete = lazy(() => import('./pages/auth/OnboardingComplete'))
 const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/auth/ResetPassword'));
 const AdminLogin = lazy(() => import('./pages/auth/AdminLogin'));
+const VerifyEmail = lazy(() => import('./pages/auth/VerifyEmail'));
 const FounderDashboard = lazy(() => import('./pages/founder/Dashboard'));
 const InvestorDashboard = lazy(() => import('./pages/investor/Dashboard'));
 const DealRoom = lazy(() => import('./pages/shared/DealRoom'));
@@ -64,14 +65,20 @@ function PageLoadingFallback() {
 
 function SessionGuard() {
   const location = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, status } = useAuth();
+  if (status === 'initializing') {
+    return <PageLoadingFallback />;
+  }
   if (!isAuthenticated) return <Navigate to={location.pathname.startsWith('/app/admin') ? '/admin-login' : '/login'} replace />;
   return <Outlet />;
 }
 
 function NormalUserGuard() {
   const location = useLocation();
-  const { isAuthenticated, isAdmin, session } = useAuth();
+  const { isAuthenticated, isAdmin, session, status } = useAuth();
+  if (status === 'initializing') {
+    return <PageLoadingFallback />;
+  }
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (isAdmin) return <Navigate to="/app/admin/dashboard" replace />;
   if (!session.onboardingComplete && location.pathname !== '/onboarding') return <Navigate to="/onboarding" replace />;
@@ -86,10 +93,19 @@ function RoleGuard({ role }: { role: NormalRole }) {
 }
 
 function AdminGuard() {
-  const { isAuthenticated, isAdmin, session } = useAuth();
+  const { isAuthenticated, isAdmin, session, status } = useAuth();
+  if (status === 'initializing') {
+    return <PageLoadingFallback />;
+  }
   if (!isAuthenticated) return <Navigate to="/admin-login" replace />;
   if (!isAdmin) return <Navigate to={`/app/${session.activeRole}/dashboard`} replace />;
   return <Outlet />;
+}
+
+function ConnectionsRedirect() {
+  const { session } = useAuth();
+  const role = session.activeRole || 'founder';
+  return <Navigate to={`/app/${role}/connections`} replace />;
 }
 
 export default function App() {
@@ -106,6 +122,8 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/admin-login" element={<AdminLogin />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/auth/email/verify/:id/:hash" element={<VerifyEmail />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
 
         {/* Onboarding (post-registration, pre-dashboard) */}
         <Route element={<NormalUserGuard />}>
@@ -122,6 +140,8 @@ export default function App() {
           <Route path="businesses/:id" element={<BusinessProfile />} />
 
           {/* Shared */}
+          <Route path="deals/:dealId" element={<DealRoom />} />
+          <Route path="deal-room/:dealId" element={<DealRoom />} />
           <Route path="deal-room" element={<DealRoom />} />
           <Route path="nda/:id" element={<NDAFlow />} />
           <Route path="nda" element={<NDAFlow />} />
@@ -129,6 +149,7 @@ export default function App() {
           <Route path="negotiation" element={<NegotiationPanel />} />
           <Route path="milestones" element={<MilestoneTracking />} />
           <Route path="milestones/:id" element={<MilestoneTracking />} />
+          <Route path="connections" element={<ConnectionsRedirect />} />
           <Route path="feedback" element={<FeedbackFlow />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="premium" element={<PremiumUpgrade />} />
@@ -142,7 +163,7 @@ export default function App() {
             <Route path="founder/discover-professionals" element={<DiscoverProfessionals />} />
             <Route path="founder/connections" element={<Connections />} />
             <Route path="founder/milestones" element={<MilestoneTracking />} />
-            <Route path="founder/reputation" element={<Reputation />} />
+            <Route path="founder/reputation" element={<Reputation profileRole="founder" />} />
             <Route path="founder/readiness" element={<ReadinessScore />} />
           </Route>
 
@@ -170,7 +191,7 @@ export default function App() {
           {/* Admin — restricted to admin role only */}
           <Route element={<AdminGuard />}>
             <Route path="admin/dashboard" element={<AdminDashboard />} />
-            <Route path="admin/deal-room" element={<DealRoom />} />
+            <Route path="admin/deal-room/:dealId" element={<DealRoom />} />
             <Route path="admin/users" element={<AdminUsers />} />
             <Route path="admin/verification" element={<AdminVerification />} />
             <Route path="admin/businesses" element={<AdminBusinesses />} />
@@ -179,6 +200,7 @@ export default function App() {
             <Route path="admin/deals" element={<AdminDeals />} />
             <Route path="admin/investment" element={<AdminInvestmentOversight />} />
             <Route path="admin/financial-reports" element={<AdminFinancialReports />} />
+            <Route path="admin/financial-governance" element={<AdminFinancialReports initialTab="governance" />} />
             <Route path="admin/reputation" element={<AdminReputation />} />
             <Route path="admin/reports" element={<AdminReports />} />
             <Route path="admin/audit" element={<AdminAuditLogs />} />

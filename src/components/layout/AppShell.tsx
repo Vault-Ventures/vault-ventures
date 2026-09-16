@@ -8,8 +8,10 @@ import {
   IconBuilding, IconClipboard, IconBarChart, IconAlertTriangle,
   IconFileText, IconX, IconCheck,
 } from './Icons';
+import { ManageRolesModal } from './ManageRolesModal';
 import { VerificationBadge } from '../ui/Badge';
 import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../hooks/useNotifications';
 
 type NormalRole = 'founder' | 'investor' | 'professional';
 type Role = NormalRole | 'admin';
@@ -23,52 +25,52 @@ interface NavItem {
 
 const navItems: Record<Role, NavItem[]> = {
   founder: [
-    { label: 'Dashboard',               to: '/app/founder/dashboard',               icon: IconDashboard,  shortLabel: 'Home' },
-    { label: 'My Businesses',           to: '/app/founder/businesses',              icon: IconBriefcase,  shortLabel: 'Businesses' },
-    { label: 'Discover Investors',      to: '/app/founder/discover-investors',      icon: IconCompass,    shortLabel: 'Discover' },
-    { label: 'Discover Professionals',  to: '/app/founder/discover-professionals',  icon: IconUsers },
-    { label: 'Connections',             to: '/app/founder/connections',             icon: IconLink },
-    { label: 'Deal Rooms',              to: '/app/deal-room',                       icon: IconFolder,     shortLabel: 'Deals' },
-    { label: 'Milestones',              to: '/app/founder/milestones',              icon: IconFlag },
-    { label: 'Reputation',              to: '/app/founder/reputation',              icon: IconStar },
+    { label: 'Dashboard', to: '/app/founder/dashboard', icon: IconDashboard, shortLabel: 'Home' },
+    { label: 'My Businesses', to: '/app/founder/businesses', icon: IconBriefcase, shortLabel: 'Businesses' },
+    { label: 'Discover Investors', to: '/app/founder/discover-investors', icon: IconCompass, shortLabel: 'Discover' },
+    { label: 'Discover Professionals', to: '/app/founder/discover-professionals', icon: IconUsers },
+    { label: 'Connections', to: '/app/founder/connections', icon: IconLink },
+    { label: 'Deal Rooms', to: '/app/deal-room', icon: IconFolder, shortLabel: 'Deals' },
+    { label: 'Milestones', to: '/app/founder/milestones', icon: IconFlag },
+    { label: 'Reputation', to: '/app/founder/reputation', icon: IconStar },
   ],
   investor: [
-    { label: 'Dashboard',           to: '/app/investor/dashboard', icon: IconDashboard, shortLabel: 'Home' },
-    { label: 'Discover Businesses', to: '/app/investor/discover',  icon: IconCompass,   shortLabel: 'Discover' },
-    { label: 'Saved Opportunities', to: '/app/investor/saved',     icon: IconFolder,    shortLabel: 'Saved' },
-    { label: 'Connections',         to: '/app/investor/connections', icon: IconLink },
-    { label: 'Deal Rooms',          to: '/app/deal-room',          icon: IconFolder,    shortLabel: 'Deals' },
-    { label: 'Portfolio',           to: '/app/investor/portfolio', icon: IconPieChart,  shortLabel: 'Portfolio' },
-    { label: 'Reputation',          to: '/app/investor/reputation', icon: IconStar },
+    { label: 'Dashboard', to: '/app/investor/dashboard', icon: IconDashboard, shortLabel: 'Home' },
+    { label: 'Discover Businesses', to: '/app/investor/discover', icon: IconCompass, shortLabel: 'Discover' },
+    { label: 'Saved Opportunities', to: '/app/investor/saved', icon: IconFolder, shortLabel: 'Saved' },
+    { label: 'Connections', to: '/app/investor/connections', icon: IconLink },
+    { label: 'Deal Rooms', to: '/app/deal-room', icon: IconFolder, shortLabel: 'Deals' },
+    { label: 'Portfolio', to: '/app/investor/portfolio', icon: IconPieChart, shortLabel: 'Portfolio' },
+    { label: 'Reputation', to: '/app/investor/reputation', icon: IconStar },
   ],
   professional: [
-    { label: 'Dashboard',         to: '/app/professional/dashboard',    icon: IconDashboard,  shortLabel: 'Home' },
-    { label: 'Discover Opportunities', to: '/app/professional/discover',     icon: IconCompass,    shortLabel: 'Discover' },
-    { label: 'Applications',      to: '/app/professional/applications', icon: IconClipboard,  shortLabel: 'Apply' },
-    { label: 'Connections',       to: '/app/professional/connections',  icon: IconLink },
-    { label: 'Deal Rooms',        to: '/app/deal-room',                 icon: IconFolder,     shortLabel: 'Deals' },
-    { label: 'Reputation',        to: '/app/professional/reputation',   icon: IconStar },
+    { label: 'Dashboard', to: '/app/professional/dashboard', icon: IconDashboard, shortLabel: 'Home' },
+    { label: 'Discover Opportunities', to: '/app/professional/discover', icon: IconCompass, shortLabel: 'Discover' },
+    { label: 'Applications', to: '/app/professional/applications', icon: IconClipboard, shortLabel: 'Apply' },
+    { label: 'Connections', to: '/app/professional/connections', icon: IconLink },
+    { label: 'Deal Rooms', to: '/app/deal-room', icon: IconFolder, shortLabel: 'Deals' },
+    { label: 'Reputation', to: '/app/professional/reputation', icon: IconStar },
   ],
   admin: [
-    { label: 'Dashboard',            to: '/app/admin/dashboard',              icon: IconDashboard },
-    { label: 'Users',                to: '/app/admin/users',                  icon: IconUsers },
-    { label: 'Verification',         to: '/app/admin/verification',           icon: IconShield },
-    { label: 'Businesses',           to: '/app/admin/businesses',             icon: IconBuilding },
-    { label: 'Applications',         to: '/app/admin/applications',           icon: IconClipboard },
-    { label: 'Teams',                to: '/app/admin/teams',                  icon: IconUsers },
-    { label: 'Deals',                to: '/app/admin/deals',                  icon: IconFolder },
-    { label: 'Investment',           to: '/app/admin/investment',             icon: IconPieChart },
-    { label: 'Financial Reports',    to: '/app/admin/financial-reports',      icon: IconTrendingUp },
-    { label: 'Reputation',           to: '/app/admin/reputation',             icon: IconStar },
-    { label: 'Reports',              to: '/app/admin/reports',                icon: IconAlertTriangle },
-    { label: 'Audit Logs',           to: '/app/admin/audit',                  icon: IconFileText },
-    { label: 'Analytics',            to: '/app/admin/analytics',              icon: IconBarChart },
-    { label: 'Adv. Analytics',       to: '/app/admin/advanced-analytics',     icon: IconTrendingUp },
-    { label: 'Team / Roles',         to: '/app/admin/team-management',        icon: IconShield },
-    { label: 'Matching Engine',      to: '/app/admin/matching',               icon: IconSearch },
-    { label: 'Notif. Templates',     to: '/app/admin/notification-templates', icon: IconBell },
-    { label: 'Notifications',        to: '/app/admin/notifications',          icon: IconBell },
-    { label: 'Settings',             to: '/app/admin/settings',               icon: IconSettings },
+    { label: 'Dashboard', to: '/app/admin/dashboard', icon: IconDashboard },
+    { label: 'Users', to: '/app/admin/users', icon: IconUsers },
+    { label: 'Verification', to: '/app/admin/verification', icon: IconShield },
+    { label: 'Businesses', to: '/app/admin/businesses', icon: IconBuilding },
+    { label: 'Applications', to: '/app/admin/applications', icon: IconClipboard },
+    { label: 'Teams', to: '/app/admin/teams', icon: IconUsers },
+    { label: 'Deals', to: '/app/admin/deals', icon: IconFolder },
+    { label: 'Investment', to: '/app/admin/investment', icon: IconPieChart },
+    { label: 'Financial Reports', to: '/app/admin/financial-reports', icon: IconTrendingUp },
+    { label: 'Reputation', to: '/app/admin/reputation', icon: IconStar },
+    { label: 'Reports', to: '/app/admin/reports', icon: IconAlertTriangle },
+    { label: 'Audit Logs', to: '/app/admin/audit', icon: IconFileText },
+    { label: 'Analytics', to: '/app/admin/analytics', icon: IconBarChart },
+    { label: 'Adv. Analytics', to: '/app/admin/advanced-analytics', icon: IconTrendingUp },
+    { label: 'Team / Roles', to: '/app/admin/team-management', icon: IconShield },
+    { label: 'Matching Engine', to: '/app/admin/matching', icon: IconSearch },
+    { label: 'Notif. Templates', to: '/app/admin/notification-templates', icon: IconBell },
+    { label: 'Notifications', to: '/app/admin/notifications', icon: IconBell },
+    { label: 'Settings', to: '/app/admin/settings', icon: IconSettings },
   ],
 };
 
@@ -87,83 +89,11 @@ const roleColors: Record<NormalRole, string> = {
 
 export const RoleContext = createContext<{ role: Role; setRole: (r: Role) => void }>({
   role: 'founder',
-  setRole: () => {},
+  setRole: () => { },
 });
 export function useRole() { return useContext(RoleContext); }
 
-// ─── Manage Roles modal ──────────────────────────────────────────────────────
 
-function ManageRolesModal({ userRoles, activeRole, onClose, onRolesChange }: {
-  userRoles: NormalRole[];
-  activeRole: Role;
-  onClose: () => void;
-  onRolesChange: (roles: NormalRole[]) => void;
-}) {
-  const [removing, setRemoving] = useState<NormalRole | null>(null);
-  const allRoles: NormalRole[] = ['founder', 'investor', 'professional'];
-  const available = allRoles.filter(r => !userRoles.includes(r));
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="manage-roles-title">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
-      <div className="relative vv-glass-elevated rounded-[12px] w-full max-w-[360px] max-h-[calc(100vh-2rem)] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[color:var(--vv-border)]">
-          <p id="manage-roles-title" className="text-[13.5px] font-semibold text-[color:var(--vv-text)] font-display">Manage Roles</p>
-          <button onClick={onClose} aria-label="Close manage roles" className="text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)] transition-colors"><IconX s={14} /></button>
-        </div>
-        <div className="px-5 py-4">
-          <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-2">Active roles</p>
-          <div className="space-y-1.5 mb-4">
-            {userRoles.map(r => (
-              <div key={r} className="flex items-center justify-between py-2 border-b border-[#1c2a3e] last:border-0">
-                <div className="flex items-center gap-2.5">
-                  <span className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold"
-                    style={{ background: roleColors[r] + '18', color: roleColors[r], border: `1px solid ${roleColors[r]}40` }}>
-                    {roleLabels[r][0]}
-                  </span>
-                  <span className="text-[12.5px] font-medium text-[color:var(--vv-text)]">{roleLabels[r]}</span>
-                  {activeRole === r && <span className="text-[10px] text-[color:var(--vv-text-tertiary)]">· active</span>}
-                </div>
-                {removing === r ? (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10.5px] text-[#F59E0B]">Remove?</span>
-                    <button className="text-[10.5px] text-[#F04438] hover:underline" onClick={() => { onRolesChange(userRoles.filter(role => role !== r)); setRemoving(null); }}>Confirm</button>
-                    <button className="text-[10.5px] text-[color:var(--vv-text-tertiary)] hover:underline" onClick={() => setRemoving(null)}>Cancel</button>
-                  </div>
-                ) : (
-                  userRoles.length > 1 && (
-                    <button onClick={() => setRemoving(r)}
-                      className="text-[10.5px] text-[color:var(--vv-text-tertiary)] hover:text-[#F04438] transition-colors">Remove</button>
-                  )
-                )}
-              </div>
-            ))}
-          </div>
-          {available.length > 0 && (
-            <>
-              <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-2">Add a role</p>
-              <div className="space-y-1.5">
-                {available.map(r => (
-                  <button key={r} onClick={() => onRolesChange([...userRoles, r])} className="w-full flex items-center gap-2.5 py-2 px-3 rounded-[8px] border border-[color:var(--vv-border)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] hover:border-[color:var(--vv-border-strong)] transition-colors text-left">
-                    <span className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold"
-                      style={{ background: roleColors[r] + '18', color: roleColors[r], border: `1px solid ${roleColors[r]}40` }}>
-                      {roleLabels[r][0]}
-                    </span>
-                    <span className="text-[12px] text-[color:var(--vv-text-secondary)]">Add {roleLabels[r]} role</span>
-                    <span className="ml-auto text-[10.5px] text-[color:var(--vv-text-tertiary)]">Add</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-          <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] mt-4 leading-snug">
-            Removing a role removes workspace access. Your account, profile and other role data remain unchanged.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── Account menu dropdown ────────────────────────────────────────────────────
 
@@ -171,11 +101,12 @@ function AccountMenu({ role, onManageRoles, onClose, onLogout }: {
   role: Role;
   onManageRoles: () => void;
   onClose: () => void;
-  onLogout: () => void;
+  onLogout: () => Promise<void> | void;
 }) {
   const navigate = useNavigate();
   const ref = useRef<HTMLDivElement>(null);
   const isAdmin = role === 'admin';
+  const { user } = useAuth();
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -185,12 +116,16 @@ function AccountMenu({ role, onManageRoles, onClose, onLogout }: {
     return () => document.removeEventListener('mousedown', handler);
   }, [onClose]);
 
+  const displayName = user?.name || (isAdmin ? 'Admin Console' : 'User');
+  const displayEmail = user?.email || (isAdmin ? 'admin@vault.io' : '');
+  const verificationTier = user?.verification_tier ?? 0;
+
   return (
     <div ref={ref}
       className="absolute right-0 top-full mt-1 w-56 vv-glass-elevated rounded-[10px] z-50 overflow-hidden py-1">
       <div className="px-3 py-2.5 border-b border-[#1c2a3e]">
-        <p className="text-[12.5px] font-semibold text-[color:var(--vv-text)]">Alex Morgan</p>
-        <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] font-mono">alex@example.com</p>
+        <p className="text-[12.5px] font-semibold text-[color:var(--vv-text)]">{displayName}</p>
+        {displayEmail && <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] font-mono">{displayEmail}</p>}
       </div>
       <button onClick={() => { navigate(isAdmin ? '/app/admin/dashboard' : '/app/profile'); onClose(); }}
         className="w-full text-left px-3 py-2 text-[12px] text-[color:var(--vv-text-secondary)] hover:text-[color:var(--vv-text)] hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)] transition-colors">
@@ -199,13 +134,13 @@ function AccountMenu({ role, onManageRoles, onClose, onLogout }: {
       {!isAdmin && (
         <>
           <div className="px-3 py-1.5">
-            <VerificationBadge tier={1} />
+            <VerificationBadge tier={(verificationTier === 1 || verificationTier === 2 ? (verificationTier as 1 | 2) : 0)} />
           </div>
           <div className="px-3 pb-1.5">
             <button onClick={() => { navigate('/app/premium'); onClose(); }}
               className="flex items-center gap-2 px-2.5 py-1.5 rounded-md w-full transition-all hover:opacity-90"
               style={{ background: 'linear-gradient(90deg, rgba(122,69,39,0.12), rgba(198,122,78,0.12))', border: '1px solid rgba(198,122,78,0.22)' }}>
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="#C9A24B"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="#C9A24B"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
               <span className="text-[11px] font-semibold" style={{ background: 'linear-gradient(90deg, #E8A878, #C67A4E)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Upgrade to Premium</span>
             </button>
           </div>
@@ -223,7 +158,7 @@ function AccountMenu({ role, onManageRoles, onClose, onLogout }: {
         ))}
       </div>
       <div className="border-t border-[#1c2a3e]">
-        <button onClick={() => { onLogout(); onClose(); navigate(isAdmin ? '/admin-login' : '/login'); }}
+        <button onClick={async () => { onClose(); await onLogout(); navigate(isAdmin ? '/admin-login' : '/login'); }}
           className="w-full text-left px-3 py-2 text-[12px] text-[color:var(--vv-text-tertiary)] hover:text-[#F04438] hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)] transition-colors flex items-center gap-2">
           <IconLogOut s={12} /> Sign out
         </button>
@@ -234,13 +169,6 @@ function AccountMenu({ role, onManageRoles, onClose, onLogout }: {
 
 // ─── Notifications panel ──────────────────────────────────────────────────────
 
-const DEMO_NOTIFS = [
-  { text: 'Meridian Capital expressed interest in NovaTech AI', time: '2m ago', dot: '#C67A4E', unread: true },
-  { text: 'Tier 1 verification approved', time: '1h ago', dot: '#C9A24B', unread: true },
-  { text: 'Deal Room NDA awaiting signature', time: '3h ago', dot: '#F59E0B', unread: true },
-  { text: 'New connection request from Sarah Chen', time: '1d ago', dot: '#C67A4E', unread: false },
-];
-
 // ─── Mobile bottom nav ────────────────────────────────────────────────────────
 
 function MobileNav({ role, items }: { role: Role; items: NavItem[] }) {
@@ -250,8 +178,7 @@ function MobileNav({ role, items }: { role: Role; items: NavItem[] }) {
       {primary.map(item => (
         <NavLink key={item.to} to={item.to}
           className={({ isActive }) =>
-            `flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors ${
-              isActive ? 'text-[#C67A4E]' : 'text-[color:var(--vv-text-tertiary)]'
+            `flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors ${isActive ? 'text-[#C67A4E]' : 'text-[color:var(--vv-text-tertiary)]'
             }`
           }>
           {({ isActive }) => (
@@ -268,9 +195,8 @@ function MobileNav({ role, items }: { role: Role; items: NavItem[] }) {
         }>
         {({ isActive }) => (
           <>
-            <div className={`w-[17px] h-[17px] rounded-full border flex items-center justify-center text-[8px] font-bold ${
-              isActive ? 'border-[#C67A4E] text-[#C67A4E]' : 'border-[color:var(--vv-border-strong)] text-[color:var(--vv-text-tertiary)]'
-            }`}>A</div>
+            <div className={`w-[17px] h-[17px] rounded-full border flex items-center justify-center text-[8px] font-bold ${isActive ? 'border-[#C67A4E] text-[#C67A4E]' : 'border-[color:var(--vv-border-strong)] text-[color:var(--vv-text-tertiary)]'
+              }`}>A</div>
             <span>Profile</span>
           </>
         )}
@@ -282,7 +208,7 @@ function MobileNav({ role, items }: { role: Role; items: NavItem[] }) {
 // ─── Main shell ───────────────────────────────────────────────────────────────
 
 export function AppShell() {
-  const { session, setActiveRole, updateNormalRoles, logout } = useAuth();
+  const { session, setActiveRole, updateNormalRoles, logout, user } = useAuth();
   const role: Role = session.isAdmin ? 'admin' : session.activeRole;
   const setRole = (nextRole: Role) => {
     if (nextRole !== 'admin') setActiveRole(nextRole);
@@ -293,6 +219,14 @@ export function AppShell() {
   const [showNotifs, setShowNotifs] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [showManageRoles, setShowManageRoles] = useState(false);
+
+  const isAdmin = role === 'admin';
+  const isAuthenticated = session.status === 'authenticated';
+
+  // Real notifications — only poll for non-admin authenticated users
+  const { notifications, unreadCount, markRead, markAllRead } = useNotifications(
+    isAuthenticated && !isAdmin
+  );
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -309,7 +243,6 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const isAdmin = role === 'admin';
   const userRoles = session.roles;
   const items = navItems[role];
 
@@ -359,8 +292,8 @@ export function AppShell() {
         <Link to="/" className="flex items-center gap-2.5">
           <svg viewBox="0 0 28 28" fill="none" className="w-6 h-6 flex-shrink-0 vv-logo-glow">
             <path d="M14 3L5 8v5c0 4.97 3.67 9.62 9 10.93C19.33 22.62 23 17.97 23 13V8L14 3z"
-              fill="#C67A4E" fillOpacity="0.22" stroke="#C67A4E" strokeWidth="1.25" strokeLinejoin="round"/>
-            <path d="M11 14l2 2 4-4" stroke="#E8A878" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              fill="#C67A4E" fillOpacity="0.22" stroke="#C67A4E" strokeWidth="1.25" strokeLinejoin="round" />
+            <path d="M11 14l2 2 4-4" stroke="#E8A878" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           {!collapsed && (
             <span className="text-[13px] font-semibold font-display text-[color:var(--vv-text)] leading-none tracking-tight">Vault Ventures</span>
@@ -390,9 +323,8 @@ export function AppShell() {
               <p className="text-[9.5px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold px-3 pb-1.5">Your workspaces</p>
               {userRoles.map(r => (
                 <button key={r} onClick={() => handleRoleChange(r)}
-                  className={`w-full text-left px-3 py-2 text-[12px] transition-colors flex items-center gap-2.5 ${
-                    role === r ? 'text-[color:var(--vv-text)]' : 'text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_40%,transparent)]'
-                  }`}>
+                  className={`w-full text-left px-3 py-2 text-[12px] transition-colors flex items-center gap-2.5 ${role === r ? 'text-[color:var(--vv-text)]' : 'text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_40%,transparent)]'
+                    }`}>
                   <span className="w-4 h-4 rounded flex items-center justify-center text-[9px] font-bold flex-shrink-0"
                     style={{ background: roleColors[r] + '18', color: roleColors[r] }}>
                     {roleLabels[r][0]}
@@ -427,10 +359,9 @@ export function AppShell() {
         {items.map(item => (
           <NavLink key={item.to} to={item.to} onClick={() => setMobileOpen(false)}
             className={({ isActive }) =>
-              `flex items-center gap-2.5 px-2.5 py-[7px] rounded-md text-[12.5px] font-medium transition-all duration-150 group relative ${
-                isActive
-                  ? 'text-[color:var(--vv-text)] vv-dichroic-active'
-                  : 'text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] hover:bg-[rgba(11,20,44,0.65)] hover:border hover:border-[rgba(198,122,78,0.07)]'
+              `flex items-center gap-2.5 px-2.5 py-[7px] rounded-md text-[12.5px] font-medium transition-all duration-150 group relative ${isActive
+                ? 'text-[color:var(--vv-text)] vv-dichroic-active'
+                : 'text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] hover:bg-[rgba(11,20,44,0.65)] hover:border hover:border-[rgba(198,122,78,0.07)]'
               } ${collapsed ? 'justify-center' : ''}`
             }
             title={collapsed ? item.label : undefined}>
@@ -459,10 +390,10 @@ export function AppShell() {
               className="flex items-center gap-2.5 hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)] rounded-md px-1.5 py-1.5 transition-colors -mx-1.5">
               <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold flex-shrink-0"
                 style={{ background: activeColor + '18', color: activeColor, border: `1px solid ${activeColor}40` }}>
-                A
+                {user?.name?.charAt(0)?.toUpperCase() || (isAdmin ? 'A' : 'U')}
               </div>
               <div className="min-w-0">
-                <p className="text-[12px] font-medium text-[color:var(--vv-text)] truncate leading-none">Alex Morgan</p>
+                <p className="text-[12px] font-medium text-[color:var(--vv-text)] truncate leading-none">{user?.name || (isAdmin ? 'Admin Console' : 'User')}</p>
                 <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-0.5">{workspaceLabel}</p>
               </div>
             </Link>
@@ -507,7 +438,7 @@ export function AppShell() {
               aria-label="Open navigation menu"
               onClick={() => setMobileOpen(true)}>
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                <path d="M3 12h18M3 6h18M3 18h18"/>
+                <path d="M3 12h18M3 6h18M3 18h18" />
               </svg>
             </button>
 
@@ -524,9 +455,8 @@ export function AppShell() {
                     <p className="text-[9.5px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold px-3 pb-1.5">Workspaces</p>
                     {userRoles.map(r => (
                       <button key={r} onClick={() => handleRoleChange(r)}
-                        className={`w-full text-left px-3 py-2 text-[12px] flex items-center gap-2 transition-colors ${
-                          role === r ? 'text-[color:var(--vv-text)]' : 'text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)]'
-                        }`}>
+                        className={`w-full text-left px-3 py-2 text-[12px] flex items-center gap-2 transition-colors ${role === r ? 'text-[color:var(--vv-text)]' : 'text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)]'
+                          }`}>
                         {roleLabels[r]}
                         {role === r && <span className="ml-auto" style={{ color: activeColor }}><IconCheck s={10} /></span>}
                       </button>
@@ -580,8 +510,10 @@ export function AppShell() {
                   <IconBell s={16} />
                   {isAdmin ? (
                     <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#F04438]" />
-                  ) : DEMO_NOTIFS.some(n => n.unread) && (
-                    <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#C67A4E]" />
+                  ) : unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 min-w-[14px] h-[14px] rounded-full bg-[#C67A4E] flex items-center justify-center text-[9px] font-bold text-white px-0.5">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
                   )}
                 </button>
                 {showNotifs && (
@@ -591,22 +523,40 @@ export function AppShell() {
                       <button onClick={() => setShowNotifs(false)} aria-label="Close notifications" className="text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)]"><IconX s={13} /></button>
                     </div>
                     <div>
-                      {DEMO_NOTIFS.map((n, i) => (
-                        <div key={i} className="flex gap-3 px-4 py-3 hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)] transition-colors border-b border-[color:var(--vv-border)] last:border-0 cursor-pointer">
-                          <div className="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: n.unread ? n.dot : '#35446A' }} />
-                          <div>
-                            <p className={`text-[12px] leading-snug ${n.unread ? 'text-[color:var(--vv-text-secondary)]' : 'text-[color:var(--vv-text-tertiary)]'}`}>{n.text}</p>
-                            <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-1 font-mono">{n.time}</p>
-                          </div>
+                      {notifications.length === 0 ? (
+                        <div className="px-4 py-6 text-center">
+                          <p className="text-[12px] text-[color:var(--vv-text-tertiary)]">No notifications yet.</p>
                         </div>
-                      ))}
+                      ) : (
+                        notifications.map(n => (
+                          <div
+                            key={n.id}
+                            onClick={() => { if (n.is_unread) markRead(n.id); }}
+                            className="flex gap-3 px-4 py-3 hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)] transition-colors border-b border-[color:var(--vv-border)] last:border-0 cursor-pointer"
+                          >
+                            <div className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${n.is_unread ? 'bg-[#C67A4E]' : 'bg-[#35446A]'}`} />
+                            <div className="min-w-0">
+                              <p className={`text-[12px] leading-snug truncate ${n.is_unread ? 'text-[color:var(--vv-text-secondary)]' : 'text-[color:var(--vv-text-tertiary)]'}`}>
+                                {n.body}
+                              </p>
+                              <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-1 font-mono">
+                                {new Date(n.created_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
-                    <div className="px-4 py-2.5">
-                      <button className="text-[11.5px] text-[#C67A4E] hover:underline"
-                        onClick={() => setShowNotifs(false)}>
-                        Mark all as read
-                      </button>
-                    </div>
+                    {notifications.length > 0 && (
+                      <div className="px-4 py-2.5">
+                        <button
+                          className="text-[11.5px] text-[#C67A4E] hover:underline"
+                          onClick={() => { markAllRead(); setShowNotifs(false); }}
+                        >
+                          Mark all as read
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -624,16 +574,16 @@ export function AppShell() {
                   className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[color:var(--vv-raised)] transition-colors">
                   <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
                     style={{ background: activeColor + '18', color: activeColor, border: `1px solid ${activeColor}40` }}>
-                    A
+                    {user?.name?.charAt(0)?.toUpperCase() || (isAdmin ? 'A' : 'U')}
                   </div>
                   <div className="hidden sm:block text-left">
-                    <p className="text-[11.5px] font-semibold text-[color:var(--vv-text)] leading-none">Alex Morgan</p>
+                    <p className="text-[11.5px] font-semibold text-[color:var(--vv-text)] leading-none">{user?.name || (isAdmin ? 'Admin' : 'User')}</p>
                     <p className="text-[9.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">{roleLabels[role]}</p>
                   </div>
                   <IconChevronDown s={10} className="text-[color:var(--vv-text-tertiary)] hidden sm:block" />
                 </button>
                 {showAccountMenu && (
-                    <AccountMenu
+                  <AccountMenu
                     role={role}
                     onManageRoles={() => setShowManageRoles(true)}
                     onClose={() => setShowAccountMenu(false)}
@@ -666,10 +616,7 @@ export function AppShell() {
         {/* Manage Roles modal */}
         {showManageRoles && (
           <ManageRolesModal
-            userRoles={userRoles}
-            activeRole={role}
             onClose={() => setShowManageRoles(false)}
-            onRolesChange={updateNormalRoles}
           />
         )}
       </div>

@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
+import { useAuth } from '../../context/AuthContext';
+import { useRole } from '../../components/layout/AppShell';
+import { api, type BusinessNdaData, type NdaActionPayload } from '../../services/api';
+import { IconAlertTriangle, IconShield } from '../../components/layout/Icons';
 
 // --- Types --------------------------------------------------------------------
 
 type NDAStep = 'overview' | 'document' | 'sign' | 'waiting' | 'complete' | 'declined' | 'expired' | 'error';
-type NDAStatus = 'required' | 'pending' | 'waiting' | 'accepted' | 'declined' | 'expired' | 'error';
 
 interface NDAParty {
   name: string;
@@ -13,33 +16,6 @@ interface NDAParty {
   accepted: boolean;
   acceptedAt?: string;
 }
-
-interface NDAData {
-  id: string;
-  title: string;
-  business: string;
-  purpose: string;
-  status: NDAStatus;
-  createdAt: string;
-  expiresAt: string;
-  parties: [NDAParty, NDAParty]; // [initiator, counterparty]
-}
-
-// --- Demo data ----------------------------------------------------------------
-
-const NDA_DATA: NDAData = {
-  id: 'nda-nova-health-001',
-  title: 'Mutual Non-Disclosure Agreement',
-  business: 'Nova Health',
-  purpose: 'To enable secure sharing of confidential financial, strategic, and deal-related information between the parties for the purpose of evaluating a potential investment or collaboration.',
-  status: 'required',
-  createdAt: 'Aug 26, 2026',
-  expiresAt: 'Aug 26, 2028',
-  parties: [
-    { name: 'Rifat Ahsan', role: 'Founder - Nova Health', accepted: true, acceptedAt: 'Aug 26, 2026' },
-    { name: 'You', role: 'Investor', accepted: false },
-  ],
-};
 
 const KEY_TERMS = [
   {
@@ -138,7 +114,7 @@ function StepIndicator({ step }: { step: NDAStep }) {
   );
 }
 
-function PartyStatus({ party, label }: { party: NDAParty; label: string }) {
+function PartyStatus({ party }: { party: NDAParty; label: string }) {
   return (
     <div className={`flex items-center gap-3 p-3 rounded-[10px] border ${
       party.accepted ? 'border-[rgba(34,197,94,0.22)] bg-[rgba(34,197,94,0.05)]' : 'border-[color:var(--vv-border)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)]'
@@ -176,61 +152,247 @@ function PartyStatus({ party, label }: { party: NDAParty; label: string }) {
 
 export default function NDAFlow() {
   const navigate = useNavigate();
+  const { id: routeBusinessId } = useParams<{ id?: string }>();
   const [searchParams] = useSearchParams();
-  const returnTo = searchParams.get('return') ?? '/app/founder/businesses/nova-health';
-  const skipToComplete = searchParams.get('demo') === 'complete';
+  const returnTo = searchParams.get('return') ?? (routeBusinessId ? `/app/businesses/${routeBusinessId}` : '/app/connections');
+  const counterpartyUserIdParam = searchParams.get('counterparty_user_id');
 
-  const [step, setStep] = useState<NDAStep>(skipToComplete ? 'complete' : 'overview');
+  const { user } = useAuth();
+  const { role } = useRole();
+
+  const [business, setBusiness] = useState<{ id: number; name: string; description?: string } | null>(null);
+  const [ndaData, setNdaData] = useState<BusinessNdaData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [tierError, setTierError] = useState<string | null>(null);
+
+  const [step, setStep] = useState<NDAStep>('overview');
   const [agreed, setAgreed] = useState(false);
   const [showFullDoc, setShowFullDoc] = useState(false);
   const [showDeclineConfirm, setShowDeclineConfirm] = useState(false);
-  const [sigName, setSigName] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [ndaData, setNdaData] = useState(NDA_DATA);
-  const [loadError, setLoadError] = useState(false);
+  const [sigName, setSigName] = useState(user?.name || '');
 
-  // Simulate initial load
+  const fetchNda = useCallback(async () => {
+    if (!routeBusinessId) {
+      setError('No Business ID specified in URL. Please navigate to NDA from a Business or Deal Room.');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setTierError(null);
+
+    try {
+      try {
+        const bus = await api.get<{ id: number; name: string; description?: string }>(`/api/businesses/${routeBusinessId}`);
+        setBusiness(bus);
+      } catch {
+        // Non-blocking business metadata load
+      }
+
+      const params: Record<string, string | number> = {};
+      if (counterpartyUserIdParam) {
+        params.counterparty_user_id = counterpartyUserIdParam;
+      }
+      if (role === 'investor' || role === 'professional') {
+        params.role = role;
+      }
+
+      const res = await api.get<BusinessNdaData>(`/api/me/businesses/${routeBusinessId}/nda`, { params });
+      setNdaData(res);
+
+      if (res.status === 'active') {
+        setStep('complete');
+      } else if (res.status === 'declined') {
+        setStep('declined');
+      } else if (res.status === 'pending') {
+        if (res.current_user_accepted) {
+          setStep('waiting');
+        } else {
+          setStep('overview');
+        }
+      } else {
+        setStep('overview');
+      }
+    } catch (err: any) {
+      if (err?.status === 403 && err?.message?.toLowerCase().includes('tier 1')) {
+        setTierError(err.message);
+      } else {
+        setError(err?.message || 'Unable to load NDA status from server.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [routeBusinessId, counterpartyUserIdParam, role]);
+
   useEffect(() => {
-    const t = setTimeout(() => {
-      if (Math.random() < 0.05) setLoadError(true); // 5% error rate for demo realism
-    }, 300);
-    return () => clearTimeout(t);
-  }, []);
+    fetchNda();
+  }, [fetchNda]);
 
-  function handleSign() {
-    if (!sigName.trim() || !agreed) return;
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setNdaData(d => ({
-        ...d,
-        status: 'waiting',
-        parties: [d.parties[0], { ...d.parties[1], accepted: true, acceptedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }],
-      }));
-      setStep('waiting');
-    }, 1200);
+  const getActionPayload = (): NdaActionPayload => {
+    const payload: NdaActionPayload = {};
+    if (counterpartyUserIdParam) {
+      payload.counterparty_user_id = counterpartyUserIdParam;
+    }
+    if (role === 'investor' || role === 'professional') {
+      payload.role = role as 'investor' | 'professional';
+    }
+    return payload;
+  };
+
+  async function handleSign() {
+    if (!sigName.trim() || !agreed || !routeBusinessId) return;
+    setActionLoading(true);
+    setActionError(null);
+    setTierError(null);
+
+    const payload = getActionPayload();
+
+    try {
+      let res: BusinessNdaData;
+      if (!ndaData || ndaData.status === null || ndaData.status === 'declined') {
+        res = await api.post<BusinessNdaData>(`/api/me/businesses/${routeBusinessId}/nda/request`, payload);
+      } else {
+        res = await api.post<BusinessNdaData>(`/api/me/businesses/${routeBusinessId}/nda/accept`, payload);
+      }
+
+      setNdaData(res);
+      if (res.status === 'active') {
+        setStep('complete');
+      } else if (res.status === 'pending' && res.current_user_accepted) {
+        setStep('waiting');
+      }
+    } catch (err: any) {
+      if (err?.status === 403 && err?.message?.toLowerCase().includes('tier 1')) {
+        setTierError(err.message);
+      } else {
+        setActionError(err?.message || 'Failed to submit NDA signature.');
+      }
+    } finally {
+      setActionLoading(false);
+    }
   }
 
-  function handleSimulateComplete() {
-    setNdaData(d => ({ ...d, status: 'accepted' }));
-    setStep('complete');
-  }
+  async function handleDecline() {
+    if (!routeBusinessId) return;
+    setActionLoading(true);
+    setActionError(null);
+    setTierError(null);
 
-  function handleDecline() {
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setNdaData(d => ({ ...d, status: 'declined' }));
+    const payload = getActionPayload();
+
+    try {
+      const res = await api.post<BusinessNdaData>(`/api/me/businesses/${routeBusinessId}/nda/decline`, payload);
+      setNdaData(res);
       setShowDeclineConfirm(false);
       setStep('declined');
-    }, 800);
+    } catch (err: any) {
+      if (err?.status === 403 && err?.message?.toLowerCase().includes('tier 1')) {
+        setTierError(err.message);
+      } else {
+        setActionError(err?.message || 'Failed to decline NDA.');
+      }
+    } finally {
+      setActionLoading(false);
+    }
   }
 
   const accentViolet = 'rgba(167,139,250,0.14)';
   const violetText = '#A78BFA';
 
+  const businessName = business?.name || (routeBusinessId ? `Business #${routeBusinessId}` : 'Business');
+  const isFounder = role === 'founder';
+  const roleLabel = isFounder ? 'Founder' : role === 'investor' ? 'Investor' : 'Skilled Professional';
+
+  const partiesList: [NDAParty, NDAParty] = [
+    {
+      name: isFounder ? `You (${businessName})` : `${businessName} (Founder)`,
+      role: 'Founder / Business Owner',
+      accepted: Boolean(ndaData?.founder_accepted),
+      acceptedAt: ndaData?.requested_at
+        ? new Date(ndaData.requested_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : undefined,
+    },
+    {
+      name: isFounder ? 'Counterparty' : `You (${user?.name || roleLabel})`,
+      role: isFounder ? (ndaData?.counterparty_role ? `${ndaData.counterparty_role.charAt(0).toUpperCase() + ndaData.counterparty_role.slice(1)}` : 'Investor / Professional') : roleLabel,
+      accepted: Boolean(ndaData?.counterparty_accepted),
+      acceptedAt: ndaData?.activated_at
+        ? new Date(ndaData.activated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : undefined,
+    },
+  ];
+
+  if (loading) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center p-8 bg-[#0D1626]">
+        <div className="w-8 h-8 rounded-full border-2 border-[#C67A4E] border-t-transparent animate-spin mb-4" />
+        <p className="text-[13px] font-medium text-[color:var(--vv-text)]">Loading NDA Details...</p>
+        <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] mt-1">Retrieving authoritative NDA status</p>
+      </div>
+    );
+  }
+
+  if (tierError) {
+    return (
+      <div className="max-w-[700px] mx-auto px-4 py-8">
+        <div className="bg-[#121A2B] border border-amber-500/30 rounded-[14px] p-6 text-center">
+          <div className="w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center bg-amber-500/10 border border-amber-500/20 text-amber-400">
+            <IconShield s={24} />
+          </div>
+          <p className="font-display text-[18px] font-semibold text-[color:var(--vv-text)] mb-2">
+            Tier 1 Verification Required
+          </p>
+          <p className="text-[13px] text-[color:var(--vv-text-tertiary)] max-w-md mx-auto leading-relaxed mb-6">
+            {tierError}
+          </p>
+          <div className="flex gap-3 justify-center">
+            <Button variant="secondary" onClick={() => navigate(returnTo)}>Back</Button>
+            <Button onClick={() => navigate('/app/profile')}>Go to Verification</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !ndaData) {
+    return (
+      <div className="max-w-[700px] mx-auto px-4 py-8">
+        <div className="bg-[#121A2B] border border-red-500/30 rounded-[14px] p-6 text-center">
+          <div className="w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center bg-red-500/10 border border-red-500/20 text-red-400">
+            <IconAlertTriangle s={24} />
+          </div>
+          <p className="font-display text-[18px] font-semibold text-[color:var(--vv-text)] mb-2">
+            Unable to Load NDA
+          </p>
+          <p className="text-[13px] text-[color:var(--vv-text-tertiary)] max-w-md mx-auto leading-relaxed mb-6">
+            {error}
+          </p>
+          <div className="flex gap-3 justify-center">
+            <Button variant="secondary" onClick={() => navigate(returnTo)}>Back</Button>
+            <Button onClick={fetchNda}>Retry</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-[800px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
+
+      {/* Action error banner */}
+      {actionError && (
+        <div className="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-[10px] flex items-center justify-between text-red-400 text-[12px]">
+          <div className="flex items-center gap-2">
+            <IconAlertTriangle s={15} className="shrink-0" />
+            <span>{actionError}</span>
+          </div>
+          <button onClick={() => setActionError(null)} className="underline text-[11px] text-red-400/80">Dismiss</button>
+        </div>
+      )}
 
       {/* Decline confirm modal */}
       {showDeclineConfirm && (
@@ -254,9 +416,9 @@ export default function NDAFlow() {
                 <Button variant="secondary" className="flex-1" onClick={() => setShowDeclineConfirm(false)}>Cancel</Button>
                 <button
                   onClick={handleDecline}
-                  disabled={loading}
+                  disabled={actionLoading}
                   className="flex-1 px-4 py-2 rounded-[8px] text-[13px] font-semibold text-white bg-[#F04438] hover:bg-[#E03428] disabled:opacity-50 transition-colors">
-                  {loading ? 'Declining-' : 'Decline'}
+                  {actionLoading ? 'Declining...' : 'Decline'}
                 </button>
               </div>
             </div>
@@ -271,7 +433,7 @@ export default function NDAFlow() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="full-nda-title">
             <div className="w-full max-w-2xl max-h-[80vh] rounded-[16px] overflow-hidden vv-glass-elevated flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-[color:var(--vv-border)] flex-shrink-0">
-                <p id="full-nda-title" className="text-[13.5px] font-semibold text-[color:var(--vv-text)] font-display">{NDA_DATA.title}</p>
+                <p id="full-nda-title" className="text-[13.5px] font-semibold text-[color:var(--vv-text)] font-display">Mutual Non-Disclosure Agreement</p>
                 <button onClick={() => setShowFullDoc(false)} aria-label="Close full NDA document" className="text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)] transition-colors">
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M18 6L6 18M6 6l12 12"/>
@@ -300,7 +462,7 @@ export default function NDAFlow() {
           Back
         </button>
         <span className="text-[#35446A]">/</span>
-        <span className="text-[12px] text-[color:var(--vv-text-tertiary)]">{NDA_DATA.business}</span>
+        <span className="text-[12px] text-[color:var(--vv-text-tertiary)]">{businessName}</span>
         <span className="text-[#35446A]">/</span>
         <span className="text-[12px] text-[color:var(--vv-text-secondary)]">NDA</span>
       </div>
@@ -316,11 +478,24 @@ export default function NDAFlow() {
               </svg>
               NDA Protected
             </div>
+            {ndaData?.status && (
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-wide border ${
+                ndaData.status === 'active'
+                  ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10'
+                  : ndaData.status === 'declined'
+                  ? 'border-red-500/30 text-red-400 bg-red-500/10'
+                  : 'border-amber-500/30 text-amber-400 bg-amber-500/10'
+              }`}>
+                {ndaData.status_label}
+              </span>
+            )}
           </div>
           <h1 className="font-display text-[20px] sm:text-[22px] font-semibold text-[color:var(--vv-text)] leading-tight">
-            {NDA_DATA.title}
+            Mutual Non-Disclosure Agreement
           </h1>
-          <p className="text-[13px] text-[color:var(--vv-text-tertiary)] mt-1">{NDA_DATA.business} - Requested {NDA_DATA.createdAt}</p>
+          <p className="text-[13px] text-[color:var(--vv-text-tertiary)] mt-1">
+            {businessName} {ndaData?.requested_at ? `— Requested ${new Date(ndaData.requested_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}
+          </p>
         </div>
         {/* Step indicator */}
         {!['declined', 'expired', 'error'].includes(step) && (
@@ -343,7 +518,9 @@ export default function NDAFlow() {
           {/* Why required */}
           <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[14px] p-5">
             <p className="text-[10px] uppercase tracking-widest text-[color:var(--vv-text-tertiary)] font-semibold mb-3">Why this NDA is required</p>
-            <p className="text-[13px] text-[color:var(--vv-text-secondary)] leading-relaxed mb-4">{NDA_DATA.purpose}</p>
+            <p className="text-[13px] text-[color:var(--vv-text-secondary)] leading-relaxed mb-4">
+              To enable secure sharing of confidential financial, strategic, and deal-related information between the parties for the purpose of evaluating a potential investment or collaboration.
+            </p>
             <div className="flex flex-wrap gap-2">
               {['Detailed Financial Projections', 'Cap Table & Equity', 'Confidential Documents', 'Full Deal Terms'].map((item, i) => (
                 <span key={i} className="flex items-center gap-1.5 text-[11.5px] text-[color:var(--vv-text-secondary)] px-2.5 py-1 rounded-md"
@@ -363,9 +540,9 @@ export default function NDAFlow() {
             <div className="space-y-0 divide-y divide-[#1c2a3e]">
               {[
                 { label: 'Agreement Type', value: 'Mutual NDA' },
-                { label: 'Business', value: NDA_DATA.business },
-                { label: 'Created', value: NDA_DATA.createdAt },
-                { label: 'Expires', value: NDA_DATA.expiresAt },
+                { label: 'Business', value: businessName },
+                { label: 'Version', value: ndaData?.nda_version || 'v1.0' },
+                { label: 'Status', value: ndaData?.status_label || 'Not Requested' },
                 { label: 'Stage Unlocked', value: 'Stage 3 - NDA Protected' },
               ].map(({ label, value }) => (
                 <div key={label} className="flex justify-between py-2.5 gap-4">
@@ -380,8 +557,8 @@ export default function NDAFlow() {
           <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[14px] p-5">
             <p className="text-[10px] uppercase tracking-widest text-[color:var(--vv-text-tertiary)] font-semibold mb-3">Parties</p>
             <div className="space-y-2">
-              <PartyStatus party={ndaData.parties[0]} label="Founder" />
-              <PartyStatus party={ndaData.parties[1]} label="Counterparty" />
+              <PartyStatus party={partiesList[0]} label="Founder" />
+              <PartyStatus party={partiesList[1]} label="Counterparty" />
             </div>
           </div>
 
@@ -392,7 +569,7 @@ export default function NDAFlow() {
                 <path d="M5 12h14M12 5l7 7-7 7"/>
               </svg>
             </Button>
-            <Button variant="secondary" onClick={() => navigate(returnTo)}>Maybe Later</Button>
+            <Button variant="secondary" onClick={() => navigate(returnTo)}>Back</Button>
           </div>
         </div>
       )}
@@ -433,15 +610,15 @@ export default function NDAFlow() {
                 </svg>
               </div>
               <div>
-                <p className="text-[13px] font-semibold text-[color:var(--vv-text)]">{NDA_DATA.title}</p>
-                <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">Between {ndaData.parties[0].name} and {ndaData.parties[1].name}</p>
+                <p className="text-[13px] font-semibold text-[color:var(--vv-text)]">Mutual Non-Disclosure Agreement</p>
+                <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">Between {partiesList[0].name} and {partiesList[1].name}</p>
               </div>
             </div>
 
             {/* Agreement preview */}
             <div className="rounded-[10px] border border-[color:var(--vv-border)] bg-[#0D1626] p-4 mb-4 max-h-40 overflow-hidden relative">
               <pre className="text-[10.5px] text-[color:var(--vv-text-tertiary)] leading-relaxed font-sans whitespace-pre-wrap">
-                {AGREEMENT_TEXT.slice(0, 600)}-
+                {AGREEMENT_TEXT.slice(0, 600)}...
               </pre>
               <div className="absolute bottom-0 left-0 right-0 h-12"
                 style={{ background: 'linear-gradient(to top, rgba(13,22,38,0.95), transparent)' }} />
@@ -455,11 +632,13 @@ export default function NDAFlow() {
 
           <div className="flex flex-col sm:flex-row gap-3">
             <Button className="flex-1" onClick={() => setStep('sign')}>Continue to Sign</Button>
-            <Button variant="secondary" onClick={() => setStep('overview')}>? Back</Button>
-            <button onClick={() => setShowDeclineConfirm(true)}
-              className="text-[12.5px] text-[color:var(--vv-text-tertiary)] hover:text-[#F04438] transition-colors px-4 py-2">
-              Decline
-            </button>
+            <Button variant="secondary" onClick={() => setStep('overview')}>Back</Button>
+            {ndaData?.status === 'pending' && (
+              <button onClick={() => setShowDeclineConfirm(true)}
+                className="text-[12.5px] text-[color:var(--vv-text-tertiary)] hover:text-[#F04438] transition-colors px-4 py-2">
+                Decline
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -485,7 +664,7 @@ export default function NDAFlow() {
                 <label className="block text-[12px] text-[color:var(--vv-text-tertiary)] mb-1.5">Role</label>
                 <input
                   type="text"
-                  value="Investor"
+                  value={roleLabel}
                   readOnly
                   className="w-full px-3 py-2.5 rounded-[8px] bg-[#0D1626] border border-[color:var(--vv-border)] text-[13px] text-[color:var(--vv-text-tertiary)] outline-none cursor-default"
                 />
@@ -527,14 +706,16 @@ export default function NDAFlow() {
             <Button
               className="flex-1"
               onClick={handleSign}
-              disabled={!agreed || !sigName.trim() || loading}>
-              {loading ? 'Submitting-' : 'Confirm & Sign'}
+              disabled={!agreed || !sigName.trim() || actionLoading}>
+              {actionLoading ? 'Submitting...' : (!ndaData || ndaData.status === null || ndaData.status === 'declined') ? 'Request & Sign NDA' : 'Confirm & Sign'}
             </Button>
             <Button variant="secondary" onClick={() => setStep('document')}>Review Again</Button>
-            <button onClick={() => setShowDeclineConfirm(true)}
-              className="text-[12.5px] text-[color:var(--vv-text-tertiary)] hover:text-[#F04438] transition-colors px-4 py-2">
-              Decline
-            </button>
+            {ndaData?.status === 'pending' && (
+              <button onClick={() => setShowDeclineConfirm(true)}
+                className="text-[12.5px] text-[color:var(--vv-text-tertiary)] hover:text-[#F04438] transition-colors px-4 py-2">
+                Decline
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -542,7 +723,7 @@ export default function NDAFlow() {
       {/* -- STEP: WAITING ---------------------------------- */}
       {step === 'waiting' && (
         <div className="space-y-4">
-          {/* Success banner */}
+          {/* Status banner */}
           <div className="flex items-center gap-3 px-5 py-4 rounded-[12px]"
             style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.22)' }}>
             <div className="w-8 h-8 rounded-full bg-[#22C55E]/15 border border-[#22C55E]/30 flex items-center justify-center flex-shrink-0">
@@ -551,7 +732,7 @@ export default function NDAFlow() {
               </svg>
             </div>
             <div>
-              <p className="text-[13px] font-semibold text-[#22C55E]">NDA accepted successfully</p>
+              <p className="text-[13px] font-semibold text-[#22C55E]">Your acceptance has been recorded</p>
               <p className="text-[11.5px] text-[#22C55E]/70">Waiting for the counterparty to complete their acceptance.</p>
             </div>
           </div>
@@ -560,8 +741,8 @@ export default function NDAFlow() {
           <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[14px] p-5">
             <p className="text-[10px] uppercase tracking-widest text-[color:var(--vv-text-tertiary)] font-semibold mb-3">Acceptance Status</p>
             <div className="space-y-2 mb-4">
-              <PartyStatus party={ndaData.parties[0]} label="Founder" />
-              <PartyStatus party={ndaData.parties[1]} label="You" />
+              <PartyStatus party={partiesList[0]} label="Founder" />
+              <PartyStatus party={partiesList[1]} label="Counterparty" />
             </div>
 
             {/* Waiting indicator */}
@@ -573,17 +754,9 @@ export default function NDAFlow() {
             </div>
           </div>
 
-          {/* Demo: simulate counterparty */}
-          <div className="bg-[#121A2B] border border-[color:var(--vv-border-strong)]/40 border-dashed rounded-[14px] p-4">
-            <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-1.5">Demo only</p>
-            <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] mb-3">Simulate the founder signing to see the complete flow.</p>
-            <Button variant="secondary" size="sm" onClick={handleSimulateComplete}>
-              Simulate Counterparty Acceptance
-            </Button>
-          </div>
-
           <div className="flex gap-3">
-            <Button className="flex-1" onClick={() => navigate(returnTo)}>Back to Business Profile</Button>
+            <Button className="flex-1" onClick={() => navigate(returnTo)}>Back to Deal / Business</Button>
+            <Button variant="secondary" onClick={fetchNda}>Refresh Status</Button>
           </div>
         </div>
       )}
@@ -614,8 +787,8 @@ export default function NDAFlow() {
             </div>
 
             <div className="border-t border-[#1c2a3e] px-5 py-4 space-y-2">
-              <PartyStatus party={{ name: 'Rifat Ahsan', role: 'Founder - Nova Health', accepted: true, acceptedAt: 'Aug 26, 2026' }} label="Founder" />
-              <PartyStatus party={{ name: 'You', role: 'Investor', accepted: true, acceptedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }} label="You" />
+              <PartyStatus party={partiesList[0]} label="Founder" />
+              <PartyStatus party={partiesList[1]} label="Counterparty" />
             </div>
 
             <div className="border-t border-[#1c2a3e] px-5 py-4">
@@ -633,12 +806,8 @@ export default function NDAFlow() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
-            <Button className="flex-1"
-              onClick={() => navigate(`${returnTo}?stage=3`)}>
-              View Protected Information
-            </Button>
-            <Button variant="secondary" onClick={() => navigate('/app/deal-room')}>
-              Continue to Deal Room
+            <Button className="flex-1" onClick={() => navigate(returnTo)}>
+              Return to Deal / Business
             </Button>
           </div>
         </div>
@@ -656,47 +825,13 @@ export default function NDAFlow() {
               </svg>
             </div>
             <p className="font-display text-[17px] font-semibold text-[color:var(--vv-text)] mb-1.5">NDA Declined</p>
-            <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] max-w-xs mx-auto leading-relaxed">
-              Stage 3 information remains protected. You can request a new NDA at any time from the Business Profile.
+            <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] max-w-xs mx-auto leading-relaxed mb-5">
+              Stage 3 information remains protected. A new NDA request can be initiated when ready.
             </p>
-          </div>
-          <Button className="w-full" onClick={() => navigate(returnTo)}>Back to Business Profile</Button>
-        </div>
-      )}
-
-      {/* -- STEP: EXPIRED ---------------------------------- */}
-      {step === 'expired' && (
-        <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[14px] p-6 text-center">
-          <div className="w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center"
-            style={{ background: 'rgba(245,158,11,0.09)', border: '1px solid rgba(245,158,11,0.22)' }}>
-            <svg width="22" height="22" fill="none" stroke="#F59E0B" strokeWidth="1.8" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
-            </svg>
-          </div>
-          <p className="font-display text-[17px] font-semibold text-[color:var(--vv-text)] mb-1.5">NDA Expired</p>
-          <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] max-w-xs mx-auto leading-relaxed mb-5">
-            This NDA is no longer valid. Contact the business to request a renewed agreement.
-          </p>
-          <Button className="w-full" onClick={() => navigate(returnTo)}>Back to Business Profile</Button>
-        </div>
-      )}
-
-      {/* -- STEP: ERROR ------------------------------------ */}
-      {(step === 'error' || loadError) && (
-        <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[14px] p-6 text-center">
-          <div className="w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center"
-            style={{ background: 'rgba(240,68,56,0.09)', border: '1px solid rgba(240,68,56,0.22)' }}>
-            <svg width="22" height="22" fill="none" stroke="#F04438" strokeWidth="1.8" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
-            </svg>
-          </div>
-          <p className="font-display text-[17px] font-semibold text-[color:var(--vv-text)] mb-1.5">Unable to load the NDA</p>
-          <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] max-w-xs mx-auto leading-relaxed mb-5">
-            Something went wrong. Please try again or contact support if the issue persists.
-          </p>
-          <div className="flex gap-3 justify-center">
-            <Button onClick={() => { setLoadError(false); setStep('overview'); }}>Try Again</Button>
-            <Button variant="secondary" onClick={() => navigate(returnTo)}>Back</Button>
+            <div className="flex gap-3 justify-center">
+              <Button variant="secondary" onClick={() => navigate(returnTo)}>Back</Button>
+              <Button onClick={() => { setStep('overview'); setAgreed(false); }}>Request New NDA</Button>
+            </div>
           </div>
         </div>
       )}

@@ -3,134 +3,38 @@ import { Badge, VerificationBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import {
   IconSearch, IconX, IconCheck, IconAlertTriangle, IconShield,
-  IconFilter, IconChevronDown, IconEye, IconFileText,
+  IconFilter, IconEye, IconFileText,
 } from '../../components/layout/Icons';
+import { api, AdminVerificationRequestData, ApiError } from '../../services/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type VerifStatus = 'Pending' | 'Under Review' | 'Needs Information' | 'Approved' | 'Rejected';
-type VerifTier = 1 | 2;
-type UserRole = 'Founder' | 'Investor' | 'Professional';
-type RiskLevel = 'None' | 'Low' | 'Medium' | 'High';
+type VerifStatus = 'Pending' | 'Under Review' | 'Needs Information' | 'Approved' | 'Rejected' | 'Cancelled';
 
-interface VerifRequest {
-  id: string;
-  userId: string;
-  name: string;
-  email: string;
-  headline: string;
-  location: string;
-  roles: UserRole[];
-  tier: VerifTier;
-  currentTier: 0 | 1 | 2;
-  submitted: string;
-  status: VerifStatus;
-  flags: number;
-  risk: RiskLevel;
-  assigned: string;
-  profileCompletion: number;
-}
-
-interface Evidence {
-  name: string;
-  category: string;
-  submitted: string;
-  status: 'Submitted' | 'Verified' | 'Queried';
-}
-
-interface HistoryEntry {
-  action: string;
-  time: string;
-  actor: string;
-  result?: string;
-}
-
-// ─── Data ─────────────────────────────────────────────────────────────────────
-
-const QUEUE: VerifRequest[] = [
-  { id: 'VRQ-0041', userId: 'USR-0042', name: 'Sarah Chen', email: 'sarah@meridian.vc', headline: 'Partner at Meridian Capital · FinTech Seed Investor', location: 'New York, NY', roles: ['Investor'], tier: 2, currentTier: 1, submitted: 'Apr 14, 2026', status: 'Pending', flags: 0, risk: 'Low', assigned: '—', profileCompletion: 91 },
-  { id: 'VRQ-0042', userId: 'USR-0103', name: 'Marcus Williams', email: 'marcus@nova.co', headline: 'Founder at Nova · Building logistics AI', location: 'Austin, TX', roles: ['Founder'], tier: 1, currentTier: 0, submitted: 'Apr 16, 2026', status: 'Pending', flags: 0, risk: 'None', assigned: '—', profileCompletion: 64 },
-  { id: 'VRQ-0043', userId: 'USR-0088', name: 'Priya Nair', email: 'priya@nair.me', headline: 'Product Strategist · HealthTech · UX Research', location: 'Toronto, CA', roles: ['Professional', 'Investor'], tier: 2, currentTier: 0, submitted: 'Apr 17, 2026', status: 'Needs Information', flags: 2, risk: 'Medium', assigned: 'admin@vault.io', profileCompletion: 72 },
-  { id: 'VRQ-0044', userId: 'USR-0055', name: 'James Okafor', email: 'james@apex.vc', headline: 'Principal at Apex Ventures · AI/ML portfolio', location: 'London, UK', roles: ['Investor'], tier: 1, currentTier: 0, submitted: 'Apr 18, 2026', status: 'Under Review', flags: 0, risk: 'None', assigned: 'admin@vault.io', profileCompletion: 80 },
-  { id: 'VRQ-0045', userId: 'USR-0118', name: 'Elena Vasquez', email: 'elena@green.io', headline: 'Co-Founder at GreenPath Logistics', location: 'Chicago, IL', roles: ['Founder'], tier: 1, currentTier: 0, submitted: 'Apr 19, 2026', status: 'Pending', flags: 1, risk: 'Low', assigned: '—', profileCompletion: 55 },
-  { id: 'VRQ-0046', userId: 'USR-0200', name: 'Riley Kim', email: 'riley@orbit.io', headline: 'CEO at Orbit Analytics · Data SaaS', location: 'Seattle, WA', roles: ['Founder'], tier: 1, currentTier: 0, submitted: 'Apr 20, 2026', status: 'Approved', flags: 0, risk: 'None', assigned: 'admin@vault.io', profileCompletion: 88 },
-  { id: 'VRQ-0047', userId: 'USR-0199', name: 'Unknown Account', email: 'anon@shadytoken.co', headline: '—', location: '—', roles: ['Founder'], tier: 1, currentTier: 0, submitted: 'Apr 20, 2026', status: 'Rejected', flags: 3, risk: 'High', assigned: 'admin@vault.io', profileCompletion: 18 },
+const REJECT_REASONS = [
+  'Insufficient evidence',
+  'Information mismatch',
+  'Invalid submission',
+  'Policy issue',
+  'Suspicious activity',
+  'Other',
 ];
-
-const EVIDENCE: Record<string, Evidence[]> = {
-  'VRQ-0041': [
-    { name: 'Passport / National ID', category: 'Identity Evidence', submitted: 'Apr 14 · 12:00', status: 'Submitted' },
-    { name: 'Proof of professional accreditation', category: 'Professional Evidence', submitted: 'Apr 14 · 12:01', status: 'Submitted' },
-    { name: 'LinkedIn profile export', category: 'Supporting Documents', submitted: 'Apr 14 · 12:02', status: 'Submitted' },
-    { name: 'Fund registration document', category: 'Business Evidence', submitted: 'Apr 14 · 12:05', status: 'Submitted' },
-  ],
-  'VRQ-0043': [
-    { name: 'Passport / National ID', category: 'Identity Evidence', submitted: 'Apr 17 · 10:00', status: 'Queried' },
-    { name: 'Portfolio / work samples', category: 'Professional Evidence', submitted: 'Apr 17 · 10:02', status: 'Submitted' },
-  ],
-  default: [
-    { name: 'Government-issued ID', category: 'Identity Evidence', submitted: 'On file', status: 'Submitted' },
-    { name: 'Business registration', category: 'Business Evidence', submitted: 'On file', status: 'Submitted' },
-  ],
-};
-
-const HISTORY: Record<string, HistoryEntry[]> = {
-  'VRQ-0041': [
-    { action: 'Tier 2 verification requested', time: 'Apr 14 · 11:58', actor: 'user', result: '—' },
-    { action: 'Documents submitted', time: 'Apr 14 · 12:05', actor: 'user', result: '—' },
-    { action: 'Request assigned to queue', time: 'Apr 14 · 12:06', actor: 'system', result: 'Pending' },
-  ],
-  'VRQ-0043': [
-    { action: 'Tier 2 verification requested', time: 'Apr 17 · 09:55', actor: 'user', result: '—' },
-    { action: 'Documents submitted', time: 'Apr 17 · 10:02', actor: 'user', result: '—' },
-    { action: 'Assigned to admin@vault.io', time: 'Apr 17 · 11:00', actor: 'admin@vault.io', result: 'Under Review' },
-    { action: 'Additional information requested', time: 'Apr 18 · 14:10', actor: 'admin@vault.io', result: 'Needs Information' },
-  ],
-  'VRQ-0046': [
-    { action: 'Tier 1 verification requested', time: 'Apr 20 · 08:00', actor: 'user', result: '—' },
-    { action: 'Documents submitted', time: 'Apr 20 · 08:05', actor: 'user', result: '—' },
-    { action: 'Assigned to admin@vault.io', time: 'Apr 20 · 09:00', actor: 'admin@vault.io', result: 'Under Review' },
-    { action: 'Tier 1 approved', time: 'Apr 20 · 11:30', actor: 'admin@vault.io', result: 'Approved' },
-  ],
-  default: [
-    { action: 'Verification requested', time: 'On file', actor: 'user', result: '—' },
-    { action: 'Documents submitted', time: 'On file', actor: 'user', result: '—' },
-  ],
-};
-
-const CHECKLIST_ITEMS = [
-  'Account information complete',
-  'Email verified',
-  'Identity evidence submitted',
-  'Role-specific evidence submitted',
-  'Supporting documents reviewed',
-];
-
-const ADMINS = ['—', 'admin@vault.io', 'trust@vault.io', 'compliance@vault.io'];
-const REJECT_REASONS = ['Insufficient evidence', 'Information mismatch', 'Invalid submission', 'Policy issue', 'Suspicious activity', 'Other'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+const formatStatus = (s: string): VerifStatus => {
+  switch (s?.toLowerCase()) {
+    case 'approved': return 'Approved';
+    case 'rejected': return 'Rejected';
+    case 'needs_information': return 'Needs Information';
+    case 'under_review': return 'Under Review';
+    case 'cancelled': return 'Cancelled';
+    default: return 'Pending';
+  }
+};
+
 const statusVariant = (s: VerifStatus) =>
   s === 'Approved' ? 'success' : s === 'Rejected' ? 'danger' : s === 'Needs Information' ? 'warning' : s === 'Under Review' ? 'info' : 'neutral';
-
-const riskColor = (r: RiskLevel) =>
-  r === 'High' ? '#F04438' : r === 'Medium' ? '#F59E0B' : r === 'Low' ? '#C67A4E' : '#5E6D8F';
-
-function RolePills({ roles }: { roles: UserRole[] }) {
-  const color: Record<UserRole, string> = {
-    Founder: 'text-[#C67A4E] border-[#C67A4E]/30 bg-[#C67A4E]/8',
-    Investor: 'text-[#C9A24B] border-[#C9A24B]/30 bg-[#C9A24B]/8',
-    Professional: 'text-[#8B5CF6] border-[#8B5CF6]/30 bg-[#8B5CF6]/8',
-  };
-  return (
-    <div className="flex flex-wrap gap-1">
-      {roles.map(r => (
-        <span key={r} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${color[r]}`}>{r}</span>
-      ))}
-    </div>
-  );
-}
 
 function Skeleton() {
   return (
@@ -153,10 +57,11 @@ function Skeleton() {
 
 // ─── Request Information modal ────────────────────────────────────────────────
 
-function RequestInfoModal({ req, onSend, onCancel }: {
-  req: VerifRequest;
+function RequestInfoModal({ req, onSend, onCancel, loading }: {
+  req: AdminVerificationRequestData;
   onSend: (msg: string) => void;
   onCancel: () => void;
+  loading: boolean;
 }) {
   const [msg, setMsg] = useState('');
   return (
@@ -165,20 +70,20 @@ function RequestInfoModal({ req, onSend, onCancel }: {
       <div className="relative vv-glass-elevated border border-[color:var(--vv-border-strong)] rounded-[12px] w-full max-w-md p-6 shadow-2xl">
         <p id="request-verification-info-title" className="text-[14px] font-semibold text-[color:var(--vv-text)] font-display mb-1">Request Additional Information</p>
         <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mb-4">
-          For <strong className="text-[color:var(--vv-text-secondary)]">{req.name}</strong> — Tier {req.tier} request
+          For <strong className="text-[color:var(--vv-text-secondary)]">{req.user?.name || `User #${req.user_id}`}</strong> — Tier {req.requested_tier} request
         </p>
         <label className="block text-[11px] text-[color:var(--vv-text-tertiary)] uppercase tracking-wider font-semibold mb-1.5">
           What is needed
         </label>
         <textarea
           value={msg} onChange={e => setMsg(e.target.value)}
-          rows={4} placeholder="Describe what information or documents are required, and any specific instructions for the applicant…"
+          rows={4} placeholder="Describe what information or documents are required from the applicant…"
           className="w-full px-3 py-2.5 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] rounded-md text-[12.5px] text-[color:var(--vv-text)] placeholder-[color:var(--vv-text-tertiary)] focus:outline-none focus:border-[#C67A4E] transition-colors resize-none"
         />
         <div className="flex gap-2 mt-4">
-          <Button variant="secondary" size="sm" className="flex-1" onClick={onCancel}>Cancel</Button>
-          <Button size="sm" className="flex-1" onClick={() => msg.trim() && onSend(msg)} disabled={!msg.trim()}>
-            Send Request
+          <Button variant="secondary" size="sm" className="flex-1" onClick={onCancel} disabled={loading}>Cancel</Button>
+          <Button size="sm" className="flex-1" onClick={() => msg.trim() && onSend(msg)} disabled={!msg.trim() || loading}>
+            {loading ? 'Sending...' : 'Send Request'}
           </Button>
         </div>
       </div>
@@ -188,10 +93,11 @@ function RequestInfoModal({ req, onSend, onCancel }: {
 
 // ─── Reject modal ─────────────────────────────────────────────────────────────
 
-function RejectModal({ req, onReject, onCancel }: {
-  req: VerifRequest;
+function RejectModal({ req, onReject, onCancel, loading }: {
+  req: AdminVerificationRequestData;
   onReject: (reason: string, notes: string) => void;
   onCancel: () => void;
+  loading: boolean;
 }) {
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
@@ -205,7 +111,7 @@ function RejectModal({ req, onReject, onCancel }: {
           </div>
           <div>
             <p id="reject-verification-title" className="text-[14px] font-semibold text-[color:var(--vv-text)] font-display">Reject Verification</p>
-            <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">{req.name} · Tier {req.tier} request</p>
+            <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">{req.user?.name || `User #${req.user_id}`} · Tier {req.requested_tier} request</p>
           </div>
         </div>
         <label className="block text-[11px] text-[color:var(--vv-text-tertiary)] uppercase tracking-wider font-semibold mb-1.5">
@@ -217,16 +123,16 @@ function RejectModal({ req, onReject, onCancel }: {
           {REJECT_REASONS.map(r => <option key={r}>{r}</option>)}
         </select>
         <label className="block text-[11px] text-[color:var(--vv-text-tertiary)] uppercase tracking-wider font-semibold mb-1.5">
-          Additional notes (optional)
+          Additional admin notes (optional)
         </label>
         <textarea value={notes} onChange={e => setNotes(e.target.value)}
-          rows={3} placeholder="Any additional context for the applicant or for the audit record…"
+          rows={3} placeholder="Additional context for the applicant or audit record…"
           className="w-full px-3 py-2.5 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] rounded-md text-[12.5px] text-[color:var(--vv-text)] placeholder-[color:var(--vv-text-tertiary)] focus:outline-none focus:border-[#C67A4E] transition-colors resize-none mb-4"
         />
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" className="flex-1" onClick={onCancel}>Cancel</Button>
-          <Button variant="destructive" size="sm" className="flex-1" onClick={() => reason && onReject(reason, notes)} disabled={!reason}>
-            Confirm Rejection
+          <Button variant="secondary" size="sm" className="flex-1" onClick={onCancel} disabled={loading}>Cancel</Button>
+          <Button variant="destructive" size="sm" className="flex-1" onClick={() => reason && onReject(reason, notes)} disabled={!reason || loading}>
+            {loading ? 'Rejecting...' : 'Confirm Rejection'}
           </Button>
         </div>
       </div>
@@ -236,11 +142,13 @@ function RejectModal({ req, onReject, onCancel }: {
 
 // ─── Approve modal ────────────────────────────────────────────────────────────
 
-function ApproveModal({ req, onApprove, onCancel }: {
-  req: VerifRequest;
-  onApprove: () => void;
+function ApproveModal({ req, onApprove, onCancel, loading }: {
+  req: AdminVerificationRequestData;
+  onApprove: (notes?: string) => void;
   onCancel: () => void;
+  loading: boolean;
 }) {
+  const [notes, setNotes] = useState('');
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="approve-verification-title">
       <div className="absolute inset-0 bg-black/60" onClick={onCancel} />
@@ -250,28 +158,40 @@ function ApproveModal({ req, onApprove, onCancel }: {
             <IconCheck s={14} className="text-[#22C55E]" />
           </div>
           <div>
-            <p id="approve-verification-title" className="text-[14px] font-semibold text-[color:var(--vv-text)] font-display">Approve Tier {req.tier} Verification</p>
-            <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">This action will be recorded in audit logs</p>
+            <p id="approve-verification-title" className="text-[14px] font-semibold text-[color:var(--vv-text)] font-display">Approve Tier {req.requested_tier} Verification</p>
+            <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">Action will be logged in audit trail</p>
           </div>
         </div>
-        <div className="space-y-2 mb-5">
-          {[
-            { label: 'Applicant', value: req.name },
-            { label: 'Email', value: req.email },
-            { label: 'Requested Tier', value: `Tier ${req.tier}` },
-            { label: 'Reviewer', value: 'admin@vault.io' },
-            { label: 'Timestamp', value: new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) },
-          ].map(row => (
-            <div key={row.label} className="flex justify-between py-1.5 border-b border-[#1c2a3e] last:border-0">
-              <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">{row.label}</span>
-              <span className="text-[11.5px] text-[color:var(--vv-text)] font-medium">{row.value}</span>
-            </div>
-          ))}
+        <div className="space-y-2 mb-4">
+          <div className="flex justify-between py-1 border-b border-[#1c2a3e]">
+            <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">Applicant</span>
+            <span className="text-[11.5px] text-[color:var(--vv-text)] font-medium">{req.user?.name || `User #${req.user_id}`}</span>
+          </div>
+          <div className="flex justify-between py-1 border-b border-[#1c2a3e]">
+            <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">Email</span>
+            <span className="text-[11.5px] text-[color:var(--vv-text)] font-medium">{req.user?.email}</span>
+          </div>
+          <div className="flex justify-between py-1">
+            <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">Requested Tier</span>
+            <span className="text-[11.5px] text-[color:var(--vv-text)] font-medium">Tier {req.requested_tier}</span>
+          </div>
+        </div>
+        <div className="mb-4">
+          <label className="block text-[11px] text-[color:var(--vv-text-tertiary)] uppercase tracking-wider font-semibold mb-1">
+            Approval Notes (Optional)
+          </label>
+          <textarea
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            placeholder="Optional verification review notes..."
+            rows={2}
+            className="w-full px-3 py-2 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] rounded-md text-[12px] text-[color:var(--vv-text)]"
+          />
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" className="flex-1" onClick={onCancel}>Cancel</Button>
-          <Button size="sm" className="flex-1 bg-[#22C55E] hover:bg-[#16A34A] text-white border-transparent" onClick={onApprove}>
-            Approve Tier {req.tier}
+          <Button variant="secondary" size="sm" className="flex-1" onClick={onCancel} disabled={loading}>Cancel</Button>
+          <Button size="sm" className="flex-1 bg-[#22C55E] hover:bg-[#16A34A] text-white border-transparent" onClick={() => onApprove(notes)} disabled={loading}>
+            {loading ? 'Approving...' : `Approve Tier ${req.requested_tier}`}
           </Button>
         </div>
       </div>
@@ -281,24 +201,15 @@ function ApproveModal({ req, onApprove, onCancel }: {
 
 // ─── Review drawer ────────────────────────────────────────────────────────────
 
-function ReviewDrawer({ req, onClose, onApprove, onRequestInfo, onReject, onAssign }: {
-  req: VerifRequest;
+function ReviewDrawer({ req, onClose, onApprove, onRequestInfo, onReject }: {
+  req: AdminVerificationRequestData;
   onClose: () => void;
   onApprove: () => void;
   onRequestInfo: () => void;
   onReject: () => void;
-  onAssign: (admin: string) => void;
 }) {
-  const evidence = EVIDENCE[req.id] ?? EVIDENCE.default;
-  const history = HISTORY[req.id] ?? HISTORY.default;
-  const [section, setSection] = useState<'details' | 'evidence' | 'history'>('details');
-
-  const checklist = CHECKLIST_ITEMS.map((item, i) => ({
-    label: item,
-    done: req.profileCompletion > 60 ? i < 3 : i < 2,
-  }));
-
-  const isFinal = req.status === 'Approved' || req.status === 'Rejected';
+  const [section, setSection] = useState<'details' | 'evidence'>('details');
+  const isFinal = req.status === 'approved' || req.status === 'rejected';
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-labelledby="verification-drawer-title">
@@ -310,56 +221,53 @@ function ReviewDrawer({ req, onClose, onApprove, onRequestInfo, onReject, onAssi
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] flex items-center justify-center text-[13px] font-bold text-[color:var(--vv-text)] shrink-0">
-                {req.name[0]}
+                {(req.user?.name || 'U')[0]}
               </div>
               <div className="min-w-0">
-                <p id="verification-drawer-title" className="text-[13.5px] font-semibold text-[color:var(--vv-text)] font-display leading-tight">{req.name}</p>
-                <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">{req.id} · Tier {req.tier} request</p>
+                <p id="verification-drawer-title" className="text-[13.5px] font-semibold text-[color:var(--vv-text)] font-display leading-tight">{req.user?.name || `User #${req.user_id}`}</p>
+                <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">Request #{req.id} · Tier {req.requested_tier}</p>
               </div>
             </div>
-            <button onClick={onClose} className="text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)] transition-colors shrink-0 mt-0.5">
+            <button type="button" onClick={onClose} className="text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)] transition-colors shrink-0 mt-0.5">
               <IconX s={15} />
             </button>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant={statusVariant(req.status)} dot>{req.status}</Badge>
-            <RolePills roles={req.roles} />
-            {req.flags > 0 && (
-              <span className="flex items-center gap-1 text-[10.5px] font-medium" style={{ color: riskColor(req.risk) }}>
-                <IconAlertTriangle s={10} />{req.flags} flag{req.flags > 1 ? 's' : ''} · {req.risk} risk
-              </span>
-            )}
+            <Badge variant={statusVariant(formatStatus(req.status))} dot>{formatStatus(req.status)}</Badge>
+            <span className="text-[11px] text-[color:var(--vv-text-tertiary)]">Tier {req.requested_tier}</span>
           </div>
         </div>
 
         {/* Sub-tabs */}
         <div className="shrink-0 flex border-b border-[color:var(--vv-border)] overflow-x-auto">
-          {(['details', 'evidence', 'history'] as const).map(t => (
-            <button key={t} onClick={() => setSection(t)}
+          {(['details', 'evidence'] as const).map(t => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setSection(t)}
               className={`px-4 py-2.5 text-[12px] font-medium border-b-2 whitespace-nowrap transition-colors capitalize ${
                 section === t ? 'border-[#C67A4E] text-[color:var(--vv-text)]' : 'border-transparent text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)]'
-              }`}>{t === 'details' ? 'Applicant Details' : t === 'evidence' ? 'Evidence' : 'History'}
+              }`}
+            >
+              {t === 'details' ? 'Applicant Details' : 'Submitted Evidence'}
             </button>
           ))}
         </div>
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
-
           {section === 'details' && (
             <div className="px-5 py-4 space-y-5">
-              {/* Identity */}
               <div>
                 <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-2">Applicant Identity</p>
                 <div className="space-y-2">
                   {[
-                    { label: 'Name', value: req.name },
-                    { label: 'Headline', value: <span className="italic text-[color:var(--vv-text-tertiary)]">{req.headline || '—'}</span> },
-                    { label: 'Location', value: req.location },
-                    { label: 'Email', value: <span className="font-mono text-[10.5px]">{req.email}</span> },
-                    { label: 'Roles', value: <RolePills roles={req.roles} /> },
-                    { label: 'Current tier', value: req.currentTier === 0 ? <Badge variant="neutral">Unverified</Badge> : <VerificationBadge tier={req.currentTier as 1|2} /> },
-                    { label: 'Profile completion', value: `${req.profileCompletion}%` },
+                    { label: 'Name', value: req.user?.name || '—' },
+                    { label: 'Email', value: <span className="font-mono text-[10.5px]">{req.user?.email || '—'}</span> },
+                    { label: 'Phone', value: req.user?.phone || 'Not verified' },
+                    { label: 'Submitted At', value: req.submitted_at ? new Date(req.submitted_at).toLocaleString() : '—' },
+                    { label: 'Reviewed At', value: req.reviewed_at ? new Date(req.reviewed_at).toLocaleString() : 'Not reviewed yet' },
+                    { label: 'Assigned Reviewer', value: req.assigned_admin?.name || 'Unassigned' },
                   ].map((r, i) => (
                     <div key={i} className="flex items-start justify-between gap-4 py-1.5 border-b border-[#1c2a3e] last:border-0">
                       <span className="text-[11px] text-[color:var(--vv-text-tertiary)] shrink-0 pt-0.5">{r.label}</span>
@@ -367,65 +275,19 @@ function ReviewDrawer({ req, onClose, onApprove, onRequestInfo, onReject, onAssi
                     </div>
                   ))}
                 </div>
-                <button className="mt-3 flex items-center gap-1 text-[11px] text-[#C67A4E] hover:underline">
-                  <IconEye s={11} /> View full profile
-                </button>
               </div>
 
-              {/* Request info */}
-              <div>
-                <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-2">Verification Request</p>
-                <div className="space-y-0">
-                  {[
-                    { label: 'Requested tier', value: <><VerificationBadge tier={req.tier} /> <span className="text-[11.5px] text-[color:var(--vv-text-secondary)] ml-1">Tier {req.tier}</span></> },
-                    { label: 'Submitted', value: req.submitted },
-                    { label: 'Status', value: <Badge variant={statusVariant(req.status)} dot>{req.status}</Badge> },
-                    { label: 'Assigned to', value: (
-                      <select
-                        defaultValue={req.assigned}
-                        onChange={e => onAssign(e.target.value)}
-                        onClick={e => e.stopPropagation()}
-                        className="h-7 px-2 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border)] rounded text-[11px] text-[color:var(--vv-text-secondary)] focus:outline-none focus:border-[color:var(--vv-border-strong)] transition-colors"
-                      >
-                        {ADMINS.map(a => <option key={a}>{a}</option>)}
-                      </select>
-                    )},
-                  ].map((r, i) => (
-                    <div key={i} className="flex items-center justify-between gap-4 py-2 border-b border-[#1c2a3e] last:border-0">
-                      <span className="text-[11px] text-[color:var(--vv-text-tertiary)] shrink-0">{r.label}</span>
-                      <span className="text-[11.5px] text-[color:var(--vv-text-secondary)] flex items-center gap-1">{r.value}</span>
-                    </div>
-                  ))}
+              {req.admin_notes && (
+                <div className="p-3 bg-[#141E33] border border-[color:var(--vv-border)] rounded-md">
+                  <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-wider font-semibold mb-1">Admin Notes</p>
+                  <p className="text-[12px] text-[color:var(--vv-text-secondary)]">{req.admin_notes}</p>
                 </div>
-              </div>
+              )}
 
-              {/* Checklist */}
-              <div>
-                <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-2">Review Checklist</p>
-                <div className="space-y-2">
-                  {checklist.map((item, i) => (
-                    <div key={i} className="flex items-center gap-2.5">
-                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${
-                        item.done ? 'bg-[#22C55E]/10 border-[#22C55E]/50' : 'border-[color:var(--vv-border-strong)]'
-                      }`}>
-                        {item.done && <IconCheck s={8} className="text-[#22C55E]" />}
-                      </div>
-                      <span className={`text-[11.5px] ${item.done ? 'text-[color:var(--vv-text-tertiary)] line-through' : 'text-[color:var(--vv-text-secondary)]'}`}>{item.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Risk */}
-              {req.flags > 0 && (
-                <div className="p-3 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[#F59E0B]/20 rounded-md">
-                  <p className="text-[10px] text-[#F59E0B] uppercase tracking-wider font-semibold mb-1.5">Flags / Risk</p>
-                  <div className="flex items-center gap-2 mb-1">
-                    <IconAlertTriangle s={12} className="text-[#F59E0B]" />
-                    <span className="text-[12px] text-[#F59E0B] font-medium">{req.flags} active flag{req.flags > 1 ? 's' : ''}</span>
-                    <span className="text-[11px] text-[color:var(--vv-text-tertiary)]">· {req.risk} risk</span>
-                  </div>
-                  <p className="text-[11px] text-[color:var(--vv-text-tertiary)] leading-snug">Review flags before approving. Flagged accounts must meet a higher evidence threshold.</p>
+              {req.rejection_reason && (
+                <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-md">
+                  <p className="text-[10px] text-rose-400 uppercase tracking-wider font-semibold mb-1">Rejection Reason</p>
+                  <p className="text-[12px] text-rose-300">{req.rejection_reason}</p>
                 </div>
               )}
             </div>
@@ -433,88 +295,45 @@ function ReviewDrawer({ req, onClose, onApprove, onRequestInfo, onReject, onAssi
 
           {section === 'evidence' && (
             <div className="px-5 py-4">
-              <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-3">Submitted Evidence</p>
-              {evidence.length === 0 ? (
-                <p className="text-[12px] text-[color:var(--vv-text-tertiary)] text-center py-6">No evidence submitted yet.</p>
-              ) : (
+              <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-3">
+                Submitted Documents ({req.evidence?.length || req.evidence_count || 0})
+              </p>
+              {req.evidence && req.evidence.length > 0 ? (
                 <div className="space-y-2">
-                  {evidence.map((e, i) => (
-                    <div key={i} className="flex items-start gap-3 p-3 bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[8px]">
+                  {req.evidence.map(e => (
+                    <div key={e.id} className="flex items-start gap-3 p-3 bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[8px]">
                       <IconFileText s={14} className="text-[#C67A4E] shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[12.5px] font-medium text-[color:var(--vv-text)]">{e.name}</p>
-                        <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">{e.category} · {e.submitted}</p>
+                        <p className="text-[12.5px] font-medium text-[color:var(--vv-text)] truncate">{e.original_filename}</p>
+                        <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">
+                          {e.evidence_type_label} • {Math.round(e.file_size / 1024)} KB
+                        </p>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Badge variant={e.status === 'Verified' ? 'success' : e.status === 'Queried' ? 'warning' : 'info'}>{e.status}</Badge>
-                        <Button variant="ghost" size="sm" icon={<IconEye s={11} />}>View</Button>
-                      </div>
+                      <Badge variant="success">Stored Encrypted</Badge>
                     </div>
                   ))}
+                </div>
+              ) : (
+                <div className="p-6 text-center text-[12px] text-[color:var(--vv-text-tertiary)] bg-[#121A2B] rounded-lg border border-[color:var(--vv-border)]">
+                  {req.evidence_count ? `${req.evidence_count} evidence files submitted.` : 'No verification evidence uploaded.'}
                 </div>
               )}
             </div>
           )}
-
-          {section === 'history' && (
-            <div className="px-5 py-4">
-              <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-3">Verification History</p>
-              <div className="space-y-3 relative">
-                <div className="absolute left-[5px] top-2 bottom-2 w-px bg-[color:color-mix(in_srgb,var(--vv-raised)_90%,transparent)]" />
-                {history.map((h, i) => (
-                  <div key={i} className="flex items-start gap-3 relative pl-1">
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#35446A] border border-[color:var(--vv-border)] shrink-0 mt-1.5 relative z-10" />
-                    <div className="min-w-0">
-                      <p className="text-[12px] text-[color:var(--vv-text-secondary)] leading-snug">{h.action}</p>
-                      {h.result && h.result !== '—' && (
-                        <span className="text-[10px] text-[#C67A4E] font-medium">→ {h.result}</span>
-                      )}
-                      <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-0.5 font-mono">{h.time} · {h.actor}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <button className="mt-4 flex items-center gap-1 text-[11px] text-[#C67A4E] hover:underline">
-                View in Audit Logs <IconFileText s={11} />
-              </button>
-            </div>
-          )}
         </div>
 
-        {/* Action footer */}
+        {/* Footer Actions */}
         {!isFinal && (
-          <div className="shrink-0 px-5 py-4 border-t border-[color:var(--vv-border)] bg-[#0D1626]">
-            <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-3">Admin Decision</p>
-            <div className="space-y-2">
-              <Button
-                size="sm" className="w-full bg-[#22C55E] hover:bg-[#16A34A] text-white border-transparent"
-                icon={<IconCheck s={12} />} onClick={onApprove}
-              >
-                Approve Tier {req.tier}
-              </Button>
-              <Button
-                variant="secondary" size="sm" className="w-full"
-                icon={<IconShield s={12} />} onClick={onRequestInfo}
-              >
-                Request Information
-              </Button>
-              <Button
-                variant="destructive" size="sm" className="w-full"
-                icon={<IconX s={12} />} onClick={onReject}
-              >
-                Reject
-              </Button>
-            </div>
-            <p className="text-[10px] text-[color:var(--vv-text-tertiary)]/60 mt-3 text-center leading-snug">
-              All decisions are logged and auditable.
-            </p>
-          </div>
-        )}
-        {isFinal && (
-          <div className="shrink-0 px-5 py-3 border-t border-[color:var(--vv-border)] bg-[#0D1626]">
-            <p className="text-[11px] text-[color:var(--vv-text-tertiary)] text-center">
-              This request is <strong className="text-[color:var(--vv-text-secondary)]">{req.status}</strong>. No further action required.
-            </p>
+          <div className="shrink-0 p-4 border-t border-[color:var(--vv-border)] bg-[#0D1626] flex gap-2">
+            <Button size="sm" className="flex-1 bg-[#22C55E] hover:bg-[#16A34A] text-white border-transparent" onClick={onApprove}>
+              Approve
+            </Button>
+            <Button size="sm" variant="secondary" className="flex-1" onClick={onRequestInfo}>
+              Request Info
+            </Button>
+            <Button size="sm" variant="destructive" onClick={onReject}>
+              Reject
+            </Button>
           </div>
         )}
       </aside>
@@ -522,281 +341,239 @@ function ReviewDrawer({ req, onClose, onApprove, onRequestInfo, onReject, onAssi
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Main Verification Queue ──────────────────────────────────────────────────
 
-export default function VerificationQueue() {
+export default function AdminVerificationQueue() {
+  const [queue, setQueue] = useState<AdminVerificationRequestData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [queue, setQueue] = useState<VerifRequest[]>(QUEUE);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'all' | 'pending' | 'under_review' | 'needs_information' | 'approved' | 'rejected'>('all');
   const [search, setSearch] = useState('');
-  const [tierFilter, setTierFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
-  const [flagFilter, setFlagFilter] = useState('');
-  const [sortBy, setSortBy] = useState('oldest');
-  const [filtersOpen, setFiltersOpen] = useState(false);
-
-  const [drawer, setDrawer] = useState<VerifRequest | null>(null);
+  const [drawer, setDrawer] = useState<AdminVerificationRequestData | null>(null);
   const [modal, setModal] = useState<'approve' | 'reject' | 'requestInfo' | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const loadQueue = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const params = filter !== 'all' ? { status: filter } : undefined;
+      const data = await api.admin.verificationRequests.list(params);
+      setQueue(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load verification queue from backend.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 480);
-    return () => clearTimeout(t);
-  }, []);
+    loadQueue();
+  }, [filter]);
 
-  const summary = {
-    pending: queue.filter(r => r.status === 'Pending').length,
-    underReview: queue.filter(r => r.status === 'Under Review').length,
-    needsInfo: queue.filter(r => r.status === 'Needs Information').length,
-    approvedToday: queue.filter(r => r.status === 'Approved').length,
+  const handleOpenDrawer = async (item: AdminVerificationRequestData) => {
+    try {
+      const full = await api.admin.verificationRequests.get(item.id);
+      setDrawer(full || item);
+    } catch {
+      setDrawer(item);
+    }
   };
 
-  const filtered = queue
-    .filter(r => {
-      const q = search.toLowerCase();
-      if (q && !r.name.toLowerCase().includes(q) && !r.email.toLowerCase().includes(q)) return false;
-      if (tierFilter && r.tier !== parseInt(tierFilter)) return false;
-      if (statusFilter && r.status !== statusFilter) return false;
-      if (roleFilter && !r.roles.includes(roleFilter as UserRole)) return false;
-      if (flagFilter === 'flagged' && r.flags === 0) return false;
-      if (flagFilter === 'clean' && r.flags > 0) return false;
-      return true;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'oldest') return a.id.localeCompare(b.id);
-      if (sortBy === 'newest') return b.id.localeCompare(a.id);
-      if (sortBy === 'flags') return b.flags - a.flags;
-      if (sortBy === 'tier') return b.tier - a.tier;
-      return 0;
-    });
-
-  const hasFilters = !!(search || tierFilter || statusFilter || roleFilter || flagFilter);
-  const clearFilters = () => { setSearch(''); setTierFilter(''); setStatusFilter(''); setRoleFilter(''); setFlagFilter(''); };
-
-  const applyDecision = (id: string, newStatus: VerifStatus, newTier?: 0|1|2) => {
-    setQueue(q => q.map(r => r.id === id ? { ...r, status: newStatus, ...(newTier !== undefined ? { currentTier: newTier } : {}) } : r));
-    if (drawer?.id === id) setDrawer(d => d ? { ...d, status: newStatus } : null);
-    setModal(null);
+  const handleApprove = async (notes?: string) => {
+    if (!drawer) return;
+    try {
+      setActionLoading(true);
+      await api.admin.verificationRequests.approve(drawer.id, notes);
+      setModal(null);
+      setDrawer(null);
+      await loadQueue();
+    } catch (err: any) {
+      setError(err.message || 'Approval failed.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const selectClassName = "h-8 px-2 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border)] rounded-md text-[11.5px] text-[color:var(--vv-text-secondary)] focus:outline-none focus:border-[color:var(--vv-border-strong)] transition-colors cursor-pointer";
+  const handleReject = async (reason: string, notes: string) => {
+    if (!drawer) return;
+    try {
+      setActionLoading(true);
+      await api.admin.verificationRequests.reject(drawer.id, reason, notes);
+      setModal(null);
+      setDrawer(null);
+      await loadQueue();
+    } catch (err: any) {
+      setError(err.message || 'Rejection failed.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRequestInfo = async (notes: string) => {
+    if (!drawer) return;
+    try {
+      setActionLoading(true);
+      await api.admin.verificationRequests.requestInformation(drawer.id, notes);
+      setModal(null);
+      setDrawer(null);
+      await loadQueue();
+    } catch (err: any) {
+      setError(err.message || 'Information request failed.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const filtered = queue.filter(r => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return (
+      (r.user?.name && r.user.name.toLowerCase().includes(s)) ||
+      (r.user?.email && r.user.email.toLowerCase().includes(s)) ||
+      String(r.id).includes(s)
+    );
+  });
 
   return (
-    <div className="p-5 max-w-[1400px] mx-auto">
-
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between mb-4">
+    <div className="p-6 max-w-[1280px] mx-auto">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="font-display text-[17px] font-semibold text-[color:var(--vv-text)] leading-none">Verification Queue</h1>
-          <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] mt-1">Review and manage user verification requests.</p>
+          <div className="flex items-center gap-3">
+            <h1 className="font-display text-2xl font-semibold text-[color:var(--vv-text)]">Verification Queue</h1>
+            <Badge variant="neutral">Tier 1 Identity & Accreditation</Badge>
+          </div>
+          <p className="text-[13px] text-[color:var(--vv-text-tertiary)] mt-0.5">
+            Review and adjudicate user verification requests submitted across the platform.
+          </p>
         </div>
-        <Button variant="ghost" size="sm">Export CSV</Button>
+        <Button size="sm" variant="secondary" onClick={loadQueue} disabled={loading}>
+          Refresh Queue
+        </Button>
       </div>
 
-      {/* ── Summary strip ───────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-        {[
-          { label: 'Pending', value: summary.pending, color: '#F59E0B', status: 'Pending' },
-          { label: 'Under Review', value: summary.underReview, color: '#3B82F6', status: 'Under Review' },
-          { label: 'Needs Information', value: summary.needsInfo, color: '#F59E0B', status: 'Needs Information' },
-          { label: 'Approved Today', value: summary.approvedToday, color: '#22C55E', status: 'Approved' },
-        ].map(s => (
-          <button
-            key={s.label}
-            onClick={() => setStatusFilter(v => v === s.status ? '' : s.status)}
-            className={`text-left bg-[#121A2B] border rounded-[10px] px-3.5 py-2.5 transition-colors hover:border-[color:var(--vv-border-strong)] ${statusFilter === s.status ? 'border-[color:var(--vv-border-strong)]' : 'border-[color:var(--vv-border)]'}`}
-          >
-            <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-1 leading-none">{s.label}</p>
-            <p className="font-mono text-[20px] font-semibold tabular-nums leading-none" style={{ color: s.color }}>{s.value}</p>
-          </button>
-        ))}
-      </div>
+      {error && (
+        <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-[13px] flex items-center justify-between">
+          <span>{error}</span>
+          <button type="button" onClick={() => setError(null)} className="underline ml-4 text-[12px]">Dismiss</button>
+        </div>
+      )}
 
-      {/* ── Filter toolbar ──────────────────────────────────────────────── */}
-      <div className="mb-4 space-y-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative flex-1 min-w-[160px] max-w-xs">
-            <IconSearch s={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[color:var(--vv-text-tertiary)]" />
-            <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search by name or email…"
-              className="w-full h-8 pl-8 pr-8 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border)] rounded-md text-[12px] text-[color:var(--vv-text)] placeholder-[color:var(--vv-text-tertiary)] focus:outline-none focus:border-[color:var(--vv-border-strong)] transition-colors" />
-            {search && (
-              <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)]"><IconX s={12} /></button>
-            )}
-          </div>
-
-          <div className="hidden md:flex items-center gap-2 flex-wrap">
-            <select value={tierFilter} onChange={e => setTierFilter(e.target.value)} className={selectClassName}>
-              <option value="">All tiers</option>
-              <option value="1">Tier 1</option><option value="2">Tier 2</option>
-            </select>
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={selectClassName}>
-              <option value="">All statuses</option>
-              <option>Pending</option><option>Under Review</option><option>Needs Information</option><option>Approved</option><option>Rejected</option>
-            </select>
-            <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)} className={selectClassName}>
-              <option value="">All roles</option>
-              <option>Founder</option><option>Investor</option><option>Professional</option>
-            </select>
-            <select value={flagFilter} onChange={e => setFlagFilter(e.target.value)} className={selectClassName}>
-              <option value="">All flags</option>
-              <option value="flagged">Flagged</option><option value="clean">No flags</option>
-            </select>
-            <select value={sortBy} onChange={e => setSortBy(e.target.value)} className={selectClassName}>
-              <option value="oldest">Oldest first</option>
-              <option value="newest">Newest first</option>
-              <option value="flags">Most flagged</option>
-              <option value="tier">Tier (high→low)</option>
-            </select>
-          </div>
-
-          <button onClick={() => setFiltersOpen(f => !f)}
-            className="md:hidden flex items-center gap-1.5 h-8 px-3 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border)] rounded-md text-[12px] text-[color:var(--vv-text-secondary)]">
-            <IconFilter s={12} />Filters {hasFilters && <span className="w-1.5 h-1.5 rounded-full bg-[#C67A4E]" />}
-          </button>
-
-          {hasFilters && (
-            <button onClick={clearFilters} className="text-[11.5px] text-[#C67A4E] hover:underline whitespace-nowrap">
-              Clear filters
+      {/* Filter bar & search */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-5">
+        <div className="flex items-center gap-1 p-1 rounded-[10px] border border-[color:var(--vv-border)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] overflow-x-auto">
+          {[
+            { key: 'all', label: 'All Active' },
+            { key: 'pending', label: 'Pending' },
+            { key: 'under_review', label: 'Under Review' },
+            { key: 'needs_information', label: 'Needs Info' },
+            { key: 'approved', label: 'Approved' },
+            { key: 'rejected', label: 'Rejected' },
+          ].map(t => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setFilter(t.key as any)}
+              className={`px-3 py-1.5 rounded-[7px] text-[12px] font-medium transition-all whitespace-nowrap ${
+                filter === t.key
+                  ? 'bg-[#C67A4E] text-white shadow-sm'
+                  : 'text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)]'
+              }`}
+            >
+              {t.label}
             </button>
-          )}
-
-          <span className="text-[11px] text-[color:var(--vv-text-tertiary)] ml-auto font-mono tabular-nums shrink-0">
-            {filtered.length} of {queue.length}
-          </span>
+          ))}
         </div>
 
-        {filtersOpen && (
-          <div className="md:hidden grid grid-cols-2 gap-2 p-3 bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[10px]">
-            <select value={tierFilter} onChange={e => setTierFilter(e.target.value)} className={selectClassName + " w-full"}>
-              <option value="">All tiers</option><option value="1">Tier 1</option><option value="2">Tier 2</option>
-            </select>
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={selectClassName + " w-full"}>
-              <option value="">All statuses</option>
-              <option>Pending</option><option>Under Review</option><option>Needs Information</option><option>Approved</option><option>Rejected</option>
-            </select>
-            <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)} className={selectClassName + " w-full"}>
-              <option value="">All roles</option><option>Founder</option><option>Investor</option><option>Professional</option>
-            </select>
-            <select value={sortBy} onChange={e => setSortBy(e.target.value)} className={selectClassName + " w-full"}>
-              <option value="oldest">Oldest first</option><option value="newest">Newest first</option>
-              <option value="flags">Most flagged</option><option value="tier">Tier</option>
-            </select>
-          </div>
-        )}
+        <div className="relative min-w-[240px]">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#35446A] pointer-events-none">
+            <IconSearch s={14} />
+          </span>
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name, email, request ID..."
+            className="w-full pl-9 pr-3 py-2 rounded-[8px] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border)] text-[12.5px] text-[color:var(--vv-text)] placeholder-[#35446A] outline-none"
+          />
+        </div>
       </div>
 
-      {/* ── Table ───────────────────────────────────────────────────────── */}
-      <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[10px] overflow-hidden">
-        {loading ? <Skeleton /> : filtered.length === 0 ? (
-          <div className="px-4 py-14 text-center">
-            <IconShield s={28} className="text-[#35446A] mx-auto mb-3" />
-            <p className="text-[13px] font-semibold text-[color:var(--vv-text)] mb-1">
-              {hasFilters ? 'No requests match your filters' : 'No pending verification requests'}
+      {/* Table / List */}
+      <div className="rounded-[14px] border border-[color:var(--vv-border)] bg-[#121A2B] overflow-hidden">
+        {loading ? (
+          <Skeleton />
+        ) : filtered.length === 0 ? (
+          <div className="p-12 text-center">
+            <IconShield s={32} className="mx-auto mb-3 text-[color:var(--vv-text-tertiary)]" />
+            <p className="font-display text-[15px] font-semibold text-[color:var(--vv-text)] mb-1">
+              No Verification Requests Found
             </p>
-            <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mb-4">
-              {hasFilters ? 'Try adjusting your search or filters.' : 'New verification submissions will appear here.'}
+            <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] max-w-sm mx-auto">
+              There are no verification requests matching the current status filter.
             </p>
-            {hasFilters && <Button variant="secondary" size="sm" onClick={clearFilters}>Clear filters</Button>}
           </div>
         ) : (
-          <>
-            {/* Desktop table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full min-w-[760px]">
-                <thead>
-                  <tr className="border-b border-[color:var(--vv-border)]">
-                    {['Applicant', 'Role(s)', 'Requested Tier', 'Submitted', 'Status', 'Flags', 'Assigned', 'Action'].map(h => (
-                      <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold text-[color:var(--vv-text-tertiary)] uppercase tracking-widest whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map(r => (
-                    <tr
-                      key={r.id}
-                      className={`border-b border-[#1c2a3e] last:border-0 hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_40%,transparent)] transition-colors cursor-pointer ${r.flags > 0 ? 'border-l-2 border-l-[#F59E0B]' : ''}`}
-                      onClick={() => setDrawer(r)}
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] flex items-center justify-center text-[11px] font-bold text-[color:var(--vv-text)] shrink-0">
-                            {r.name[0]}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-[12.5px] font-medium text-[color:var(--vv-text)] truncate">{r.name}</p>
-                            <p className="text-[10px] text-[color:var(--vv-text-tertiary)] font-mono">{r.id}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3"><RolePills roles={r.roles} /></td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          <VerificationBadge tier={r.tier} />
-                          <span className="text-[11.5px] text-[color:var(--vv-text-secondary)]">Tier {r.tier}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-[11px] text-[color:var(--vv-text-tertiary)] whitespace-nowrap">{r.submitted}</td>
-                      <td className="px-4 py-3"><Badge variant={statusVariant(r.status)} dot>{r.status}</Badge></td>
-                      <td className="px-4 py-3">
-                        {r.flags === 0
-                          ? <span className="font-mono text-[12px] text-[color:var(--vv-text-tertiary)] tabular-nums">0</span>
-                          : <span className="flex items-center gap-1 font-medium" style={{ color: riskColor(r.risk) }}>
-                              <IconAlertTriangle s={11} />{r.flags}
-                            </span>
-                        }
-                      </td>
-                      <td className="px-4 py-3 font-mono text-[11px] text-[color:var(--vv-text-tertiary)]">{r.assigned}</td>
-                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                        <Button variant="ghost" size="sm" icon={<IconEye s={12} />} onClick={() => setDrawer(r)}>Review</Button>
-                      </td>
-                    </tr>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px]">
+              <thead>
+                <tr className="border-b border-[color:var(--vv-border)]">
+                  {['Applicant', 'Requested Tier', 'Submitted', 'Status', 'Evidence Files', 'Assigned Admin', 'Action'].map(h => (
+                    <th key={h} className="px-4 py-2.5 text-left text-[10px] font-semibold text-[color:var(--vv-text-tertiary)] uppercase tracking-widest whitespace-nowrap">{h}</th>
                   ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile cards */}
-            <div className="md:hidden">
-              {filtered.map(r => (
-                <div
-                  key={r.id}
-                  className={`px-4 py-3.5 border-b border-[#1c2a3e] last:border-0 cursor-pointer hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_40%,transparent)] transition-colors ${r.flags > 0 ? 'border-l-2 border-l-[#F59E0B]' : ''}`}
-                  onClick={() => setDrawer(r)}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] flex items-center justify-center text-[11px] font-bold text-[color:var(--vv-text)] shrink-0 mt-0.5">
-                      {r.name[0]}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="text-[12.5px] font-medium text-[color:var(--vv-text)] truncate">{r.name}</p>
-                        <Badge variant={statusVariant(r.status)} dot>{r.status}</Badge>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <RolePills roles={r.roles} />
-                        <div className="flex items-center gap-1">
-                          <VerificationBadge tier={r.tier} />
-                          <span className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">Tier {r.tier}</span>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(r => (
+                  <tr
+                    key={r.id}
+                    className="border-b border-[#1c2a3e] last:border-0 hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_40%,transparent)] transition-colors cursor-pointer"
+                    onClick={() => handleOpenDrawer(r)}
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] flex items-center justify-center text-[11px] font-bold text-[color:var(--vv-text)] shrink-0">
+                          {(r.user?.name || 'U')[0]}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[12.5px] font-medium text-[color:var(--vv-text)] truncate">{r.user?.name || `User #${r.user_id}`}</p>
+                          <p className="text-[10px] text-[color:var(--vv-text-tertiary)] font-mono">{r.user?.email || `Req #${r.id}`}</p>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] font-mono">{r.submitted}</p>
-                        {r.flags > 0 && (
-                          <span className="flex items-center gap-1 text-[10.5px] font-medium" style={{ color: riskColor(r.risk) }}>
-                            <IconAlertTriangle s={10} />{r.flags} flag{r.flags > 1 ? 's' : ''} · {r.risk}
-                          </span>
-                        )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <VerificationBadge tier={Number(r.requested_tier) as 1 | 2} />
+                        <span className="text-[11.5px] text-[color:var(--vv-text-secondary)]">Tier {r.requested_tier}</span>
                       </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-[11px] text-[color:var(--vv-text-tertiary)] whitespace-nowrap">
+                      {r.submitted_at ? new Date(r.submitted_at).toLocaleDateString() : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={statusVariant(formatStatus(r.status))} dot>{formatStatus(r.status)}</Badge>
+                    </td>
+                    <td className="px-4 py-3 text-[12px] text-[color:var(--vv-text-secondary)]">
+                      {r.evidence_count ?? r.evidence?.length ?? 0} file(s)
+                    </td>
+                    <td className="px-4 py-3 font-mono text-[11px] text-[color:var(--vv-text-tertiary)]">
+                      {r.assigned_admin?.name || 'Unassigned'}
+                    </td>
+                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                      <Button variant="ghost" size="sm" icon={<IconEye s={12} />} onClick={() => handleOpenDrawer(r)}>
+                        Review
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
-      {/* ── Review drawer ───────────────────────────────────────────────── */}
+      {/* Review Drawer */}
       {drawer && (
         <ReviewDrawer
           req={drawer}
@@ -804,30 +581,32 @@ export default function VerificationQueue() {
           onApprove={() => setModal('approve')}
           onRequestInfo={() => setModal('requestInfo')}
           onReject={() => setModal('reject')}
-          onAssign={admin => setQueue(q => q.map(r => r.id === drawer.id ? { ...r, assigned: admin } : r))}
         />
       )}
 
-      {/* ── Modals (above drawer) ────────────────────────────────────────── */}
+      {/* Modals */}
       {drawer && modal === 'approve' && (
         <ApproveModal
           req={drawer}
-          onApprove={() => applyDecision(drawer.id, 'Approved', drawer.tier)}
+          onApprove={handleApprove}
           onCancel={() => setModal(null)}
+          loading={actionLoading}
         />
       )}
       {drawer && modal === 'reject' && (
         <RejectModal
           req={drawer}
-          onReject={() => applyDecision(drawer.id, 'Rejected')}
+          onReject={handleReject}
           onCancel={() => setModal(null)}
+          loading={actionLoading}
         />
       )}
       {drawer && modal === 'requestInfo' && (
         <RequestInfoModal
           req={drawer}
-          onSend={() => applyDecision(drawer.id, 'Needs Information')}
+          onSend={handleRequestInfo}
           onCancel={() => setModal(null)}
+          loading={actionLoading}
         />
       )}
     </div>

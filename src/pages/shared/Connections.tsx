@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useRole } from '../../components/layout/AppShell';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { api, type ConnectionItem } from '../../services/api';
 
 // --- Types --------------------------------------------------------------------
 
@@ -14,13 +15,16 @@ type ConnectionStatus =
   | 'negotiating'
   | 'agreement'
   | 'active'
-  | 'completed'
-  | 'declined';
+  | 'completed';
 
 type ConnectionKind = 'investment' | 'professional';
 
 interface Connection {
   id: string;
+  connectionId: number | null;
+  businessId: number;
+  canReciprocate: boolean;
+  participantRole?: string;
   counterpartName: string;
   counterpartInitials: string;
   counterpartRole: string;
@@ -38,146 +42,15 @@ interface Connection {
 // --- Status config -------------------------------------------------------------
 
 const STATUS_CFG: Record<ConnectionStatus, { label: string; variant: 'success' | 'info' | 'warning' | 'neutral' | 'accent'; color: string; description: string }> = {
-  interest_sent:   { label: 'Interest Sent',   variant: 'info',    color: '#3B82F6', description: 'Waiting for founder to respond' },
-  mutual_interest: { label: 'Mutual Interest', variant: 'warning', color: '#C9A24B', description: 'Both parties interested - open a deal room' },
+  interest_sent:   { label: 'Interest Sent',   variant: 'info',    color: '#3B82F6', description: 'Waiting for mutual interest' },
+  mutual_interest: { label: 'Mutual Interest', variant: 'warning', color: '#C9A24B', description: 'Both parties interested – open a deal room' },
   deal_room:       { label: 'Deal Room',        variant: 'info',    color: '#3B82F6', description: 'Deal room open and active' },
-  nda_signed:      { label: 'NDA Signed',       variant: 'success', color: '#22C55E', description: 'NDA complete - negotiation stage' },
+  nda_signed:      { label: 'NDA Signed',       variant: 'success', color: '#22C55E', description: 'NDA complete – negotiation stage' },
   negotiating:     { label: 'Negotiating',      variant: 'warning', color: '#C9A24B', description: 'Terms under negotiation' },
-  agreement:       { label: 'Agreement',        variant: 'success', color: '#22C55E', description: 'Terms agreed - finalising agreement' },
+  agreement:       { label: 'Agreement',        variant: 'success', color: '#22C55E', description: 'Terms agreed – finalising agreement' },
   active:          { label: 'Active',           variant: 'success', color: '#22C55E', description: 'Investment or collaboration active' },
   completed:       { label: 'Completed',        variant: 'success', color: '#22C55E', description: 'Deal successfully completed' },
-  declined:        { label: 'Declined',         variant: 'neutral', color: '#5E6D8F', description: 'Interest or application declined' },
 };
-
-// --- Seed data -----------------------------------------------------------------
-
-const FOUNDER_CONNECTIONS: Connection[] = [
-  {
-    id: 'fc-1',
-    counterpartName: 'Rahim Chowdhury',
-    counterpartInitials: 'RC',
-    counterpartRole: 'Investor - Meridian Capital',
-    businessName: 'Nova Health',
-    businessInitials: 'NH',
-    status: 'nda_signed',
-    kind: 'investment',
-    investmentModel: 'large',
-    updatedAt: 'Aug 28, 2026',
-    dealId: 'deal-room',
-    note: 'NDA signed on Aug 28. Stage 3 documents unlocked. Awaiting negotiation terms response.',
-  },
-  {
-    id: 'fc-2',
-    counterpartName: 'Tariq Hossain',
-    counterpartInitials: 'TH',
-    counterpartRole: 'Growth Strategy Advisor',
-    businessName: 'Nova Health',
-    businessInitials: 'NH',
-    opportunity: 'Growth Strategy Advisor',
-    status: 'negotiating',
-    kind: 'professional',
-    updatedAt: 'Aug 26, 2026',
-    dealId: 'negotiation',
-    note: 'Counter-proposal v2 submitted by Tariq. Awaiting your response.',
-  },
-  {
-    id: 'fc-3',
-    counterpartName: 'Priya Mehta',
-    counterpartInitials: 'PM',
-    counterpartRole: 'Investor - BlueSky Ventures',
-    businessName: 'Nova Health',
-    businessInitials: 'NH',
-    status: 'mutual_interest',
-    kind: 'investment',
-    investmentModel: 'micro',
-    updatedAt: 'Aug 24, 2026',
-    note: 'Mutual interest confirmed. You can open a dedicated deal room to proceed.',
-  },
-  {
-    id: 'fc-4',
-    counterpartName: 'Sadia Islam',
-    counterpartInitials: 'SI',
-    counterpartRole: 'Investor - Dhaka Angel Network',
-    businessName: 'Nova Health',
-    businessInitials: 'NH',
-    status: 'declined',
-    kind: 'investment',
-    updatedAt: 'Aug 20, 2026',
-    note: 'Stage mismatch - investor indicated current stage does not fit their portfolio focus.',
-  },
-];
-
-const INVESTOR_CONNECTIONS: Connection[] = [
-  {
-    id: 'ic-1',
-    counterpartName: 'Rifat Ahsan',
-    counterpartInitials: 'RA',
-    counterpartRole: 'Founder - Nova Health',
-    businessName: 'Nova Health',
-    businessInitials: 'NH',
-    status: 'nda_signed',
-    kind: 'investment',
-    investmentModel: 'large',
-    updatedAt: 'Aug 28, 2026',
-    dealId: 'deal-room',
-    note: 'NDA signed. Stage 3 documents available. Negotiation terms pending.',
-  },
-  {
-    id: 'ic-2',
-    counterpartName: 'Karim Uddin',
-    counterpartInitials: 'KU',
-    counterpartRole: 'Founder - AgriLink BD',
-    businessName: 'AgriLink BD',
-    businessInitials: 'AL',
-    status: 'interest_sent',
-    kind: 'investment',
-    investmentModel: 'micro',
-    updatedAt: 'Aug 22, 2026',
-    note: 'Interest sent. Waiting for the founder to respond.',
-  },
-  {
-    id: 'ic-3',
-    counterpartName: 'Nadia Rahman',
-    counterpartInitials: 'NR',
-    counterpartRole: 'Founder - FinFlow',
-    businessName: 'FinFlow',
-    businessInitials: 'FF',
-    status: 'declined',
-    kind: 'investment',
-    updatedAt: 'Aug 15, 2026',
-    note: 'Founder is not currently open to new investors at this stage.',
-  },
-];
-
-const PROFESSIONAL_CONNECTIONS: Connection[] = [
-  {
-    id: 'pc-1',
-    counterpartName: 'Rifat Ahsan',
-    counterpartInitials: 'RA',
-    counterpartRole: 'Founder - Nova Health',
-    businessName: 'Nova Health',
-    businessInitials: 'NH',
-    opportunity: 'Growth Strategy Advisor',
-    status: 'negotiating',
-    kind: 'professional',
-    updatedAt: 'Aug 26, 2026',
-    dealId: 'negotiation',
-    note: 'Nova Health has proposed collaboration terms. Review and respond to proceed.',
-  },
-  {
-    id: 'pc-2',
-    counterpartName: 'Karim Uddin',
-    counterpartInitials: 'KU',
-    counterpartRole: 'Founder - AgriLink BD',
-    businessName: 'AgriLink BD',
-    businessInitials: 'AL',
-    opportunity: 'Market Entry Consultant',
-    status: 'interest_sent',
-    kind: 'professional',
-    updatedAt: 'Aug 18, 2026',
-    note: 'Application submitted. Awaiting review from AgriLink BD.',
-  },
-];
 
 // --- Deal lifecycle stages -----------------------------------------------------
 
@@ -204,7 +77,7 @@ function InvestmentModelPill({ model }: { model: 'micro' | 'large' }) {
         ? { background: 'rgba(34,197,94,0.1)', color: '#22C55E', border: '1px solid rgba(34,197,94,0.2)' }
         : { background: 'rgba(198,122,78,0.1)', color: '#C67A4E', border: '1px solid rgba(198,122,78,0.2)' }}
     >
-      {model === 'micro' ? '? Micro - P/L Sharing' : '? Standard - Equity'}
+      {model === 'micro' ? '◆ Micro – P/L Sharing' : '◆ Standard – Equity'}
     </span>
   );
 }
@@ -237,24 +110,41 @@ function MiniLifecycle({ status }: { status: ConnectionStatus }) {
   );
 }
 
-function ConnectionCard({ conn }: { conn: Connection }) {
+function ConnectionCard({ conn, onChanged }: { conn: Connection; onChanged: () => void }) {
   const navigate = useNavigate();
+  const [opening, setOpening] = useState(false);
+  const [openError, setOpenError] = useState<string | null>(null);
   const cfg = STATUS_CFG[conn.status];
-  const isActionable = ['mutual_interest', 'deal_room', 'nda_signed', 'negotiating', 'agreement', 'active'].includes(conn.status);
-  const isDeclined = conn.status === 'declined';
+  const isActionable = ['mutual_interest', 'deal_room', 'nda_signed', 'negotiating', 'agreement', 'active', 'completed'].includes(conn.status);
   const isWaiting = conn.status === 'interest_sent';
 
-  function handlePrimaryAction() {
-    if (conn.dealId === 'deal-room') navigate('/app/deal-room');
-    else if (conn.dealId === 'negotiation') navigate('/app/negotiation');
-    else if (conn.status === 'mutual_interest') navigate('/app/deal-room');
+  async function handlePrimaryAction() {
+    if (conn.dealId) {
+      navigate(`/app/deals/${conn.dealId}`);
+      return;
+    }
+
+    if (conn.connectionId && isActionable) {
+      setOpening(true);
+      setOpenError(null);
+      try {
+        const res = await api.post<{ id: number }>(`/api/me/connections/${conn.connectionId}/deal`, conn.participantRole ? { role: conn.participantRole } : {});
+        if (res && res.id) {
+          navigate(`/app/deals/${res.id}`);
+        } else {
+          setOpenError('The server did not return a Deal ID.');
+        }
+      } catch (err: any) {
+        setOpenError(err?.message || 'Failed to open deal room. Refresh connections to check for an existing deal.');
+      } finally {
+        setOpening(false);
+      }
+    }
   }
 
   return (
     <div
-      className={`rounded-[14px] border transition-all duration-200 bg-[#121A2B] ${
-        isDeclined ? 'border-[color:var(--vv-border)]/50 opacity-65' : 'border-[color:var(--vv-border)]'
-      }`}
+      className={`rounded-[14px] border transition-all duration-200 bg-[#121A2B] border-[color:var(--vv-border)]`}
     >
       {/* Header */}
       <div className="px-5 pt-4 pb-3 border-b border-[#1c2a3e]">
@@ -295,13 +185,19 @@ function ConnectionCard({ conn }: { conn: Connection }) {
         </div>
 
         {/* Lifecycle bar for investment connections */}
-        {conn.kind === 'investment' && !isDeclined && <MiniLifecycle status={conn.status} />}
+        {conn.kind === 'investment' && <MiniLifecycle status={conn.status} />}
       </div>
 
       {/* Interest status tracker */}
       {conn.status === 'interest_sent' && (
         <div className="px-5 py-3 border-b border-[#1c2a3e]">
           <InterestStatusCard conn={conn} />
+        </div>
+      )}
+
+      {openError && (
+        <div className="px-5 py-2 text-[11px] text-red-400 bg-red-950/20 border-b border-red-900/30">
+          {openError}
         </div>
       )}
 
@@ -314,18 +210,24 @@ function ConnectionCard({ conn }: { conn: Connection }) {
 
         <div className="flex items-center gap-2 shrink-0">
           {isActionable && (
-            <Button size="sm" variant={conn.dealId ? 'primary' : 'secondary'} onClick={handlePrimaryAction}>
-              {conn.dealId === 'deal-room' ? 'Open Deal Room' :
-               conn.dealId === 'negotiation' ? 'View Negotiation' :
+            <Button size="sm" variant={conn.dealId ? 'primary' : 'secondary'} onClick={handlePrimaryAction} disabled={opening}>
+              {opening ? 'Opening…' :
                conn.status === 'mutual_interest' ? 'Open Deal Room' : 'View'}
             </Button>
           )}
-          {isWaiting && (
-            <span className="text-[11px] text-[color:var(--vv-text-tertiary)] italic">Awaiting response-</span>
+          {conn.canReciprocate && <Button size="sm" disabled={opening} onClick={async () => {
+            setOpening(true);
+            setOpenError(null);
+            try {
+              await api.post(`/api/me/businesses/${conn.businessId}/reciprocal-interest`, { role: conn.participantRole });
+              onChanged();
+            } catch (err: any) { setOpenError(err.message || 'Unable to reciprocate interest.'); }
+            finally { setOpening(false); }
+          }}>Reciprocate interest</Button>}
+          {isWaiting && !conn.canReciprocate && (
+            <span className="text-[11px] text-[color:var(--vv-text-tertiary)] italic">Awaiting response…</span>
           )}
-          {isDeclined && (
-            <span className="text-[11px] text-[color:var(--vv-text-tertiary)]">No further action needed</span>
-          )}
+
         </div>
       </div>
     </div>
@@ -382,7 +284,7 @@ function InterestStatusCard({ conn }: { conn: Connection }) {
                     color: done ? '#fff' : current ? '#C67A4E' : '#35446A',
                   }}
                 >
-                  {done ? '?' : i + 1}
+                  {done ? '✓' : i + 1}
                 </div>
                 <p className="text-[8.5px] text-[color:var(--vv-text-tertiary)] mt-1 text-center w-14 leading-tight hidden sm:block">{stage}</p>
               </div>
@@ -402,14 +304,13 @@ function InterestStatusCard({ conn }: { conn: Connection }) {
 
 // --- Filter pill ---------------------------------------------------------------
 
-type Filter = 'all' | 'active' | 'pending' | 'completed' | 'declined';
+type Filter = 'all' | 'active' | 'pending' | 'completed';
 
 const FILTER_OPTIONS: { id: Filter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'active', label: 'Active Deals' },
   { id: 'pending', label: 'Pending' },
   { id: 'completed', label: 'Completed' },
-  { id: 'declined', label: 'Declined' },
 ];
 
 function matchesFilter(conn: Connection, filter: Filter): boolean {
@@ -417,24 +318,62 @@ function matchesFilter(conn: Connection, filter: Filter): boolean {
   if (filter === 'active') return ['deal_room', 'nda_signed', 'negotiating', 'agreement', 'active', 'mutual_interest'].includes(conn.status);
   if (filter === 'pending') return ['interest_sent'].includes(conn.status);
   if (filter === 'completed') return conn.status === 'completed';
-  if (filter === 'declined') return conn.status === 'declined';
   return true;
 }
 
 // --- Main component ------------------------------------------------------------
 
 export default function Connections() {
-  const { role } = useRole();
+  const { role: activeRole } = useRole();
+  const location = useLocation();
+  const role = location.pathname.match(/^\/app\/(founder|investor|professional)\/connections/)?.[1] ?? activeRole;
+  const [revision, setRevision] = useState(0);
   const [filter, setFilter] = useState<Filter>('all');
+  const [connections, setConnections] = useState<Connection[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
 
-  const allConnections =
-    role === 'founder' ? FOUNDER_CONNECTIONS :
-    role === 'investor' ? INVESTOR_CONNECTIONS :
-    PROFESSIONAL_CONNECTIONS;
+  useEffect(() => { setPage(1); }, [role]);
+  useEffect(() => {
+    let mounted = true;
+    setLoading(true);
+    setError(null);
+    api.connections.list(role, page).then(result => {
+      if (!mounted) return;
+      const stages: Record<string, ConnectionStatus> = {
+        matched: 'mutual_interest', interest_confirmed: 'mutual_interest', deal_room_opened: 'deal_room',
+        nda_signed: 'nda_signed', negotiation: 'negotiating', agreement: 'agreement',
+        milestone_funding_active: 'active', completed: 'completed',
+      };
+      setConnections(result.items.map((item: ConnectionItem): Connection => {
+        const counterpart = role === 'founder' ? item.counterparty : item.founder;
+        return {
+          id: `${item.business.id}-${item.counterparty.id}-${item.counterparty_role}`,
+          connectionId: item.connection_id,
+          businessId: item.business.id,
+          canReciprocate: role !== 'founder' && item.has_founder_interest && !item.has_counterparty_interest && !item.is_connected,
+          participantRole: role === 'founder' ? undefined : item.counterparty_role,
+          counterpartName: counterpart.name,
+          counterpartInitials: counterpart.name.split(' ').map(n => n[0]).join('').slice(0, 2),
+          counterpartRole: role === 'founder' ? item.counterparty_role : 'founder',
+          businessName: item.business.name, businessInitials: item.business.name.slice(0, 2),
+          status: item.deal ? stages[item.deal.stage] ?? 'deal_room' : item.is_connected ? 'mutual_interest' : 'interest_sent',
+          updatedAt: item.connected_at ? new Date(item.connected_at).toLocaleDateString() : 'Pending mutual interest',
+          kind: item.counterparty_role === 'investor' ? 'investment' : 'professional',
+          dealId: item.deal ? String(item.deal.id) : undefined,
+        };
+      }));
+      setLastPage(result.pagination.last_page);
+    }).catch(err => { if (mounted) setError(err.message || 'Unable to load connections.'); })
+      .finally(() => { if (mounted) setLoading(false); });
+    return () => { mounted = false; };
+  }, [role, page, revision]);
 
-  const filtered = allConnections.filter(c => matchesFilter(c, filter));
+  const filtered = connections.filter(c => matchesFilter(c, filter));
 
-  const activeCount = allConnections.filter(c =>
+  const activeCount = connections.filter(c =>
     ['deal_room', 'nda_signed', 'negotiating', 'agreement', 'active', 'mutual_interest'].includes(c.status)
   ).length;
 
@@ -473,7 +412,7 @@ export default function Connections() {
           <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
         <span>
-          <strong>Simulation platform</strong> - All deal flows, investments and agreements on Vault Ventures are simulated. No real capital transfers occur.
+          <strong>Simulation platform</strong> – All deal flows, investments and agreements on Vault Ventures are simulated. No real capital transfers occur.
         </span>
       </div>
 
@@ -491,15 +430,26 @@ export default function Connections() {
             {opt.label}
             {opt.id !== 'all' && (
               <span className="ml-1.5 opacity-70">
-                {allConnections.filter(c => matchesFilter(c, opt.id)).length}
+                {connections.filter(c => matchesFilter(c, opt.id)).length}
               </span>
             )}
           </button>
         ))}
       </div>
 
+      {lastPage > 1 && <div className="flex gap-3 mb-4">
+        <Button disabled={loading || page === 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+        <span>Page {page} of {lastPage}</span>
+        <Button disabled={loading || page === lastPage} onClick={() => setPage(p => p + 1)}>Next</Button>
+      </div>}
       {/* Content */}
-      {filtered.length === 0 && filter === 'all' ? (
+      {loading ? (
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[14px] p-5 animate-pulse h-28" />
+          ))}
+        </div>
+      ) : error ? <p role="alert">{error}</p> : filtered.length === 0 && filter === 'all' ? (
         <EmptyState role={role} />
       ) : filtered.length === 0 ? (
         <div className="py-12 text-center">
@@ -508,7 +458,7 @@ export default function Connections() {
       ) : (
         <div className="space-y-3">
           {filtered.map(conn => (
-            <ConnectionCard key={conn.id} conn={conn} />
+            <ConnectionCard key={conn.id} conn={conn} onChanged={() => setRevision(r => r + 1)} />
           ))}
         </div>
       )}

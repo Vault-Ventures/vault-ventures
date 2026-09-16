@@ -211,6 +211,8 @@ function BusinessCard({ biz, onExpressInterest, onMatchClick, onViewProfile, exp
   );
 }
 
+import { api } from '../../services/api';
+
 // --- Main ---------------------------------------------------------------------
 
 export default function ReverseDiscovery() {
@@ -219,18 +221,81 @@ export default function ReverseDiscovery() {
   const [industry, setIndustry] = useState('All Industries');
   const [stage, setStage] = useState('All Stages');
   const [sort, setSort] = useState('match');
-  const [businesses, setBusinesses] = useState(BUSINESSES);
+  const [businesses, setBusinesses] = useState<Business[]>(BUSINESSES);
   const [matchItem, setMatchItem] = useState<Business | null>(null);
   const [mobileFilters, setMobileFilters] = useState(false);
-  const [prefsComplete] = useState(true); // pre-filled demo state
+  const [prefsComplete, setPrefsComplete] = useState(true);
 
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 600);
-    return () => clearTimeout(t);
+    let isMounted = true;
+    async function loadData() {
+      setLoading(true);
+      try {
+        // check preferences
+        try {
+          const prefs = await api.investorPreferences.get();
+          if (prefs && isMounted) {
+            setPrefsComplete(Boolean(prefs.industry || prefs.available_investment || prefs.business_stage));
+          }
+        } catch (e) {}
+
+        // fetch recommended businesses
+        let recs: any[] = [];
+        try {
+          recs = await api.recommendations.businesses('investor');
+        } catch (e) {
+          recs = [];
+        }
+
+        if (!recs || recs.length === 0) {
+          try {
+            recs = await api.businesses.list();
+          } catch (e) {
+            recs = [];
+          }
+        }
+
+        if (recs && recs.length > 0 && isMounted) {
+          const mapped: Business[] = recs.map((b: any, idx: number) => {
+            const raw = b.funding_amount_cents ? b.funding_amount_cents / 100 : (b.funding_amount || (idx + 1) * 1500000);
+            return {
+              id: String(b.id),
+              name: b.name || `Business ${idx + 1}`,
+              industry: b.industry || 'Technology',
+              stage: b.stage || 'Seed',
+              location: b.location || 'Dhaka, Bangladesh',
+              pitch: b.tagline || b.short_description || b.problem || 'Leading technology venture based in Bangladesh.',
+              ask: `BDT ${raw.toLocaleString('en-IN')}`,
+              askRaw: raw,
+              match: b.match_score ?? (90 - idx * 4),
+              readiness: b.readiness_score ?? (80 - idx * 3),
+              matchReasons: b.match_reasons || [
+                `${b.industry || 'Industry'} aligns with your stated focus`,
+                `${b.stage || 'Stage'} matches your entry preference`,
+                'High growth potential in target market',
+              ],
+              expressed: false,
+            };
+          });
+          setBusinesses(mapped);
+        }
+      } catch (err) {
+        // preserve defaults
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+    loadData();
+    return () => { isMounted = false; };
   }, []);
 
-  function handleExpressInterest(id: string) {
+  async function handleExpressInterest(id: string) {
     setBusinesses(bs => bs.map(b => b.id === id ? { ...b, expressed: true } : b));
+    if (/^\d+$/.test(id)) {
+      try {
+        await api.businesses.expressInterest(id);
+      } catch (e) {}
+    }
   }
 
   const filtered = businesses.filter(b => {

@@ -1,17 +1,36 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
+import { api, ApiError } from '../../services/api';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     setLoading(true);
-    setTimeout(() => { setLoading(false); setSent(true); }, 900);
+
+    try {
+      await api.post('/api/auth/forgot-password', { email: email.trim() });
+      setSent(true);
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        if (err.details && err.details.email) {
+          setError(err.details.email[0]);
+        } else {
+          setError(err.message || 'Unable to process password reset request.');
+        }
+      } else {
+        setError('Unable to connect to server. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -36,6 +55,13 @@ export default function ForgotPassword() {
           <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[10px] p-6">
             <h1 className="font-display text-[18px] font-semibold text-[color:var(--vv-text)] mb-1">Reset password</h1>
             <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mb-5">Enter your account email. We will send a reset link.</p>
+
+            {error && (
+              <div className="mb-4 px-3 py-2.5 bg-[#F04438]/8 border border-[#F04438]/30 rounded-md">
+                <p className="text-[12px] text-[#F04438]">{error}</p>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-[11.5px] font-medium text-[color:var(--vv-text-secondary)] mb-1.5" htmlFor="fp-email">Email address</label>
@@ -54,7 +80,7 @@ export default function ForgotPassword() {
               </svg>
             </div>
             <h2 className="font-display text-[17px] font-semibold text-[color:var(--vv-text)] mb-1">Check your inbox</h2>
-            <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mb-4">A password reset link was sent to <span className="text-[color:var(--vv-text)]">{email}</span>. The link expires in 15 minutes.</p>
+            <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mb-4">If an account exists for <span className="text-[color:var(--vv-text)]">{email}</span>, a password reset link has been sent. The link expires in 60 minutes.</p>
             <Button variant="secondary" className="w-full" onClick={() => navigate('/login')}>Back to Sign in</Button>
           </div>
         )}

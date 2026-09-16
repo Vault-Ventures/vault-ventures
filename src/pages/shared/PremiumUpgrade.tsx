@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
+import { api } from '../../services/api';
 
 // --- Types ---------------------------------------------------------------------
 
@@ -399,6 +400,28 @@ export default function PremiumUpgrade() {
   const [role, setRole] = useState<ViewRole>('founder');
   const [isPremium, setIsPremium] = useState(false);
   const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadProfile() {
+      try {
+        const p = await api.profile.get();
+        if (p && isMounted) {
+          if (p.roles && p.roles.length > 0) {
+            const primary = p.roles[0] as ViewRole;
+            if (['founder', 'investor', 'professional'].includes(primary)) {
+              setRole(primary);
+            }
+          }
+          if ((p.user as any)?.verification_tier >= 2) {
+            setIsPremium(true);
+          }
+        }
+      } catch (e) {}
+    }
+    loadProfile();
+    return () => { isMounted = false; };
+  }, []);
 
   function handleConfirm() {
     setConfirming(true);

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { IconShield } from '../../components/layout/Icons';
 import { useAuth } from '../../context/AuthContext';
+import { ApiError } from '../../services/api';
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('');
@@ -11,16 +12,39 @@ export default function AdminLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  const { signInAdmin } = useAuth();
+  const { login, logout } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    setTimeout(() => {
-      signInAdmin();
+
+    try {
+      const user = await login({ email, password });
+
+      if (!user.isAdmin) {
+        // Immediately revoke session on backend and reset local state
+        await logout();
+        setError('Access denied. This account does not have administrator privileges.');
+        return;
+      }
+
       navigate('/app/admin/dashboard');
-    }, 900);
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        if (err.details && err.details.email) {
+          setError(err.details.email[0]);
+        } else if (err.details && err.details.password) {
+          setError(err.details.password[0]);
+        } else {
+          setError(err.message || 'Authentication failed. Please check your credentials.');
+        }
+      } else {
+        setError('Unable to connect to server. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -117,11 +141,7 @@ export default function AdminLogin() {
           </div>
         </div>
 
-        <div className="mt-4 px-3 py-2.5 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border)] rounded-md">
-          <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] text-center">Demo: click Sign in to enter the Admin Console.</p>
-        </div>
-
-        <p className="text-center mt-4 text-[11px] text-[color:var(--vv-text-tertiary)]">
+        <p className="text-center mt-6 text-[11px] text-[color:var(--vv-text-tertiary)]">
           Not an admin?{' '}
           <Link to="/login" className="text-[#C67A4E] hover:underline">Sign in as a user</Link>
         </p>

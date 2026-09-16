@@ -1,15 +1,17 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
 import { VerificationBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { IconX } from '../../components/layout/Icons';
 import { MatchScoreChip, MatchExplanationDrawer } from '../../components/ui/AIInsights';
 import type { MatchFactor, MatchDetail } from '../../components/ui/AIInsights';
+import { api, ApiError } from '../../services/api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Professional {
   id: string;
+  userId: number;
   name: string;
   initials: string;
   color: string;
@@ -31,243 +33,19 @@ interface Filters {
   location: string;
 }
 
-// ── Data ──────────────────────────────────────────────────────────────────────
+interface BusinessOption {
+  id: number;
+  name: string;
+  status: string;
+}
 
-const PROFESSIONALS: Professional[] = [
-  {
-    id: 'arif-hossain',
-    name: 'Arif Hossain',
-    initials: 'AH',
-    color: '#C9A24B',
-    title: 'CFO / Financial Advisor',
-    location: 'Dhaka',
-    bio: 'Experienced CFO with 12 years across FinTech, banking, and growth-stage startups. Expert in financial modeling, fundraising preparation, and regulatory compliance.',
-    skills: ['Finance', 'Financial Modeling', 'Investor Relations', 'Strategy'],
-    industryFocus: ['FinTech', 'SaaS'],
-    experienceYears: 12,
-    verificationTier: 2,
-    matchScore: 88,
-    matchReasons: [
-      { label: 'Financial Modeling skill match', description: 'Directly addresses your highest-priority improvement area.', positive: true },
-      { label: 'Investor Relations expertise', description: 'Helps with pre-raise preparation — your critical need.', positive: true },
-      { label: 'FinTech background', description: 'Domain proximity to HealthTech SaaS is relevant.', positive: true },
-    ],
-    matchDetail: {
-      score: 88,
-      entityName: 'Arif Hossain',
-      summary: 'Strong alignment — Financial Modeling and Investor Relations skills directly address your top two priorities.',
-      alignments: [
-        { factor: 'Skills Match', score: 92, description: 'Financial Modeling is your highest-priority gap — directly addressed.' },
-        { factor: 'Investor Relations', score: 90, description: 'Pre-raise preparation expertise matches your critical near-term need.' },
-        { factor: 'Domain Proximity', score: 80, description: 'FinTech background is applicable to HealthTech SaaS financial structure.' },
-        { factor: 'Experience Level', score: 84, description: '12 years across FinTech and growth-stage startups — senior credibility.' },
-      ],
-      gaps: [
-        { factor: 'Healthcare Domain', description: 'FinTech primary focus — HealthTech-specific regulatory knowledge may need supplementing.', severity: 'clarification' },
-      ],
-      whyThisMatch: [
-        'Financial Modeling is your listed highest-priority improvement — this is Arif\'s specialty.',
-        'Investor Relations expertise directly serves your pre-raise preparation need.',
-        'Growth-stage startup background means practical, not theoretical, guidance.',
-        '12 years experience means credibility that strengthens your investor pitch.',
-      ],
-    },
-  },
-  {
-    id: 'priya-sharma',
-    name: 'Priya Sharma',
-    initials: 'PS',
-    color: '#C67A4E',
-    title: 'Marketing Strategist',
-    location: 'Dhaka',
-    bio: 'Go-to-market specialist with 8 years in SaaS and EdTech. Led growth campaigns that drove 5× user growth at two Bangladesh-based startups.',
-    skills: ['Marketing', 'Go-to-Market Strategy', 'Content', 'Brand'],
-    industryFocus: ['SaaS', 'EdTech'],
-    experienceYears: 8,
-    verificationTier: 2,
-    matchScore: 74,
-    matchReasons: [
-      { label: 'Growth Marketing skill match', description: 'Growth Marketing is listed in your required skills.', positive: true },
-      { label: 'SaaS GTM expertise', description: 'B2B SaaS GTM experience applies to clinic sales.', positive: true },
-      { label: 'Healthcare domain not primary', description: 'No specific healthcare vertical experience listed.', positive: false },
-    ],
-    matchDetail: {
-      score: 74,
-      entityName: 'Priya Sharma',
-      summary: 'Good match — Growth Marketing and SaaS GTM experience directly applies to your clinic channel strategy.',
-      alignments: [
-        { factor: 'Marketing Skills', score: 84, description: 'Growth Marketing is listed in your required skills — direct match.' },
-        { factor: 'SaaS GTM Expertise', score: 80, description: 'B2B SaaS go-to-market experience applies to clinic network sales.' },
-        { factor: 'Proven Track Record', score: 76, description: '5× user growth at two Bangladesh startups — demonstrated results.' },
-      ],
-      gaps: [
-        { factor: 'Healthcare Domain', description: 'No specific healthcare vertical experience listed — requires domain ramp-up.', severity: 'moderate' },
-      ],
-      whyThisMatch: [
-        'Growth Marketing is an open role — Priya specializes here.',
-        'B2B SaaS GTM experience translates directly to clinic network sales motions.',
-        'Bangladesh startup track record means understanding of local market dynamics.',
-        'Healthcare ramp-up time is manageable given the structured clinic sales process.',
-      ],
-    },
-  },
-  {
-    id: 'james-cole',
-    name: 'James Cole',
-    initials: 'JC',
-    color: '#22C55E',
-    title: 'Legal Counsel',
-    location: 'Dhaka',
-    bio: '15 years specializing in startup law, IP protection, and investment agreements. Advised 40+ startups from Pre-Seed through Series B across South Asia.',
-    skills: ['Legal', 'IP Protection', 'Contract Review', 'Regulatory Compliance'],
-    industryFocus: ['FinTech', 'HealthTech', 'SaaS'],
-    experienceYears: 15,
-    verificationTier: 2,
-    matchScore: 91,
-    matchReasons: [
-      { label: 'Legal & IP skills — critical match', description: 'Your IP protection gap is high priority; James specializes here.', positive: true },
-      { label: 'HealthTech industry experience', description: 'Direct sector expertise across HealthTech startups.', positive: true },
-      { label: 'Pre-Seed through Series B track record', description: 'Exactly the stage you are navigating.', positive: true },
-    ],
-    matchDetail: {
-      score: 91,
-      entityName: 'James Cole',
-      summary: 'Exceptional alignment — Legal and IP expertise directly addresses your highest-priority gap with HealthTech sector experience.',
-      alignments: [
-        { factor: 'Legal & IP Skills', score: 96, description: 'IP protection is your high-priority gap — James specializes in startup IP.' },
-        { factor: 'HealthTech Experience', score: 92, description: 'Direct HealthTech sector expertise across 40+ startups in South Asia.' },
-        { factor: 'Stage Match', score: 90, description: 'Pre-Seed through Series B experience exactly matches your current stage.' },
-        { factor: 'Track Record', score: 88, description: '40+ startups advised — reliable, proven legal advisory.' },
-      ],
-      gaps: [
-        { factor: 'Bangladesh Regulation', description: 'Confirm familiarity with DGDA and BFIU HealthTech-specific requirements.', severity: 'clarification' },
-      ],
-      whyThisMatch: [
-        'IP protection is your highest-priority gap — James specializes exactly here.',
-        'HealthTech industry experience means no sector education required.',
-        '40+ startups from Pre-Seed through Series B mirrors your exact stage journey.',
-        'Investment agreement expertise helps with upcoming term sheet review.',
-      ],
-    },
-  },
-  {
-    id: 'tania-ahmed',
-    name: 'Tania Ahmed',
-    initials: 'TA',
-    color: '#A78BFA',
-    title: 'Product Manager',
-    location: 'Dhaka',
-    bio: 'Product leader with 7 years in HealthTech and SaaS. Shipped products used by 300K+ users in South Asia. Strong background in UX research and agile delivery.',
-    skills: ['Product Management', 'User Research', 'Roadmapping', 'Agile'],
-    industryFocus: ['HealthTech', 'SaaS'],
-    experienceYears: 7,
-    verificationTier: 1,
-    matchScore: 83,
-    matchReasons: [
-      { label: 'HealthTech domain expertise', description: 'Primary domain matches your industry directly.', positive: true },
-      { label: 'Product Management skill match', description: 'Open role listed in your required skills.', positive: true },
-      { label: 'Verification at Tier 1', description: 'Only identity verified — consider requesting further diligence.', positive: false },
-    ],
-    matchDetail: {
-      score: 83,
-      entityName: 'Tania Ahmed',
-      summary: 'Strong match — HealthTech domain expertise and Product Management skills align with your open role priorities.',
-      alignments: [
-        { factor: 'Industry Domain', score: 90, description: 'HealthTech is primary focus — no domain education required.' },
-        { factor: 'Product Management', score: 88, description: 'Open Product Management role listed in your required skills.' },
-        { factor: 'User Research', score: 82, description: 'UX research background helps improve clinic user experience.' },
-        { factor: 'Scale Experience', score: 78, description: '300K+ users in South Asia — knows how to scale health products.' },
-      ],
-      gaps: [
-        { factor: 'Verification Level', description: 'Tier 1 only — additional diligence recommended before formal engagement.', severity: 'moderate' },
-      ],
-      whyThisMatch: [
-        'HealthTech is Tania\'s primary domain — zero sector ramp-up required.',
-        'Product Management is listed as an open role in your required skills.',
-        '300K+ user product experience applies directly to your clinic scaling challenge.',
-        'Tier 1 verification is worth requesting additional background on before formal engagement.',
-      ],
-    },
-  },
-  {
-    id: 'reza-khan',
-    name: 'Reza Khan',
-    initials: 'RK',
-    color: '#60A5FA',
-    title: 'Data Scientist / ML Engineer',
-    location: 'Dhaka',
-    bio: 'ML engineer with 6 years in FinTech and data-heavy platforms. Specializes in predictive models, recommendation systems, and production ML deployment.',
-    skills: ['Data Science', 'Machine Learning', 'Python', 'Analytics'],
-    industryFocus: ['FinTech', 'AgriTech'],
-    experienceYears: 6,
-    verificationTier: 1,
-    matchScore: 76,
-    matchReasons: [
-      { label: 'Machine Learning expertise', description: 'Your AI scheduling platform benefits from ML depth.', positive: true },
-      { label: 'FinTech primary focus', description: 'Industry focus is adjacent but not direct HealthTech.', positive: false },
-      { label: 'Production ML experience', description: 'Relevant for scaling your AI scheduling model.', positive: true },
-    ],
-    matchDetail: {
-      score: 76,
-      entityName: 'Reza Khan',
-      summary: 'Good technical match — ML and production model experience directly serves the AI scheduling platform core.',
-      alignments: [
-        { factor: 'Machine Learning', score: 86, description: 'ML specialization is directly applicable to your AI scheduling model.' },
-        { factor: 'Production ML', score: 82, description: 'Production deployment experience is rare and relevant for scaling.' },
-        { factor: 'Technical Depth', score: 78, description: 'Python and predictive modeling skills align with your platform stack.' },
-      ],
-      gaps: [
-        { factor: 'Industry Focus', description: 'FinTech primary focus — HealthTech context requires domain adjustment.', severity: 'moderate' },
-        { factor: 'Healthcare Data', description: 'Healthcare-specific data handling (patient records, privacy) experience unclear.', severity: 'clarification' },
-      ],
-      whyThisMatch: [
-        'ML engineering is at the core of your AI scheduling platform.',
-        'Production ML deployment experience is critical for scaling beyond pilots.',
-        'FinTech to HealthTech transition is manageable given strong technical fundamentals.',
-        'Recommendation system expertise applies directly to predictive slot allocation.',
-      ],
-    },
-  },
-  {
-    id: 'lisa-park',
-    name: 'Lisa Park',
-    initials: 'LP',
-    color: '#F472B6',
-    title: 'Growth & BD Specialist',
-    location: 'Chittagong',
-    bio: 'Business development strategist with 10 years growing B2B SaaS and logistics companies across Bangladesh. Strong enterprise sales and partnership networks.',
-    skills: ['Business Development', 'Sales', 'Partnerships', 'Strategy'],
-    industryFocus: ['SaaS', 'Logistics'],
-    experienceYears: 10,
-    verificationTier: 2,
-    matchScore: 79,
-    matchReasons: [
-      { label: 'Business Development skill match', description: 'BD is listed in your required skills.', positive: true },
-      { label: 'Hospital sales network', description: 'Enterprise B2B experience applicable to clinic network sales.', positive: true },
-      { label: 'Based in Chittagong', description: 'Geographic coverage for your Chittagong expansion.', positive: true },
-    ],
-    matchDetail: {
-      score: 79,
-      entityName: 'Lisa Park',
-      summary: 'Strong BD match — enterprise B2B experience and Chittagong location directly serve your expansion strategy.',
-      alignments: [
-        { factor: 'Business Development', score: 88, description: 'BD is listed as a required skill — Lisa specializes here.' },
-        { factor: 'Enterprise B2B Sales', score: 84, description: 'B2B sales experience directly applicable to clinic network sales.' },
-        { factor: 'Geographic Coverage', score: 82, description: 'Chittagong-based — covers your planned geographic expansion market.' },
-        { factor: 'Partnerships', score: 76, description: 'Partnership network-building experience is relevant to hospital group deals.' },
-      ],
-      gaps: [
-        { factor: 'Healthcare Domain', description: 'Primary experience is SaaS and logistics — healthcare sales may have a ramp.', severity: 'clarification' },
-      ],
-      whyThisMatch: [
-        'Business Development is an open role — Lisa has 10 years of direct BD experience.',
-        'Enterprise B2B sales motions apply directly to clinic and hospital network deals.',
-        'Chittagong location provides in-person relationship-building for your expansion.',
-        'Strong partnerships background helps accelerate enterprise hospital group agreements.',
-      ],
-    },
-  },
-];
+const PALETTE = ['#C9A24B', '#C67A4E', '#22C55E', '#A78BFA', '#60A5FA', '#F472B6'];
+
+function getColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return PALETTE[Math.abs(hash) % PALETTE.length];
+}
 
 const SKILLS_LIST = [
   'Finance', 'Financial Modeling', 'Marketing', 'Legal', 'Product Management',
@@ -276,8 +54,8 @@ const SKILLS_LIST = [
 ];
 const INDUSTRIES = ['FinTech', 'HealthTech', 'SaaS', 'EdTech', 'AgriTech', 'Logistics', 'CleanTech'];
 const SORT_OPTIONS = [
+  { value: 'match-desc', label: 'Best Match' },
   { value: 'exp-desc', label: 'Most Experience' },
-  { value: 'exp-asc', label: 'Least Experience' },
   { value: 'name', label: 'Name A–Z' },
 ];
 
@@ -307,8 +85,8 @@ function applyFilters(items: Professional[], filters: Filters, search: string): 
 
 function sortItems(items: Professional[], sort: string): Professional[] {
   const s = [...items];
-  if (sort === 'exp-desc') s.sort((a, b) => b.experienceYears - a.experienceYears);
-  else if (sort === 'exp-asc') s.sort((a, b) => a.experienceYears - b.experienceYears);
+  if (sort === 'match-desc') s.sort((a, b) => b.matchScore - a.matchScore);
+  else if (sort === 'exp-desc') s.sort((a, b) => b.experienceYears - a.experienceYears);
   else if (sort === 'name') s.sort((a, b) => a.name.localeCompare(b.name));
   return s;
 }
@@ -407,7 +185,7 @@ function ActiveFilterStrip({ filters, search, onChange, onClearAll }: {
   );
 }
 
-function ProfessionalCard({ professional, onOpenMatch }: { professional: Professional; onOpenMatch: (d: MatchDetail) => void }) {
+function ProfessionalCard({ professional, onOpenMatch }: { professional: Professional; onOpenMatch: (d: MatchDetail, prof: Professional) => void }) {
   return (
     <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] p-4 hover:border-[color:var(--vv-border-strong)] transition-all">
       <div className="flex items-start gap-3">
@@ -419,14 +197,14 @@ function ProfessionalCard({ professional, onOpenMatch }: { professional: Profess
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 mb-1">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               <p className="text-[13.5px] font-semibold text-[color:var(--vv-text)] leading-none">{professional.name}</p>
-              {professional.verificationTier > 0 && <VerificationBadge tier={professional.verificationTier as 0 | 1 | 2 | 3} />}
+              {professional.verificationTier > 0 && <VerificationBadge tier={professional.verificationTier as 0 | 1 | 2} />}
             </div>
             <div className="sm:text-right shrink-0 space-y-1">
               <div>
                 <p className="text-[10px] text-[color:var(--vv-text-tertiary)]">Experience</p>
                 <p className="font-mono text-[13px] font-semibold text-[#22C55E] tabular-nums">{professional.experienceYears} years</p>
               </div>
-              <MatchScoreChip score={professional.matchScore} onClick={() => onOpenMatch(professional.matchDetail)} />
+              <MatchScoreChip score={professional.matchScore} onClick={() => onOpenMatch(professional.matchDetail, professional)} />
             </div>
           </div>
           <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] mb-2">
@@ -456,7 +234,7 @@ function ProfessionalCard({ professional, onOpenMatch }: { professional: Profess
               </div>
             </div>
             <button
-              onClick={() => onOpenMatch(professional.matchDetail)}
+              onClick={() => onOpenMatch(professional.matchDetail, professional)}
               className="text-[10.5px] text-[#C67A4E] hover:underline shrink-0 transition-colors">
               View match analysis
             </button>
@@ -496,7 +274,7 @@ function EmptyState({ hasFilters, onClear }: { hasFilters: boolean; onClear: () 
       <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mb-5 max-w-xs mx-auto">
         {hasFilters
           ? 'No professionals match your current filters. Try adjusting or clearing them.'
-          : 'No professionals are available at this time. Check back soon.'}
+          : 'No verified professionals currently match your business requirements. Update required skills to get relevant candidate recommendations.'}
       </p>
       {hasFilters && <Button variant="secondary" size="sm" onClick={onClear}>Clear Filters</Button>}
     </div>
@@ -532,25 +310,182 @@ function MobileFilterDrawer({ filters, onChange, onClear, onClose }: {
 export default function DiscoverProfessionals() {
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
+  const [businesses, setBusinesses] = useState<BusinessOption[]>([]);
+  const [selectedBusinessId, setSelectedBusinessId] = useState<number | null>(null);
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [sort, setSort] = useState('exp-desc');
+  const [sort, setSort] = useState('match-desc');
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [matchDrawer, setMatchDrawer] = useState<MatchDetail | null>(null);
+  const [activeProfessional, setActiveProfessional] = useState<Professional | null>(null);
+  const [interestLoading, setInterestLoading] = useState(false);
+  const [interestSuccess, setInterestSuccess] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const [businessPage, setBusinessPage] = useState(1);
+  const [businessLastPage, setBusinessLastPage] = useState(1);
+  const [businessLoading, setBusinessLoading] = useState(true);
+  const [businessError, setBusinessError] = useState<string | null>(null);
+
+  // 1. Fetch founder's businesses
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 480);
-    return () => clearTimeout(t);
+    let isMounted = true;
+    async function loadBusinesses() {
+      try {
+        setBusinessLoading(true);
+        setBusinessError(null);
+        const res = await api.businesses.listPage(businessPage);
+        if (!isMounted) return;
+        setBusinessLastPage(res.pagination.last_page);
+        if (businessPage > res.pagination.last_page) { setBusinessPage(res.pagination.last_page); return; }
+        const bizList = res.items.map((b: any) => ({
+          id: b.id,
+          name: b.name,
+          status: b.status,
+        }));
+        setBusinesses(bizList);
+        if (bizList.length > 0) {
+          setSelectedBusinessId(bizList[0].id);
+        } else {
+          setLoading(false);
+        }
+      } catch (err: any) {
+        if (!isMounted) return;
+        setBusinessError(err.message || 'Unable to load your businesses.');
+        setLoading(false);
+      } finally {
+        if (isMounted) setBusinessLoading(false);
+      }
+    }
+    loadBusinesses();
+    return () => { isMounted = false; };
+  }, [businessPage]);
+
+  // 2. Fetch recommendations for selected business
+  const loadRecommendations = useCallback(async (businessId: number) => {
+    setLoading(true);
+    setErrorMessage(null);
+    try {
+      const data = await api.get<any[]>(`/api/me/businesses/${businessId}/recommendations/professionals`);
+      const mapped: Professional[] = (data || []).map((item: any) => {
+        const name = item.name || 'Professional Candidate';
+        const initials = name
+          .split(' ')
+          .map((n: string) => n[0])
+          .join('')
+          .slice(0, 2)
+          .toUpperCase() || 'PR';
+
+        const matchObj = item.match || {};
+        const score = Math.round((matchObj.overall_score ?? 0) * 100);
+        const alignments = matchObj.strongest_alignments || [];
+        const gaps = matchObj.potential_gaps || [];
+
+        const matchReasons: MatchFactor[] = [
+          ...alignments.map((a: any) => ({
+            label: a.factor_name || 'Alignment',
+            description: a.explanation || '',
+            positive: true,
+          })),
+          ...gaps.map((g: any) => ({
+            label: g.factor_name || 'Gap',
+            description: g.explanation || '',
+            positive: false,
+          })),
+        ];
+
+        const matchDetail: MatchDetail = {
+          score,
+          entityName: name,
+          summary: matchObj.summary_explanation || `Professional matching analysis for ${name}.`,
+          alignments: alignments.map((a: any) => ({
+            factor: a.factor_name || 'Factor',
+            score: Math.round((a.score ?? 0) * 100),
+            description: a.explanation || '',
+          })),
+          gaps: gaps.map((g: any) => ({
+            factor: g.factor_name || 'Factor',
+            description: g.explanation || '',
+            severity: (g.score ?? 0) < 0.3 ? 'weak' : 'moderate',
+          })),
+          whyThisMatch: alignments.map((a: any) => a.explanation).filter(Boolean),
+        };
+
+        const tierVal = typeof item.verification_tier === 'number' ? item.verification_tier : 1;
+        const clampedTier = (tierVal >= 0 && tierVal <= 2 ? tierVal : 1) as 0 | 1 | 2;
+
+        const expLevel = item.experience_level || 'Mid-Level';
+        const years = expLevel.includes('Senior') || expLevel.includes('Executive') ? 10 :
+                      expLevel.includes('Lead') ? 8 : 5;
+
+        return {
+          id: String(item.id),
+          userId: item.user_id,
+          name,
+          initials,
+          color: getColor(name),
+          title: item.skills?.[0] ? `${item.skills[0]} Specialist` : 'Professional Advisor',
+          location: item.location || 'Dhaka',
+          bio: matchObj.summary_explanation || `${name} is an experienced professional in ${(item.industry_experience || []).join(', ') || 'startup growth'}.`,
+          skills: item.skills || [],
+          industryFocus: item.industry_experience || ['FinTech', 'SaaS'],
+          experienceYears: years,
+          verificationTier: clampedTier,
+          matchScore: score,
+          matchReasons,
+          matchDetail,
+        };
+      });
+      setProfessionals(mapped);
+    } catch (err: any) {
+      if (err instanceof ApiError) {
+        setErrorMessage(err.message);
+      } else {
+        setErrorMessage('Failed to load professional recommendations.');
+      }
+      setProfessionals([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    if (selectedBusinessId) {
+      loadRecommendations(selectedBusinessId);
+    }
+  }, [selectedBusinessId, loadRecommendations]);
+
+  const handleExpressInterest = async (prof: Professional) => {
+    if (!selectedBusinessId) return;
+    setInterestLoading(true);
+    setInterestSuccess(null);
+    try {
+      await api.post(`/api/me/businesses/${selectedBusinessId}/interests`, {
+        counterparty_user_id: prof.userId,
+        role: 'professional',
+      });
+      setInterestSuccess(`Interest expressed in connecting with ${prof.name}!`);
+    } catch (err: any) {
+      const msg = err instanceof ApiError ? err.message : 'Failed to express interest.';
+      setErrorMessage(msg);
+    } finally {
+      setInterestLoading(false);
+    }
+  };
+
   const results = useMemo(
-    () => sortItems(applyFilters(PROFESSIONALS, filters, search), sort),
-    [search, filters, sort]
+    () => sortItems(applyFilters(professionals, filters, search), sort),
+    [professionals, search, filters, sort]
   );
 
   const activeFilterCount = countActiveFilters(filters);
   const hasActiveFilters = activeFilterCount > 0 || !!search.trim();
   const handleClearAll = () => { setFilters(EMPTY_FILTERS); setSearch(''); };
+
+  const handleOpenMatch = (detail: MatchDetail, prof: Professional) => {
+    setActiveProfessional(prof);
+    setInterestSuccess(null);
+  };
 
   return (
     <div className="flex h-full min-h-screen">
@@ -561,77 +496,118 @@ export default function DiscoverProfessionals() {
 
       <div className="flex-1 min-w-0 p-5">
         <div className="max-w-[880px]">
-          <div className="mb-5">
-            <h1 className="font-display text-[18px] font-semibold text-[color:var(--vv-text)] leading-none">Discover Professionals</h1>
-            <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mt-1">Find skilled professionals who can help grow your business.</p>
+          <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h1 className="font-display text-[18px] font-semibold text-[color:var(--vv-text)] leading-none">Discover Professionals</h1>
+              <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mt-1">Find skilled professionals who can help grow your business.</p>
+            </div>
+            {businesses.length > 1 && (
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-[color:var(--vv-text-tertiary)]">For Business:</span>
+                <select
+                  value={selectedBusinessId ?? ''}
+                  onChange={e => setSelectedBusinessId(Number(e.target.value))}
+                  className="h-8 pl-2 pr-6 rounded-md text-[12px] text-[color:var(--vv-text-secondary)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] focus:border-[#C67A4E] focus:outline-none"
+                >
+                  {businesses.map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
-          {/* Search + controls */}
-          <div className="flex items-center gap-2 mb-2">
-            <div className="relative flex-1 min-w-0">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--vv-text-tertiary)] pointer-events-none" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <circle cx="11" cy="11" r="8" /><path strokeLinecap="round" d="m21 21-4.35-4.35" />
-              </svg>
-              <input
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search by name, skill, industry…"
-                className="w-full h-9 pl-9 pr-8 rounded-md text-[13px] text-[color:var(--vv-text)] placeholder-[color:var(--vv-text-tertiary)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] focus:border-[#C67A4E] focus:outline-none transition-colors"
-              />
-              {search && (
-                <button onClick={() => setSearch('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] transition-colors">
-                  <IconX s={13} />
-                </button>
-              )}
-            </div>
-            <div className="relative shrink-0">
-              <select value={sort} onChange={e => setSort(e.target.value)}
-                className="h-9 pl-3 pr-7 rounded-md text-[12.5px] text-[color:var(--vv-text-secondary)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] focus:border-[#C67A4E] focus:outline-none appearance-none cursor-pointer transition-colors">
-                {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              <svg className="absolute right-2 top-1/2 -translate-y-1/2 text-[color:var(--vv-text-tertiary)] pointer-events-none" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
-            </div>
-            <button onClick={() => setShowMobileFilters(true)}
-              className={`lg:hidden flex items-center gap-1.5 h-9 px-3 rounded-md text-[12.5px] font-medium border transition-all shrink-0 ${
-                activeFilterCount > 0
-                  ? 'bg-[rgba(198,122,78,0.08)] border-[rgba(198,122,78,0.25)] text-[#C67A4E]'
-                  : 'bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border-[color:var(--vv-border-strong)] text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)]'
-              }`}>
-              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>
-              </svg>
-              Filters
-              {activeFilterCount > 0 && (
-                <span className="w-4 h-4 rounded-full bg-[#C67A4E] text-[color:var(--vv-on-copper)] text-[9px] font-bold flex items-center justify-center">{activeFilterCount}</span>
-              )}
-            </button>
-          </div>
-
-          <ActiveFilterStrip filters={filters} search={search} onChange={setFilters} onClearAll={handleClearAll} />
-
-          {!loading && (
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-              <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">
-                {results.length} {results.length === 1 ? 'professional' : 'professionals'}
-                {hasActiveFilters ? ' match your filters' : ' available'}
+          {businessLastPage > 1 && <div className="flex gap-3 mb-4 items-center">
+            <Button disabled={businessLoading || businessPage === 1} onClick={() => setBusinessPage(p => p - 1)}>Previous businesses</Button>
+            <span>Page {businessPage} of {businessLastPage}</span>
+            <Button disabled={businessLoading || businessPage === businessLastPage} onClick={() => setBusinessPage(p => p + 1)}>Next businesses</Button>
+          </div>}
+          {businessLoading ? <p role="status">Loading businesses...</p> : businessError ? <p role="alert">{businessError}</p> : businesses.length === 0 ? (
+            <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] px-6 py-14 text-center">
+              <h3 className="font-display text-[15px] font-semibold text-[color:var(--vv-text)] mb-1.5">No business profile found</h3>
+              <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mb-5 max-w-sm mx-auto">
+                You need an active business profile to receive tailored AI professional matches.
               </p>
-              <span className="text-[10.5px] text-[color:var(--vv-text-tertiary)] flex items-center gap-1">
-                <span style={{ color: '#C67A4E' }}>✦</span>
-                AI match scores shown for your business profile
-              </span>
+              <Link to="/app/founder/businesses/new">
+                <Button variant="primary" size="md">Create a Business</Button>
+              </Link>
             </div>
-          )}
-
-          {loading ? (
-            <div className="space-y-3">{[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}</div>
-          ) : results.length === 0 ? (
-            <EmptyState hasFilters={hasActiveFilters} onClear={handleClearAll} />
           ) : (
-            <div className="space-y-3">
-              {results.map(p => <ProfessionalCard key={p.id} professional={p} onOpenMatch={setMatchDrawer} />)}
-            </div>
+            <>
+              {/* Search + controls */}
+              <div className="flex items-center gap-2 mb-2">
+                <div className="relative flex-1 min-w-0">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--vv-text-tertiary)] pointer-events-none" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="8" /><path strokeLinecap="round" d="m21 21-4.35-4.35" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Search by name, skill, industry…"
+                    className="w-full h-9 pl-9 pr-8 rounded-md text-[13px] text-[color:var(--vv-text)] placeholder-[color:var(--vv-text-tertiary)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] focus:border-[#C67A4E] focus:outline-none transition-colors"
+                  />
+                  {search && (
+                    <button onClick={() => setSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] transition-colors">
+                      <IconX s={13} />
+                    </button>
+                  )}
+                </div>
+                <div className="relative shrink-0">
+                  <select value={sort} onChange={e => setSort(e.target.value)}
+                    className="h-9 pl-3 pr-7 rounded-md text-[12.5px] text-[color:var(--vv-text-secondary)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] focus:border-[#C67A4E] focus:outline-none appearance-none cursor-pointer transition-colors">
+                    {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <svg className="absolute right-2 top-1/2 -translate-y-1/2 text-[color:var(--vv-text-tertiary)] pointer-events-none" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+                <button onClick={() => setShowMobileFilters(true)}
+                  className={`lg:hidden flex items-center gap-1.5 h-9 px-3 rounded-md text-[12.5px] font-medium border transition-all shrink-0 ${
+                    activeFilterCount > 0
+                      ? 'bg-[rgba(198,122,78,0.08)] border-[rgba(198,122,78,0.25)] text-[#C67A4E]'
+                      : 'bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border-[color:var(--vv-border-strong)] text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)]'
+                  }`}>
+                  <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>
+                  </svg>
+                  Filters
+                  {activeFilterCount > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-[#C67A4E] text-[color:var(--vv-on-copper)] text-[9px] font-bold flex items-center justify-center">{activeFilterCount}</span>
+                  )}
+                </button>
+              </div>
+
+              <ActiveFilterStrip filters={filters} search={search} onChange={setFilters} onClearAll={handleClearAll} />
+
+              {errorMessage && (
+                <div className="p-3 mb-3 rounded-md text-[12px] bg-red-950/40 border border-red-800/40 text-red-300">
+                  {errorMessage}
+                </div>
+              )}
+
+              {!loading && (
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">
+                    {results.length} {results.length === 1 ? 'professional' : 'professionals'}
+                    {hasActiveFilters ? ' match your filters' : ' recommended'}
+                  </p>
+                  <span className="text-[10.5px] text-[color:var(--vv-text-tertiary)] flex items-center gap-1">
+                    <span style={{ color: '#C67A4E' }}>✦</span>
+                    AI match scores calculated by backend matching engine
+                  </span>
+                </div>
+              )}
+
+              {loading ? (
+                <div className="space-y-3">{[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}</div>
+              ) : results.length === 0 ? (
+                <EmptyState hasFilters={hasActiveFilters} onClear={handleClearAll} />
+              ) : (
+                <div className="space-y-3">
+                  {results.map(p => <ProfessionalCard key={p.id} professional={p} onOpenMatch={handleOpenMatch} />)}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -645,11 +621,14 @@ export default function DiscoverProfessionals() {
         />
       )}
 
-      {matchDrawer && (
+      {activeProfessional && (
         <MatchExplanationDrawer
-          data={matchDrawer}
-          cta={{ label: 'Apply / Connect' }}
-          onClose={() => setMatchDrawer(null)}
+          data={activeProfessional.matchDetail}
+          cta={{
+            label: interestSuccess ? '✓ Interest Expressed' : interestLoading ? 'Expressing…' : 'Apply / Connect',
+            action: () => handleExpressInterest(activeProfessional),
+          }}
+          onClose={() => { setActiveProfessional(null); setInterestSuccess(null); }}
         />
       )}
     </div>

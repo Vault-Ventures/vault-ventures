@@ -48,6 +48,15 @@ return [
             'report' => false,
         ],
 
+        'financial_evidence' => [
+            'driver' => 'local',
+            'root' => storage_path('app/financial-evidence'),
+            'visibility' => 'private',
+            'serve' => false,
+            'throw' => true,
+            'report' => false,
+        ],
+
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),

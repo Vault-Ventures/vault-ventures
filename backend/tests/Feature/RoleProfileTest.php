@@ -42,7 +42,19 @@ class RoleProfileTest extends TestCase
         $this->getJson('/api/me/profile')->assertOk()->assertExactJson([
             'success' => true, 'message' => 'Success.',
             'data' => [
-                'user' => ['id' => $this->owner->id, 'name' => $this->owner->name, 'email' => $this->owner->email],
+                'user' => [
+                    'id' => $this->owner->id,
+                    'name' => $this->owner->name,
+                    'email' => $this->owner->email,
+                    'headline' => null,
+                    'bio' => null,
+                    'location' => null,
+                    'avatar_url' => null,
+                    'cover_photo_url' => null,
+                    'experience' => [],
+                    'portfolio' => [],
+                    'preferences' => [],
+                ],
                 'roles' => [],
                 'profiles' => ['founder' => null, 'investor' => null, 'professional' => null],
             ],

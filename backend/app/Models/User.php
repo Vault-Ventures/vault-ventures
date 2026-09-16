@@ -67,6 +67,16 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasOne(VerificationRequest::class)->latestOfMany();
     }
 
+    public function givenFeedbacks(): HasMany
+    {
+        return $this->hasMany(DealFeedback::class, 'reviewer_user_id');
+    }
+
+    public function receivedFeedbacks(): HasMany
+    {
+        return $this->hasMany(DealFeedback::class, 'recipient_user_id');
+    }
+
     public function hasVerifiedPhone(): bool
     {
         return ! is_null($this->phone_verified_at);
@@ -113,6 +123,14 @@ class User extends Authenticatable implements MustVerifyEmail
         'name',
         'email',
         'password',
+        'headline',
+        'bio',
+        'location',
+        'avatar_url',
+        'cover_photo_url',
+        'experience',
+        'portfolio',
+        'preferences',
     ];
 
     /**
@@ -137,6 +155,9 @@ class User extends Authenticatable implements MustVerifyEmail
             'phone_verified_at' => 'datetime',
             'verification_tier' => VerificationTier::class,
             'password' => 'hashed',
+            'experience' => 'array',
+            'portfolio' => 'array',
+            'preferences' => 'array',
         ];
     }
 }

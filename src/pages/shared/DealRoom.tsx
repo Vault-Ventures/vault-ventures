@@ -1,11 +1,21 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { Badge, VerificationBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { ScoreChip } from '../../components/ui/ScoreComponents';
 import { StagedDisclosure } from '../../components/ui/StagedDisclosure';
 import { useRole } from '../../components/layout/AppShell';
+import { useAuth } from '../../context/AuthContext';
 import { canAccess } from '../../utils/permissions';
+import {
+  api,
+  ApiError,
+  type BusinessNdaData,
+  type NegotiationData,
+  type DealAgreementData,
+  type DealMilestoneData,
+  type FundingSummaryData,
+} from '../../services/api';
 import {
   IconCheck, IconLock, IconFileText, IconMessageSquare, IconAlertTriangle, IconShield, IconChevronDown, IconChevronLeft
 } from '../../components/layout/Icons';
@@ -13,6 +23,40 @@ import {
 // --- Constants ----------------------------------------------------------------
 
 const STAGES = ['Matched', 'Interest Confirmed', 'Deal Room', 'NDA Signed', 'Negotiation', 'Agreement', 'Milestone Funding Active', 'Completed'];
+
+export interface DealData {
+  id: number;
+  connection_id: number;
+  business_id: number;
+  founder_user_id: number;
+  counterparty_user_id: number;
+  counterparty_role: string;
+  stage: string;
+  stage_label: string;
+  stage_order: number;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface DealHistoryItem {
+  id: number;
+  deal_id: number;
+  previous_state: string | null;
+  previous_state_label: string | null;
+  new_state: string;
+  new_state_label: string;
+  changed_by_user_id: number;
+  changed_at: string;
+  created_at: string;
+}
+
+export interface BusinessInfo {
+  id: number;
+  name: string;
+  industry?: string;
+  location?: string;
+  funding_amount?: number;
+}
 
 type DocAccess = 'available' | 'nda_required' | 'locked' | 'pending' | 'finalized';
 
@@ -45,23 +89,6 @@ const ACCESS_CFG: Record<DocAccess, { label: string; color: string; icon: string
   finalized:    { label: 'Finalized',     color: '#C67A4E', icon: 'DONE' },
 };
 
-const MILESTONES = [
-  { label: 'Product MVP Launch',         amount: 'BDT 15,00,000', status: 'completed', date: 'Oct 2023' },
-  { label: 'First 100 Paying Customers', amount: 'BDT 20,00,000', status: 'completed', date: 'Jan 2024' },
-  { label: 'Series A Bridge Round',      amount: 'BDT 25,00,000', status: 'active',    date: 'Q2 2024' },
-  { label: 'Break-even Point',           amount: '-',           status: 'pending',   date: 'Q4 2024' },
-  { label: 'Series A Close',             amount: 'BDT 1,00,00,000', status: 'pending', date: '2025' },
-];
-
-const TERMS = [
-  { term: 'Investment Amount',     founder: 'BDT 60,00,000', investor: 'BDT 45,00,000', agreed: false },
-  { term: 'Equity',                founder: '12%',         investor: '10%',          agreed: false },
-  { term: 'Pre-money Valuation',   founder: 'BDT 5,00,00,000', investor: 'BDT 4,50,00,000', agreed: false },
-  { term: 'Board Seat',            founder: 'Observer',    investor: 'Full seat',    agreed: false },
-  { term: 'Pro-rata Rights',       founder: 'Yes',         investor: 'Yes',          agreed: true },
-  { term: 'Liquidation Preference',founder: '1- non-part.',investor: '1- non-part.', agreed: true },
-];
-
 type ChatEntry = {
   kind: 'message';
   from: string;
@@ -90,95 +117,142 @@ const CHAT_ENTRIES: ChatEntry[] = [
     text: 'One question on the CAC/LTV ratio breakdown - can you clarify how the 18-month LTV is projected?' },
 ];
 
-const LOG = [
-  { text: 'NDA signed by Meridian Capital',  time: 'Mar 21 - 15:42', dot: '#22C55E' },
-  { text: 'NDA signed by NovaTech AI',        time: 'Mar 21 - 14:15', dot: '#22C55E' },
-  { text: 'Stage 3 documents unlocked',       time: 'Mar 21 - 14:16', dot: '#C67A4E' },
-  { text: 'NDA sent to both parties',         time: 'Mar 20 - 10:00', dot: '#3B82F6' },
-  { text: 'Interest confirmed by Meridian',   time: 'Mar 18 - 16:30', dot: '#3B82F6' },
-  { text: 'Stage 2 info shared',              time: 'Mar 18 - 16:31', dot: '#C67A4E' },
-  { text: 'Deal Room opened',                 time: 'Mar 17 - 09:00', dot: '#5E6D8F' },
-  { text: 'Matched - 86% compatibility',      time: 'Mar 14 - 11:00', dot: '#C67A4E' },
-];
-
-const PARTICIPANTS = [
-  { name: 'NovaTech AI',     role: 'Founder',  tier: 2 as const, score: 78, scoreLabel: 'Readiness' },
-  { name: 'Meridian Capital',role: 'Investor', tier: 2 as const, score: 86, scoreLabel: 'Match' },
-];
-
-const DEAL_DETAILS = [
-  { label: 'Opened',    value: 'Mar 14, 2024', mono: false },
-  { label: 'NDA Signed',value: 'Mar 21, 2024', mono: false },
-  { label: 'Ask',       value: 'BDT 60,00,000',    mono: true },
-];
-
 type Tab = 'overview' | 'documents' | 'terms' | 'milestones' | 'investment' | 'chat' | 'agreement';
 type InvestmentModel = 'large' | 'micro';
 
 // --- Sub-components -----------------------------------------------------------
 
-function ActivityLog() {
+function ActivityLog({ histories }: { histories: DealHistoryItem[] }) {
+  const getDotColor = (state: string) => {
+    switch (state) {
+      case 'completed':
+      case 'nda_signed':
+      case 'agreement':
+        return '#22C55E';
+      case 'negotiation':
+      case 'milestone_funding_active':
+        return '#C67A4E';
+      case 'interest_confirmed':
+        return '#3B82F6';
+      default:
+        return '#5E6D8F';
+    }
+  };
+
   return (
     <div className="px-5 py-5">
       <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-3.5">Activity Log</p>
-      <div className="space-y-3.5">
-        {LOG.map((e, i) => (
-          <div key={i} className="flex items-start gap-2.5">
-            <div className="mt-1 w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: e.dot }} />
-            <div className="min-w-0 flex-1">
-              <p className="text-[11.5px] text-[color:var(--vv-text-secondary)] leading-snug">{e.text}</p>
-              <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-0.5 font-mono tabular-nums">{e.time}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+      {histories.length === 0 ? (
+        <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] italic">No state transitions recorded yet.</p>
+      ) : (
+        <div className="space-y-3.5">
+          {histories.map((e) => {
+            const timeStr = e.changed_at
+              ? new Date(e.changed_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+              : 'Recently';
+            const label = e.previous_state_label
+              ? `Transitioned: ${e.previous_state_label} → ${e.new_state_label}`
+              : `Deal initialized in ${e.new_state_label}`;
+            return (
+              <div key={e.id} className="flex items-start gap-2.5">
+                <div className="mt-1 w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: getDotColor(e.new_state) }} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11.5px] text-[color:var(--vv-text-secondary)] leading-snug">{label}</p>
+                  <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-0.5 font-mono tabular-nums">{timeStr}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
-function DealSummaryPanel({ dealStage }: { dealStage: number }) {
+function DealSummaryPanel({
+  deal,
+  business,
+  dealStage,
+  currentUserId,
+}: {
+  deal: DealData | null;
+  business: BusinessInfo | null;
+  dealStage: number;
+  currentUserId?: number;
+}) {
+  const isFounder = deal && currentUserId === deal.founder_user_id;
+  const isCounterparty = deal && currentUserId === deal.counterparty_user_id;
+
+  const founderName = business?.name ? `${business.name} (Founder)` : 'Founder';
+  const counterpartyRoleLabel = deal?.counterparty_role === 'investor' ? 'Investor' : 'Professional';
+  const counterpartyName = isCounterparty ? `You (${counterpartyRoleLabel})` : `Counterparty (${counterpartyRoleLabel})`;
+
+  const openedDate = deal?.created_at
+    ? new Date(deal.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : '—';
+
   return (
     <div className="px-5 py-5 space-y-6">
       <div>
         <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-3">Participants</p>
-        {PARTICIPANTS.map((p, i) => (
-          <div key={i} className="mb-4 pb-4 border-b border-[#1c2a3e] last:border-0">
-            <div className="flex items-center gap-2.5 mb-2">
-              <div className="w-8 h-8 rounded bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] flex items-center justify-center text-[11.5px] font-bold text-[color:var(--vv-text)] shrink-0">{p.name[0]}</div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-semibold text-[color:var(--vv-text)] truncate">{p.name}</p>
-                <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">{p.role}</p>
-              </div>
+        <div className="mb-4 pb-4 border-b border-[#1c2a3e]">
+          <div className="flex items-center gap-2.5 mb-2">
+            <div className="w-8 h-8 rounded bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] flex items-center justify-center text-[11.5px] font-bold text-[color:var(--vv-text)] shrink-0">
+              {business?.name?.[0] || 'F'}
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <VerificationBadge tier={p.tier} />
-              <ScoreChip score={p.score} label={p.scoreLabel} topFactors={['FinTech', 'Seed stage']} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold text-[color:var(--vv-text)] truncate">{founderName}</p>
+              <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">Founder / Business Owner</p>
             </div>
           </div>
-        ))}
+          <div className="flex items-center gap-2 flex-wrap">
+            <VerificationBadge tier={1} />
+          </div>
+        </div>
+
+        <div className="mb-4 pb-4 border-b border-[#1c2a3e] last:border-0">
+          <div className="flex items-center gap-2.5 mb-2">
+            <div className="w-8 h-8 rounded bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] flex items-center justify-center text-[11.5px] font-bold text-[color:var(--vv-text)] shrink-0">
+              {counterpartyRoleLabel[0]}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-semibold text-[color:var(--vv-text)] truncate">{counterpartyName}</p>
+              <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">{counterpartyRoleLabel}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <VerificationBadge tier={1} />
+          </div>
+        </div>
       </div>
 
       <div>
         <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-3">Deal Details</p>
         <div className="space-y-2">
-          {DEAL_DETAILS.map((row, i) => (
-            <div key={i} className="flex items-center justify-between py-1.5 border-b border-[#1c2a3e]">
-              <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)] shrink-0">{row.label}</span>
-              <span className={`text-[12px] text-[color:var(--vv-text-secondary)] ${row.mono ? 'font-mono tabular-nums font-semibold' : ''}`}>{row.value}</span>
+          <div className="flex items-center justify-between py-1.5 border-b border-[#1c2a3e]">
+            <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)] shrink-0">Opened</span>
+            <span className="text-[12px] text-[color:var(--vv-text-secondary)]">{openedDate}</span>
+          </div>
+          {business?.funding_amount ? (
+            <div className="flex items-center justify-between py-1.5 border-b border-[#1c2a3e]">
+              <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)] shrink-0">Ask</span>
+              <span className="text-[12px] font-mono tabular-nums font-semibold text-[#C67A4E]">
+                ৳{business.funding_amount.toLocaleString('en-IN')}
+              </span>
             </div>
-          ))}
+          ) : null}
           <div className="flex items-center justify-between py-1.5 border-b border-[#1c2a3e]">
             <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">Status</span>
-            <Badge variant={dealStage >= 8 ? 'success' : 'accent'}>
-              {dealStage >= 8 ? 'Completed' : dealStage >= 6 ? 'Agreement' : 'NDA Signed'}
+            <Badge variant={dealStage >= 8 ? 'success' : dealStage >= 6 ? 'accent' : 'warning'}>
+              {deal?.stage_label || STAGES[dealStage - 1] || 'Active'}
             </Badge>
           </div>
-          <p className="text-[10.5px] text-[#F59E0B] pt-1">? Simulated - no real capital</p>
+          <p className="text-[10.5px] text-[#F59E0B] pt-1">✦ Simulated — no real capital transfer</p>
         </div>
       </div>
 
       <div className="pt-2">
-        <StagedDisclosure currentStage={3} compact />
+        <StagedDisclosure currentStage={dealStage >= 4 ? 3 : 2} compact />
       </div>
     </div>
   );
@@ -219,7 +293,22 @@ function LockedDocCard({ doc, onNDA }: { doc: Doc; onNDA: () => void }) {
 
 // --- Completion view ----------------------------------------------------------
 
-function CompletionView({ onReputation, onSummary }: { onReputation: () => void; onSummary: () => void }) {
+function CompletionView({
+  businessName,
+  milestones = [],
+  onReputation,
+  onSummary,
+}: {
+  businessName?: string;
+  milestones?: DealMilestoneData[];
+  onReputation: () => void;
+  onSummary: () => void;
+}) {
+  const completedCount = milestones.filter((m) => m.status === 'funded').length;
+  const milestonesValue = milestones.length > 0
+    ? `${completedCount} of ${milestones.length} completed`
+    : 'All milestones completed';
+
   return (
     <div className="max-w-3xl space-y-6">
       {/* Banner */}
@@ -232,8 +321,8 @@ function CompletionView({ onReputation, onSummary }: { onReputation: () => void;
           </svg>
         </div>
         <p className="font-display text-[18px] font-semibold text-[#22C55E] mb-1">Deal Completed</p>
-        <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mb-1">NovaTech AI - Meridian Capital</p>
-        <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">Completed Aug 26, 2026</p>
+        <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mb-1">{businessName || 'Deal Completed'}</p>
+        <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">All milestones verified & executed</p>
       </div>
 
       {/* Summary */}
@@ -243,10 +332,8 @@ function CompletionView({ onReputation, onSummary }: { onReputation: () => void;
         </div>
         {[
           { label: 'Final Status', value: 'Agreement Executed', highlight: true },
-          { label: 'Completion Date', value: 'Aug 26, 2026', highlight: false },
-          { label: 'Milestones', value: '5 of 5 completed', highlight: false },
-          { label: 'Investment', value: 'BDT 52,50,000 (Simulated)', highlight: false },
-          { label: 'Equity Agreed', value: '11%', highlight: false },
+          { label: 'Milestones', value: milestonesValue, highlight: false },
+          { label: 'Investment', value: 'Simulated', highlight: false },
         ].map((row, i) => (
           <div key={i} className="flex items-center justify-between px-4 py-2.5 border-b border-[#1E2C44] last:border-b-0">
             <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">{row.label}</span>
@@ -264,7 +351,7 @@ function CompletionView({ onReputation, onSummary }: { onReputation: () => void;
         <div className="flex-1 min-w-0">
           <p className="text-[12.5px] font-semibold text-[color:var(--vv-text)] mb-0.5">Leave Feedback</p>
           <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] mb-3">Share your experience to help build trust across the platform.</p>
-          <Button size="sm" variant="secondary" onClick={onReputation}>Leave Feedback ?</Button>
+          <Button size="sm" variant="secondary" onClick={onReputation}>Leave Feedback →</Button>
         </div>
       </div>
 
@@ -275,86 +362,339 @@ function CompletionView({ onReputation, onSummary }: { onReputation: () => void;
 
 // --- Agreement tab ------------------------------------------------------------
 
-function AgreementTab({ dealStage }: { dealStage: number }) {
-  const [agrStatus, setAgrStatus] = useState<'pending' | 'finalized'>(dealStage >= 8 ? 'finalized' : 'pending');
+interface AgreementTabProps {
+  deal: DealData | null;
+  business: BusinessInfo | null;
+  currentUserId?: number;
+  userRole?: string;
+  dealStage: number;
+  agreement: DealAgreementData | null;
+  negotiation: NegotiationData | null;
+  onGenerateAgreement: () => void;
+  onSignAgreement: () => void;
+  onActivateMilestones?: () => void;
+  isGenerating: boolean;
+  isSigning: boolean;
+  isActivatingMilestones?: boolean;
+  agreementError: string | null;
+  milestoneActivationError?: string | null;
+  onNavigateToNegotiation: () => void;
+}
 
-  const clauses = [
-    { label: 'Investment Amount',  value: 'BDT 52,50,000 (Simulated)' },
-    { label: 'Equity',             value: '11%' },
-    { label: 'Pre-money Valuation',value: 'BDT 4,77,00,000 (Simulated)' },
-    { label: 'Board Seat',         value: 'Observer rights' },
-    { label: 'Pro-rata Rights',    value: 'Yes' },
-    { label: 'Liquidation Pref.',  value: '1- non-participating' },
-    { label: 'Milestone Funding',  value: '5 tranches over 18 months' },
-    { label: 'Governing Law',      value: 'Laws of Bangladesh' },
-  ];
+function AgreementTab({
+  deal,
+  business,
+  currentUserId,
+  userRole,
+  dealStage,
+  agreement,
+  negotiation,
+  onGenerateAgreement,
+  onSignAgreement,
+  onActivateMilestones,
+  isGenerating,
+  isSigning,
+  isActivatingMilestones,
+  agreementError,
+  milestoneActivationError,
+  onNavigateToNegotiation,
+}: AgreementTabProps) {
+  const isFounder = deal && currentUserId === deal.founder_user_id;
+  const isCounterparty = deal && currentUserId === deal.counterparty_user_id;
+  const isParticipant = Boolean(isFounder || isCounterparty);
+  const isAdmin = userRole === 'admin';
+
+  const isFinalized = agreement ? (agreement.status === 'accepted' && Boolean(agreement.finalized_at)) : false;
+  const hasCurrentUserSigned = agreement
+    ? (isFounder && Boolean(agreement.founder_signed_at)) || (isCounterparty && Boolean(agreement.counterparty_signed_at))
+    : false;
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div className="flex items-center justify-between mb-1">
-        <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold">
-          Shareholders Agreement
-        </p>
-        <Badge variant={agrStatus === 'finalized' ? 'success' : 'warning'} dot>
-          {agrStatus === 'finalized' ? 'Finalized' : 'Pending Signatures'}
-        </Badge>
-      </div>
-
-      {agrStatus === 'finalized' && (
-        <div className="flex items-center gap-2.5 px-4 py-3 rounded-[10px]"
-          style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)' }}>
-          <svg width="14" height="14" fill="none" stroke="#22C55E" strokeWidth="2.5" viewBox="0 0 24 24">
-            <path d="M20 6L9 17l-5-5" strokeLinecap="round"/>
-          </svg>
-          <p className="text-[12px] font-semibold text-[#22C55E]">Agreement Finalized - Aug 26, 2026</p>
+      {/* Agreement Error Banner */}
+      {agreementError && (
+        <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-[12px] rounded-[10px]">
+          <IconAlertTriangle s={15} className="shrink-0" />
+          <span>{agreementError}</span>
         </div>
       )}
 
-      <div className="rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden bg-[#121A2B]">
-        <div className="px-4 py-3 border-b border-[color:var(--vv-border)] flex items-center justify-between">
-          <p className="text-[12px] font-semibold text-[color:var(--vv-text)]">Agreed Terms</p>
-          <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">? Simulated - no real financial obligation</p>
-        </div>
-        {clauses.map((c, i) => (
-          <div key={i} className="flex items-center justify-between px-4 py-2.5 border-b border-[color:var(--vv-border)] last:border-b-0">
-            <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">{c.label}</span>
-            <span className="text-[12px] font-semibold text-[color:var(--vv-text)]">{c.value}</span>
+      {agreement ? (
+        <>
+          {/* Header */}
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold">
+              {agreement.title || 'Deal Agreement'}
+            </p>
+            <Badge
+              variant={isFinalized ? 'success' : agreement.status === 'declined' ? 'danger' : 'warning'}
+              dot
+            >
+              {isFinalized ? 'Finalized' : agreement.status === 'pending_signatures' ? 'Pending Signatures' : agreement.status}
+            </Badge>
           </div>
-        ))}
-      </div>
 
-      {/* Signatures */}
-      <div className="rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden bg-[#121A2B]">
-        <div className="px-4 py-3 border-b border-[color:var(--vv-border)]">
-          <p className="text-[12px] font-semibold text-[color:var(--vv-text)]">Signatures</p>
-        </div>
-        {PARTICIPANTS.map((p, i) => (
-          <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-[color:var(--vv-border)] last:border-b-0">
-            <div className="w-8 h-8 rounded-[7px] flex items-center justify-center text-[11px] font-bold text-[color:var(--vv-text)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] shrink-0">{p.name[0]}</div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[12px] font-medium text-[color:var(--vv-text)]">{p.name}</p>
-              <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">{p.role}</p>
+          {/* Finalized Banner */}
+          {isFinalized && (
+            <div
+              className="flex items-center gap-2.5 px-4 py-3 rounded-[10px]"
+              style={{ background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)' }}
+            >
+              <svg width="14" height="14" fill="none" stroke="#22C55E" strokeWidth="2.5" viewBox="0 0 24 24" className="shrink-0">
+                <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <div>
+                <p className="text-[12px] font-semibold text-[#22C55E]">Agreement Finalized & Immutable</p>
+                {agreement.finalized_at && (
+                  <p className="text-[11px] text-[color:var(--vv-text-tertiary)] mt-0.5">
+                    Executed on {new Date(agreement.finalized_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+                  </p>
+                )}
+              </div>
             </div>
-            {agrStatus === 'finalized' ? (
-              <Badge variant="success" dot>Signed - Aug 26</Badge>
-            ) : (
-              <Badge variant="warning" dot>Awaiting signature</Badge>
-            )}
-          </div>
-        ))}
-      </div>
+          )}
 
-      {agrStatus === 'pending' && (
-        <div className="flex gap-3">
-          <Button className="flex-1" onClick={() => setAgrStatus('finalized')}>Sign Agreement</Button>
-          <Button variant="ghost">Download Draft</Button>
-        </div>
-      )}
-      {agrStatus === 'finalized' && (
-        <div className="flex gap-3">
-          <Button variant="secondary" className="flex-1">Download Agreement</Button>
-          <Button variant="ghost">Share with Parties</Button>
-        </div>
+          {/* Terms Snapshot */}
+          <div className="rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden bg-[#121A2B]">
+            <div className="px-4 py-3 border-b border-[color:var(--vv-border)] flex items-center justify-between">
+              <p className="text-[12px] font-semibold text-[color:var(--vv-text)]">Agreed Terms Snapshot</p>
+              <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">
+                ✦ Simulated {agreement.terms_snapshot?.proposal_version ? `• Proposal v${agreement.terms_snapshot.proposal_version}` : ''}
+              </p>
+            </div>
+            <div className="divide-y divide-[color:var(--vv-border)]">
+              {agreement.terms_snapshot?.investment_type && (
+                <div className="flex items-center justify-between px-4 py-2.5">
+                  <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">Investment Type</span>
+                  <span className="text-[12px] font-semibold text-[color:var(--vv-text)] capitalize">
+                    {agreement.terms_snapshot.investment_type.replace(/_/g, ' ')}
+                  </span>
+                </div>
+              )}
+              {agreement.terms_snapshot?.amount !== null && agreement.terms_snapshot?.amount !== undefined && (
+                <div className="flex items-center justify-between px-4 py-2.5">
+                  <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">Investment Amount</span>
+                  <span className="text-[12px] font-semibold text-[color:var(--vv-text)] font-mono">
+                    BDT {Number(agreement.terms_snapshot.amount).toLocaleString('en-IN')} (Simulated)
+                  </span>
+                </div>
+              )}
+              {agreement.terms_snapshot?.equity_percentage !== null && agreement.terms_snapshot?.equity_percentage !== undefined && (
+                <div className="flex items-center justify-between px-4 py-2.5">
+                  <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">Equity Stake</span>
+                  <span className="text-[12px] font-semibold text-[#22C55E] font-mono">
+                    {agreement.terms_snapshot.equity_percentage}%
+                  </span>
+                </div>
+              )}
+              {agreement.terms_snapshot?.profit_sharing_percentage !== null && agreement.terms_snapshot?.profit_sharing_percentage !== undefined && (
+                <div className="flex items-center justify-between px-4 py-2.5">
+                  <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">Profit Sharing</span>
+                  <span className="text-[12px] font-semibold text-[#C9A24B] font-mono">
+                    {agreement.terms_snapshot.profit_sharing_percentage}%
+                  </span>
+                </div>
+              )}
+              {agreement.terms_snapshot?.loss_sharing_terms && (
+                <div className="flex items-start justify-between px-4 py-2.5">
+                  <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">Loss Sharing Terms</span>
+                  <span className="text-[12px] text-[color:var(--vv-text-secondary)] text-right max-w-[60%]">
+                    {agreement.terms_snapshot.loss_sharing_terms}
+                  </span>
+                </div>
+              )}
+              {agreement.terms_snapshot?.proposed_terms && (
+                <div className="flex items-start justify-between px-4 py-2.5">
+                  <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">Collaboration Terms</span>
+                  <span className="text-[12px] text-[color:var(--vv-text-secondary)] text-right max-w-[60%]">
+                    {agreement.terms_snapshot.proposed_terms}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Agreement Document Text Preview */}
+          {agreement.agreement_text && (
+            <div className="rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden bg-[#121A2B]">
+              <div className="px-4 py-3 border-b border-[color:var(--vv-border)] flex items-center justify-between">
+                <p className="text-[12px] font-semibold text-[color:var(--vv-text)]">Agreement Document</p>
+                <span className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">Platform Standard Terms</span>
+              </div>
+              <div className="p-4 max-h-64 overflow-y-auto bg-[color:color-mix(in_srgb,var(--vv-raised)_30%,transparent)] font-mono text-[11.5px] leading-relaxed text-[color:var(--vv-text-secondary)] whitespace-pre-line select-text border-t border-[color:var(--vv-border)]/40">
+                {agreement.agreement_text}
+              </div>
+            </div>
+          )}
+
+          {/* Signatures */}
+          <div className="rounded-[12px] border border-[color:var(--vv-border)] overflow-hidden bg-[#121A2B]">
+            <div className="px-4 py-3 border-b border-[color:var(--vv-border)]">
+              <p className="text-[12px] font-semibold text-[color:var(--vv-text)]">Participant Signatures</p>
+            </div>
+            <div className="divide-y divide-[color:var(--vv-border)]">
+              {/* Founder */}
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div className="w-8 h-8 rounded-[7px] flex items-center justify-center text-[11px] font-bold text-[color:var(--vv-text)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] shrink-0">
+                  {(business?.name || 'F')[0]}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-medium text-[color:var(--vv-text)]">
+                    {business?.name ? `${business.name} (Founder)` : 'Founder / Business Owner'}
+                  </p>
+                  <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">Founder / Business Owner</p>
+                </div>
+                {agreement.founder_signed_at ? (
+                  <Badge variant="success" dot>
+                    Signed ({new Date(agreement.founder_signed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})
+                  </Badge>
+                ) : (
+                  <Badge variant="warning" dot>Awaiting signature</Badge>
+                )}
+              </div>
+
+              {/* Counterparty */}
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div className="w-8 h-8 rounded-[7px] flex items-center justify-center text-[11px] font-bold text-[color:var(--vv-text)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] shrink-0">
+                  {deal?.counterparty_role === 'investor' ? 'I' : 'P'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-medium text-[color:var(--vv-text)]">
+                    {deal?.counterparty_role === 'investor' ? 'Investor' : 'Professional Partner'}
+                  </p>
+                  <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] capitalize">
+                    Counterparty ({deal?.counterparty_role || 'Participant'})
+                  </p>
+                </div>
+                {agreement.counterparty_signed_at ? (
+                  <Badge variant="success" dot>
+                    Signed ({new Date(agreement.counterparty_signed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})
+                  </Badge>
+                ) : (
+                  <Badge variant="warning" dot>Awaiting signature</Badge>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Action Area */}
+          {isFinalized ? (
+            <div className="space-y-3">
+              <div className="p-3.5 rounded-[10px] bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)] border border-[color:var(--vv-border)] text-[12px] text-[color:var(--vv-text-secondary)] text-center">
+                This agreement is fully executed and immutable. Milestone funding stage is now accessible.
+              </div>
+              {deal?.stage === 'agreement' && onActivateMilestones && (
+                isAdmin ? (
+                  <div className="px-3.5 py-3 rounded-md border border-[color:var(--vv-border)] text-[11.5px] text-[color:var(--vv-text-tertiary)] text-center">
+                    Admin oversight: milestone activation is disabled.
+                  </div>
+                ) : isParticipant ? (
+                  <div className="space-y-2">
+                    {milestoneActivationError && (
+                      <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-[12px] rounded-[10px]">
+                        <IconAlertTriangle s={15} className="shrink-0" />
+                        <span>{milestoneActivationError}</span>
+                      </div>
+                    )}
+                    <Button
+                      className="w-full"
+                      disabled={isActivatingMilestones}
+                      onClick={onActivateMilestones}
+                    >
+                      {isActivatingMilestones ? 'Activating Milestone Funding...' : 'Activate Milestone Funding Stage'}
+                    </Button>
+                  </div>
+                ) : null
+              )}
+            </div>
+          ) : agreement.status === 'pending_signatures' ? (
+            isAdmin ? (
+              <div className="px-3.5 py-3 rounded-md border border-[color:var(--vv-border)] text-[11.5px] text-[color:var(--vv-text-tertiary)]">
+                Admin oversight: participant signing actions are disabled.
+              </div>
+            ) : hasCurrentUserSigned ? (
+              <div
+                className="flex items-center gap-3 p-4 rounded-[10px] border"
+                style={{ background: 'rgba(198,122,78,0.05)', borderColor: 'rgba(198,122,78,0.2)' }}
+              >
+                <IconCheck s={16} className="text-[#22C55E] shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12.5px] font-semibold text-[color:var(--vv-text)]">You have signed this agreement</p>
+                  <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">
+                    Waiting for the counterparty to sign. The agreement will finalize automatically once both parties sign.
+                  </p>
+                </div>
+              </div>
+            ) : isParticipant ? (
+              <div className="flex gap-3">
+                <Button
+                  className="flex-1"
+                  disabled={isSigning}
+                  onClick={onSignAgreement}
+                >
+                  {isSigning ? 'Signing Agreement...' : 'Sign Agreement'}
+                </Button>
+              </div>
+            ) : (
+              <div className="px-3.5 py-3 rounded-md border border-[color:var(--vv-border)] text-[11.5px] text-[color:var(--vv-text-tertiary)]">
+                Signing is only available to the designated deal participants.
+              </div>
+            )
+          ) : null}
+        </>
+      ) : (
+        /* Null Agreement State */
+        (() => {
+          const hasAcceptedProposal =
+            negotiation?.active_proposal?.status === 'accepted' ||
+            negotiation?.proposals?.some((p) => p.status === 'accepted');
+
+          if (hasAcceptedProposal) {
+            return (
+              <div className="rounded-[12px] border border-[color:var(--vv-border)] p-6 bg-[#121A2B] text-center space-y-4">
+                <div className="w-12 h-12 rounded-full bg-[#C67A4E]/10 border border-[#C67A4E]/20 flex items-center justify-center text-[#C67A4E] mx-auto">
+                  <IconFileText s={22} />
+                </div>
+                <div>
+                  <p className="text-[14px] font-semibold text-[color:var(--vv-text)]">Proposal Accepted — Agreement Ready to Draft</p>
+                  <p className="text-[12px] text-[color:var(--vv-text-tertiary)] max-w-md mx-auto mt-1">
+                    The negotiation terms have been agreed upon. Generate the deal agreement draft to begin the execution and signing process.
+                  </p>
+                </div>
+                {isAdmin ? (
+                  <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] italic">
+                    Admin oversight: agreement draft generation is disabled.
+                  </p>
+                ) : isParticipant ? (
+                  <Button disabled={isGenerating} onClick={onGenerateAgreement}>
+                    {isGenerating ? 'Generating Draft...' : 'Generate Agreement Draft'}
+                  </Button>
+                ) : (
+                  <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] italic">
+                    Only deal participants can generate the agreement draft.
+                  </p>
+                )}
+              </div>
+            );
+          }
+
+          return (
+            <div className="rounded-[12px] border border-[color:var(--vv-border)] p-6 bg-[#121A2B] text-center space-y-4">
+              <div className="w-12 h-12 rounded-full bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] flex items-center justify-center text-[color:var(--vv-text-tertiary)] mx-auto">
+                <IconLock s={20} />
+              </div>
+              <div>
+                <p className="text-[14px] font-semibold text-[color:var(--vv-text)]">No Agreement Available</p>
+                <p className="text-[12px] text-[color:var(--vv-text-tertiary)] max-w-md mx-auto mt-1">
+                  An agreement draft can only be generated once negotiation terms have been proposed and accepted by both parties in the Negotiation Panel.
+                </p>
+              </div>
+              <Button size="sm" variant="secondary" onClick={onNavigateToNegotiation}>
+                Go to Negotiation Panel
+              </Button>
+            </div>
+          );
+        })()
       )}
     </div>
   );
@@ -528,14 +868,46 @@ function InvestmentTab({ model }: { model: InvestmentModel }) {
 
 // --- Main ---------------------------------------------------------------------
 
+export function submitDealTransition(dealId: number, targetState: string | undefined, role: string) {
+  const participantRole = role === 'investor' || role === 'professional' ? role : undefined;
+  return api.post(`/api/me/deals/${dealId}/transition`, {
+    ...(targetState ? { target_state: targetState } : {}),
+    ...(participantRole ? { role: participantRole } : {}),
+  });
+}
+
 export default function DealRoom() {
   const navigate = useNavigate();
+  const { dealId } = useParams<{ dealId?: string }>();
+  const { user } = useAuth();
   const { role } = useRole();
   const isAdmin = role === 'admin';
   const canFounderAct = canAccess(role, 'deal.founderActions');
   const canInvestorAct = canAccess(role, 'deal.investorActions');
   const canParticipantAct = canFounderAct || canInvestorAct;
-  const [dealStage, setDealStage] = useState(5); // 1-indexed; 5 = Negotiation
+
+  const [deal, setDeal] = useState<DealData | null>(null);
+  const [histories, setHistories] = useState<DealHistoryItem[]>([]);
+  const [business, setBusiness] = useState<BusinessInfo | null>(null);
+  const [ndaStatus, setNdaStatus] = useState<BusinessNdaData | null>(null);
+  const [negotiation, setNegotiation] = useState<NegotiationData | null>(null);
+  const [agreement, setAgreement] = useState<DealAgreementData | null>(null);
+  const [milestones, setMilestones] = useState<DealMilestoneData[]>([]);
+  const [fundingSummary, setFundingSummary] = useState<FundingSummaryData | null>(null);
+  const [milestonesLoading, setMilestonesLoading] = useState(false);
+  const [milestonesError, setMilestonesError] = useState<string | null>(null);
+  const [isActivatingMilestones, setIsActivatingMilestones] = useState(false);
+  const [milestoneActivationError, setMilestoneActivationError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [transitioning, setTransitioning] = useState(false);
+  const [transitionError, setTransitionError] = useState<string | null>(null);
+  const [isGeneratingAgreement, setIsGeneratingAgreement] = useState(false);
+  const [isSigningAgreement, setIsSigningAgreement] = useState(false);
+  const [agreementError, setAgreementError] = useState<string | null>(null);
+  const [isCompletingDeal, setIsCompletingDeal] = useState(false);
+  const [dealCompletionError, setDealCompletionError] = useState<string | null>(null);
+
   const [tab, setTab] = useState<Tab>('overview');
   const [msg, setMsg] = useState('');
   const [chatEntries, setChatEntries] = useState<ChatEntry[]>(CHAT_ENTRIES);
@@ -546,6 +918,182 @@ export default function DealRoom() {
   const isDraggingTab = useRef(false);
   const dragStartX = useRef(0);
   const scrollLeftStart = useRef(0);
+
+  const dealStage = deal ? deal.stage_order : 1;
+
+  const isDealCompletionEligible =
+    deal?.stage === 'milestone_funding_active' &&
+    Boolean(agreement?.finalized_at) &&
+    milestones.length > 0 &&
+    milestones.every((m) => m.status === 'funded') &&
+    (fundingSummary
+      ? fundingSummary.total_committed_bdt === 0 ||
+        fundingSummary.total_released_bdt === fundingSummary.total_committed_bdt
+      : true);
+
+  const activeMilestone = milestones.find((m) => m.status === 'active' || m.status === 'submitted');
+  const pendingMilestones = milestones.filter((m) => m.status === 'pending');
+  const currentMilestone = activeMilestone || pendingMilestones[0] || milestones[milestones.length - 1] || null;
+  const currentMilestoneIndex = currentMilestone ? milestones.findIndex((m) => m.id === currentMilestone.id) : -1;
+  const nextMilestone = currentMilestoneIndex >= 0 && currentMilestoneIndex < milestones.length - 1 ? milestones[currentMilestoneIndex + 1] : null;
+
+  const fetchDealData = useCallback(async () => {
+    if (!dealId) {
+      setError('No Deal ID provided in route. Please open a Deal from Connections.');
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const roleParam = role === 'investor' || role === 'professional' ? role : undefined;
+      const dealData = await api.deals.get(dealId, roleParam);
+      setDeal(dealData);
+
+      try {
+        const historyData = await api.get<DealHistoryItem[]>(`/api/me/deals/${dealId}/history`, { params: roleParam ? { role: roleParam } : undefined });
+        setHistories(Array.isArray(historyData) ? historyData : []);
+      } catch {
+        setHistories([]);
+      }
+
+      if (dealData.id) {
+        const roleParam = role === 'investor' || role === 'professional' ? role : undefined;
+        try {
+          const neg = await api.deals.getNegotiation(dealData.id, roleParam);
+          setNegotiation(neg);
+        } catch {
+          setNegotiation(null);
+        }
+
+        try {
+          const agr = await api.deals.getAgreement(dealData.id, roleParam);
+          setAgreement(agr);
+        } catch {
+          setAgreement(null);
+        }
+
+        try {
+          setMilestonesLoading(true);
+          const milestonesRes = await api.deals.milestones.list(dealData.id, roleParam);
+          setMilestones(milestonesRes.milestones || []);
+          setFundingSummary(milestonesRes.summary || null);
+          setMilestonesError(null);
+        } catch (mErr: any) {
+          setMilestones([]);
+          setFundingSummary(null);
+          setMilestonesError(mErr?.message || 'Failed to load milestones for this deal.');
+        } finally {
+          setMilestonesLoading(false);
+        }
+      }
+
+      if (dealData.business_id) {
+        try {
+          const bus = await api.get<BusinessInfo>(`/api/businesses/${dealData.business_id}`);
+          setBusiness(bus);
+        } catch {
+          // Non-blocking business metadata load
+        }
+
+        try {
+          const isFounderCaller = user && user.id === dealData.founder_user_id;
+          const ndaParams: Record<string, string | number> = {};
+          if (isFounderCaller && dealData.counterparty_user_id) {
+            ndaParams.counterparty_user_id = dealData.counterparty_user_id;
+          }
+          const nda = await api.get<BusinessNdaData>(`/api/me/businesses/${dealData.business_id}/nda`, { params: ndaParams });
+          setNdaStatus(nda);
+        } catch {
+          // Non-blocking NDA status load
+        }
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load deal room data from server.');
+    } finally {
+      setLoading(false);
+    }
+  }, [dealId, user, role]);
+
+  useEffect(() => {
+    fetchDealData();
+  }, [fetchDealData]);
+
+  const handleTransition = async (targetState?: string) => {
+    if (!deal) return;
+    setTransitioning(true);
+    setTransitionError(null);
+    try {
+      await submitDealTransition(deal.id, targetState, role);
+      await fetchDealData();
+    } catch (err: any) {
+      setTransitionError(err?.message || 'Lifecycle transition rejected by server.');
+    } finally {
+      setTransitioning(false);
+    }
+  };
+
+  const handleGenerateAgreement = async () => {
+    if (!deal) return;
+    setIsGeneratingAgreement(true);
+    setAgreementError(null);
+    try {
+      const roleParam = role === 'investor' || role === 'professional' ? role : undefined;
+      const res = await api.deals.generateAgreement(deal.id, roleParam);
+      setAgreement(res);
+      await fetchDealData();
+    } catch (err: any) {
+      setAgreementError(err?.message || 'Failed to generate agreement draft.');
+    } finally {
+      setIsGeneratingAgreement(false);
+    }
+  };
+
+  const handleSignAgreement = async () => {
+    if (!deal) return;
+    setIsSigningAgreement(true);
+    setAgreementError(null);
+    try {
+      const roleParam = role === 'investor' || role === 'professional' ? role : undefined;
+      const res = await api.deals.signAgreement(deal.id, roleParam);
+      setAgreement(res);
+      await fetchDealData();
+    } catch (err: any) {
+      setAgreementError(err?.message || 'Failed to sign agreement.');
+    } finally {
+      setIsSigningAgreement(false);
+    }
+  };
+
+  const handleActivateMilestones = async () => {
+    if (!deal) return;
+    setIsActivatingMilestones(true);
+    setMilestoneActivationError(null);
+    try {
+      const roleParam = role === 'investor' || role === 'professional' ? role : undefined;
+      await api.deals.activateMilestones(deal.id, roleParam);
+      await fetchDealData();
+    } catch (err: any) {
+      setMilestoneActivationError(err?.message || 'Failed to activate milestone funding.');
+    } finally {
+      setIsActivatingMilestones(false);
+    }
+  };
+
+  const handleCompleteDeal = async () => {
+    if (!deal || isCompletingDeal) return;
+    setIsCompletingDeal(true);
+    setDealCompletionError(null);
+    try {
+      const roleParam = role === 'investor' || role === 'professional' ? role : undefined;
+      await api.deals.complete(deal.id, roleParam);
+      await fetchDealData();
+    } catch (err: any) {
+      setDealCompletionError(err?.message || 'Failed to complete deal.');
+    } finally {
+      setIsCompletingDeal(false);
+    }
+  };
 
   function handleTabMouseDown(e: React.MouseEvent) {
     if (!tabScrollRef.current) return;
@@ -581,7 +1129,7 @@ export default function DealRoom() {
     { id: 'terms',     label: 'Negotiation Terms' },
     { id: 'milestones',  label: 'Milestones' },
     { id: 'investment',  label: investmentModel === 'micro' ? 'Investment - P/L' : 'Investment - Equity' },
-    { id: 'agreement',   label: 'Agreement' },
+    { id: 'agreement',   label: 'Agreement', badge: agreement && agreement.status === 'accepted' ? 'Signed' : undefined },
     { id: 'chat',        label: 'Chat', badge: '3' },
   ];
 
@@ -589,7 +1137,7 @@ export default function DealRoom() {
     if (!msg.trim() || !canParticipantAct) return;
     setChatEntries(prev => [...prev, {
       kind: 'message',
-      from: `You (${canFounderAct ? 'NovaTech AI' : 'Meridian Capital'})`,
+      from: `You (${canFounderAct ? business?.name || 'Founder' : 'Counterparty'})`,
       fromRole: canFounderAct ? 'founder' : 'investor',
       time: 'Just now',
       text: msg.trim(),
@@ -597,19 +1145,49 @@ export default function DealRoom() {
     setMsg('');
   }
 
+  if (loading) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center p-8 bg-[#0D1626]">
+        <div className="w-8 h-8 rounded-full border-2 border-[#C67A4E] border-t-transparent animate-spin mb-4" />
+        <p className="text-[13px] font-medium text-[color:var(--vv-text)]">Loading Deal Room...</p>
+        <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] mt-1">Retrieving authoritative deal state</p>
+      </div>
+    );
+  }
+
+  if (error && !deal) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center p-8 bg-[#0D1626] text-center">
+        <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mb-4">
+          <IconAlertTriangle s={24} />
+        </div>
+        <p className="text-[15px] font-semibold text-[color:var(--vv-text)] mb-1">Unable to Load Deal Room</p>
+        <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] max-w-md mb-6">{error}</p>
+        <div className="flex gap-3">
+          <Button variant="secondary" onClick={() => navigate('/app/connections')}>Go to Connections</Button>
+          <Button onClick={fetchDealData}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const dealTitle = business?.name
+    ? `${business.name} — ${deal?.counterparty_role === 'investor' ? 'Investor Deal' : 'Professional Deal'}`
+    : `Deal #${deal?.id || dealId}`;
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
 
       {/* -- Back nav -- */}
       <div className="flex-shrink-0 flex items-center gap-2 px-6 py-3 border-b border-[#1c2a3e] bg-[#0D1626]">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/app/connections')}
           className="flex items-center gap-1 text-[11.5px] text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] transition-colors">
           <IconChevronLeft s={13} />
-          Back
+          Connections
         </button>
         <span className="text-[color:var(--vv-text-tertiary)] text-[11px]">/</span>
-        <span className="text-[12px] text-[color:var(--vv-text-secondary)] font-medium">Deal Room - NovaTech AI - Meridian Capital</span>
+        <span className="text-[12px] text-[color:var(--vv-text-secondary)] font-medium">{dealTitle}</span>
       </div>
 
       <div className="flex-shrink-0 px-6 py-3 border-b border-[color:var(--vv-border)] bg-[#121A2B]">
@@ -623,14 +1201,25 @@ export default function DealRoom() {
               {isAdmin
                 ? 'Review deal activity and governance signals. Participant actions are unavailable in the Admin Console.'
                 : canFounderAct
-                  ? 'Manage founder-side responses, business disclosures, and agreement progression for NovaTech AI.'
+                  ? `Manage founder-side responses, business disclosures, and agreement progression for ${business?.name || 'your business'}.`
                   : canInvestorAct
-                    ? 'Review investor-side terms, protected documents, and responses for Meridian Capital.'
+                    ? 'Review investor-side terms, protected documents, and responses for this deal.'
                     : 'Your workspace can view this Deal Room but has no participant actions here.'}
             </p>
           </div>
         </div>
       </div>
+
+      {/* Transition error banner */}
+      {transitionError && (
+        <div className="flex items-center justify-between gap-3 px-6 py-3 bg-red-500/10 border-b border-red-500/20 text-red-400 text-[12px]">
+          <div className="flex items-center gap-2">
+            <IconAlertTriangle s={15} className="shrink-0" />
+            <span>{transitionError}</span>
+          </div>
+          <button onClick={() => setTransitionError(null)} className="text-red-400/80 hover:text-red-300 text-[11px] underline">Dismiss</button>
+        </div>
+      )}
 
       {/* -- Lifecycle stepper -- */}
       <div className="flex-shrink-0 bg-[#0D1626] border-b border-[color:var(--vv-border)]">
@@ -642,21 +1231,20 @@ export default function DealRoom() {
               const current = stageNum === dealStage;
               return (
                 <div key={s} className="flex items-center">
-                  <button
-                    onClick={() => setDealStage(stageNum)}
-                    className="flex flex-col items-center group cursor-pointer"
-                    title={`Jump to: ${s}`}>
+                  <div
+                    className="flex flex-col items-center group cursor-default"
+                    title={`Stage ${stageNum}: ${s}`}>
                     <div className={`w-7 h-7 rounded-full border flex items-center justify-center text-[10px] font-bold transition-all ${
                       done    ? 'bg-[#22C55E] border-[#22C55E] text-white shadow-sm' :
                       current ? 'bg-[#C67A4E] border-[#C67A4E] text-white shadow-md' :
-                                'bg-transparent border-[color:var(--vv-border-strong)] text-[color:var(--vv-text-tertiary)] group-hover:border-[#5E6D8F]'
+                                'bg-transparent border-[color:var(--vv-border-strong)] text-[color:var(--vv-text-tertiary)]'
                     }`}>
                       {done ? <IconCheck s={11} /> : stageNum}
                     </div>
                     <span className={`text-[10px] mt-1.5 whitespace-nowrap tracking-wide font-medium transition-colors ${
                       current ? 'text-[#C67A4E]' : done ? 'text-[color:var(--vv-text-secondary)]' : 'text-[color:var(--vv-text-tertiary)]'
                     }`}>{s}</span>
-                  </button>
+                  </div>
                   {i < STAGES.length - 1 && (
                     <div className={`w-10 sm:w-14 h-px mx-2 mb-4 shrink-0 transition-colors ${done ? 'bg-[#22C55E]' : 'bg-[color:var(--vv-border-strong)]'}`} />
                   )}
@@ -672,7 +1260,7 @@ export default function DealRoom() {
 
         {/* Left sidebar */}
         <aside className="hidden lg:flex flex-col w-64 xl:w-72 shrink-0 border-r border-[color:var(--vv-border)] bg-[#0D1626] overflow-y-auto">
-          <DealSummaryPanel dealStage={dealStage} />
+          <DealSummaryPanel deal={deal} business={business} dealStage={dealStage} currentUserId={user?.id} />
         </aside>
 
         {/* Center workspace */}
@@ -683,17 +1271,17 @@ export default function DealRoom() {
             <button
               onClick={() => setActivityOpen(a => !a)}
               className="w-full flex items-center justify-between px-4 py-2.5 text-[12px] text-[color:var(--vv-text-secondary)]">
-              <span className="font-medium">NovaTech AI - Meridian Capital</span>
+              <span className="font-medium">{dealTitle}</span>
               <div className="flex items-center gap-1.5">
                 <Badge variant={dealStage >= 8 ? 'success' : 'accent'}>
-                  {STAGES[dealStage - 1]}
+                  {deal?.stage_label || STAGES[dealStage - 1]}
                 </Badge>
                 <IconChevronDown s={13} className={`text-[color:var(--vv-text-tertiary)] transition-transform ${activityOpen ? 'rotate-180' : ''}`} />
               </div>
             </button>
             {activityOpen && (
               <div className="border-t border-[#1c2a3e]">
-                <DealSummaryPanel dealStage={dealStage} />
+                <DealSummaryPanel deal={deal} business={business} dealStage={dealStage} currentUserId={user?.id} />
               </div>
             )}
           </div>
@@ -728,22 +1316,34 @@ export default function DealRoom() {
             {tab === 'overview' && (
               dealStage >= 8 ? (
                 <CompletionView
+                  businessName={business?.name}
+                  milestones={milestones}
                   onReputation={() => navigate('/app/feedback')}
-                  onSummary={() => {}}
+                  onSummary={() => setActivityOpen(true)}
                 />
               ) : (
                 <div className="space-y-6 max-w-4xl">
 
                   {/* NDA status card */}
-                  {dealStage < 4 ? (
+                  {!(ndaStatus ? ndaStatus.status === 'active' : dealStage >= 4) ? (
                     <div className="flex items-start gap-3 p-4 rounded-[10px] border"
                       style={{ background: 'rgba(167,139,250,0.05)', borderColor: 'rgba(167,139,250,0.22)' }}>
                       <IconLock s={15} className="text-[#A78BFA] shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold text-[#A78BFA] mb-0.5">NDA Required</p>
-                        <p className="text-[12px] text-[color:var(--vv-text-tertiary)]">Protected information is unavailable until both parties have signed the mutual NDA.</p>
+                        <p className="text-[13px] font-semibold text-[#A78BFA] mb-0.5">
+                          {ndaStatus?.status === 'pending' ? 'NDA Pending Acceptance' : ndaStatus?.status === 'declined' ? 'NDA Declined' : 'NDA Required'}
+                        </p>
+                        <p className="text-[12px] text-[color:var(--vv-text-tertiary)]">
+                          {ndaStatus?.status === 'pending'
+                            ? (ndaStatus.current_user_accepted ? 'Waiting for the counterparty to accept the NDA.' : 'An NDA is pending your review and signature.')
+                            : ndaStatus?.status === 'declined'
+                            ? 'The previous NDA was declined. A new agreement must be initiated.'
+                            : 'Protected information is unavailable until both parties have signed the mutual NDA.'}
+                        </p>
                       </div>
-                      <Button size="sm" variant="secondary" onClick={() => navigate('/app/nda/nova-health')}>Review NDA</Button>
+                      <Button size="sm" variant="secondary" onClick={() => navigate(deal?.business_id ? `/app/nda/${deal.business_id}?return=/app/deals/${deal.id}${user?.id === deal.founder_user_id && deal.counterparty_user_id ? `&counterparty_user_id=${deal.counterparty_user_id}` : ''}` : '/app/nda')}>
+                        {ndaStatus?.status === 'pending' && !ndaStatus?.current_user_accepted ? 'Review & Sign' : ndaStatus?.status === 'declined' ? 'Request New NDA' : 'Review NDA'}
+                      </Button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2.5 p-3 rounded-[10px]"
@@ -751,7 +1351,7 @@ export default function DealRoom() {
                       <svg width="13" height="13" fill="none" stroke="#22C55E" strokeWidth="2.5" viewBox="0 0 24 24">
                         <path d="M20 6L9 17l-5-5" strokeLinecap="round"/>
                       </svg>
-                      <p className="text-[12px] text-[#22C55E] font-medium">NDA Completed - both parties signed Mar 21, 2024</p>
+                      <p className="text-[12px] text-[#22C55E] font-medium">NDA Completed — both parties signed</p>
                     </div>
                   )}
 
@@ -761,7 +1361,7 @@ export default function DealRoom() {
                       <IconAlertTriangle s={15} className="text-[#F59E0B] shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
                         <p className="text-[13px] font-semibold text-[color:var(--vv-text)] mb-0.5">Action required: Review negotiation terms</p>
-                        <p className="text-[12px] text-[color:var(--vv-text-tertiary)]">{canFounderAct ? 'Review and respond to the investor proposal for NovaTech AI.' : 'Meridian Capital submitted preliminary terms. Review and respond within 5 business days.'}</p>
+                        <p className="text-[12px] text-[color:var(--vv-text-tertiary)]">{canFounderAct ? 'Review and respond to the investor proposal.' : 'Counterparty submitted preliminary terms. Review and respond.'}</p>
                       </div>
                       <Button size="sm" onClick={() => setTab('terms')}>Review</Button>
                     </div>
@@ -786,11 +1386,20 @@ export default function DealRoom() {
                     </div>
                     <div>
                       {[
-                        { label: 'Current stage',      value: STAGES[dealStage - 1], badge: null },
-                        { label: 'NDA status',         value: null, badge: dealStage >= 4 ? { v: 'success', text: 'Both parties signed' } : { v: 'warning', text: 'Pending' } },
-                        { label: 'NDA expiry',         value: dealStage >= 4 ? 'Mar 21, 2025' : '-', badge: null },
-                        { label: 'Data room access',   value: null, badge: { v: dealStage >= 4 ? 'accent' : 'neutral', text: dealStage >= 4 ? 'Stage 3 unlocked' : 'Stage 1 only' } },
-                        { label: 'Documents',          value: dealStage >= 4 ? '7 accessible - 2 locked' : '4 accessible - 5 locked', badge: null },
+                        { label: 'Current stage',      value: deal?.stage_label || STAGES[dealStage - 1], badge: null },
+                        {
+                          label: 'NDA status',
+                          value: null,
+                          badge: (ndaStatus ? ndaStatus.status === 'active' : dealStage >= 4)
+                            ? { v: 'success', text: 'Both parties signed' }
+                            : ndaStatus?.status === 'pending'
+                            ? { v: 'warning', text: 'Pending acceptance' }
+                            : ndaStatus?.status === 'declined'
+                            ? { v: 'neutral', text: 'Declined' }
+                            : { v: 'warning', text: 'Not requested' },
+                        },
+                        { label: 'Data room access',   value: null, badge: { v: (ndaStatus ? ndaStatus.status === 'active' : dealStage >= 4) ? 'accent' : 'neutral', text: (ndaStatus ? ndaStatus.status === 'active' : dealStage >= 4) ? 'Stage 3 unlocked' : 'Stage 1 only' } },
+                        { label: 'Documents',          value: (ndaStatus ? ndaStatus.status === 'active' : dealStage >= 4) ? '7 accessible — 2 locked' : '4 accessible — 5 locked', badge: null },
                       ].map((row, i) => (
                         <div key={i} className="flex items-center justify-between gap-4 px-4 py-2.5 border-b border-[#1c2a3e] last:border-0">
                           <span className="text-[12px] text-[color:var(--vv-text-tertiary)] shrink-0">{row.label}</span>
@@ -809,21 +1418,98 @@ export default function DealRoom() {
                     <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[10px] overflow-hidden">
                       <div className="flex items-center justify-between px-4 py-3 border-b border-[color:var(--vv-border)]">
                         <p className="text-[12.5px] font-semibold text-[color:var(--vv-text)]">Current Milestone</p>
-                        <button onClick={() => navigate('/app/milestones?return=/app/deal-room')}
+                        <button onClick={() => setTab('milestones')}
                           className="text-[11px] text-[#C67A4E] hover:underline">
-                          Full Tracking ?
+                          Full Tracking →
                         </button>
                       </div>
                       <div className="px-4 py-3">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <p className="text-[12px] font-semibold text-[color:var(--vv-text)]">Series A Bridge Round</p>
-                          <span className="text-[14px] font-bold text-[#C67A4E] font-mono">64%</span>
-                        </div>
-                        <div className="h-1.5 rounded-full overflow-hidden mb-2" style={{ background: 'rgba(43,45,47,0.8)' }}>
-                          <div className="h-full rounded-full" style={{ width: '64%', background: 'linear-gradient(90deg,#C67A4E,#C67A4E)' }} />
-                        </div>
-                        <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">Next: Break-even Point</p>
+                        {milestonesLoading ? (
+                          <div className="py-3 text-center text-[12px] text-[color:var(--vv-text-tertiary)]">
+                            Loading milestone summary...
+                          </div>
+                        ) : milestonesError ? (
+                          <div className="py-2 text-[12px] text-red-400 flex items-center gap-2">
+                            <IconAlertTriangle s={14} className="shrink-0" />
+                            <span>{milestonesError}</span>
+                          </div>
+                        ) : currentMilestone ? (
+                          <>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <p className="text-[12px] font-semibold text-[color:var(--vv-text)]">{currentMilestone.title}</p>
+                              <span className="text-[14px] font-bold text-[#C67A4E] font-mono">
+                                {fundingSummary ? `${fundingSummary.funding_progress_percentage}%` : `${currentMilestone.progress_percentage}%`}
+                              </span>
+                            </div>
+                            <div className="h-1.5 rounded-full overflow-hidden mb-2" style={{ background: 'rgba(43,45,47,0.8)' }}>
+                              <div
+                                className="h-full rounded-full transition-all"
+                                style={{
+                                  width: `${Math.min(100, Math.max(0, fundingSummary ? fundingSummary.funding_progress_percentage : currentMilestone.progress_percentage))}%`,
+                                  background: 'linear-gradient(90deg,#C67A4E,#C67A4E)',
+                                }}
+                              />
+                            </div>
+                            {nextMilestone ? (
+                              <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">Next: {nextMilestone.title}</p>
+                            ) : (
+                              <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">
+                                {fundingSummary
+                                  ? `Released: ৳${fundingSummary.total_released_bdt.toLocaleString('en-IN')} / ৳${fundingSummary.total_committed_bdt.toLocaleString('en-IN')}`
+                                  : 'Final milestone in progress'}
+                              </p>
+                            )}
+                          </>
+                        ) : milestones.length > 0 ? (
+                          <div className="text-[12px] text-[color:var(--vv-text-secondary)]">
+                            All {milestones.length} milestones funded ({fundingSummary ? `${fundingSummary.funding_progress_percentage}%` : '100%'} complete)
+                          </div>
+                        ) : (
+                          <div className="py-2 text-[12px] text-[color:var(--vv-text-tertiary)] italic">
+                            No milestones defined for this deal yet.
+                          </div>
+                        )}
                       </div>
+                    </div>
+                  )}
+
+                  {/* Deal completion banner if all milestones funded */}
+                  {isDealCompletionEligible && (
+                    <div className="p-4 rounded-[12px] bg-[#121A2B] border border-[#22C55E]/40 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-start gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-[#22C55E]/10 border border-[#22C55E]/20 flex items-center justify-center text-[#22C55E] shrink-0 mt-0.5">
+                            <IconCheck s={16} />
+                          </div>
+                          <div>
+                            <p className="text-[13px] font-semibold text-[color:var(--vv-text)]">
+                              All Milestones Funded — Ready to Complete Deal
+                            </p>
+                            <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">
+                              Agreement is finalized, all tranches are released, and the milestone schedule is 100% fulfilled.
+                            </p>
+                          </div>
+                        </div>
+                        {isAdmin ? (
+                          <span className="text-[11px] text-[color:var(--vv-text-tertiary)] italic">
+                            Admin oversight: completion action disabled
+                          </span>
+                        ) : canParticipantAct ? (
+                          <Button
+                            disabled={isCompletingDeal}
+                            onClick={handleCompleteDeal}
+                            className="shrink-0"
+                          >
+                            {isCompletingDeal ? 'Completing Deal...' : 'Complete Deal'}
+                          </Button>
+                        ) : null}
+                      </div>
+                      {dealCompletionError && (
+                        <div className="flex items-center gap-2 p-2.5 bg-red-500/10 border border-red-500/20 text-red-400 text-[11.5px] rounded-md">
+                          <IconAlertTriangle s={14} className="shrink-0" />
+                          <span>{dealCompletionError}</span>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -844,19 +1530,19 @@ export default function DealRoom() {
               <div className="max-w-2xl">
                 <div className="flex items-center justify-between mb-3 gap-3">
                   <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold">
-                    Data Room - {dealStage >= 4 ? 'Stage 3 Active' : 'Stage 1 Active'}
+                    Data Room — {dealStage >= 4 ? 'Stage 3 Active' : 'Stage 1 Active'}
                   </p>
                   <Button variant="ghost" size="sm">Download accessible</Button>
                 </div>
 
-                {dealStage < 4 && (
+                {!(ndaStatus ? ndaStatus.status === 'active' : dealStage >= 4) && (
                   <div className="flex items-start gap-3 p-3.5 rounded-[10px] mb-3"
                     style={{ background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.2)' }}>
                     <IconLock s={13} className="text-[#A78BFA] shrink-0 mt-0.5" />
                     <div>
                       <p className="text-[12px] font-semibold text-[#A78BFA]">NDA completion is required to access protected documents.</p>
-                      <button onClick={() => navigate('/app/nda/nova-health')}
-                        className="text-[11px] text-[#A78BFA] underline mt-1">Review NDA ?</button>
+                      <button onClick={() => navigate(deal?.business_id ? `/app/nda/${deal.business_id}?return=/app/deals/${deal.id}${user?.id === deal.founder_user_id && deal.counterparty_user_id ? `&counterparty_user_id=${deal.counterparty_user_id}` : ''}` : '/app/nda')}
+                        className="text-[11px] text-[#A78BFA] underline mt-1">Review NDA →</button>
                     </div>
                   </div>
                 )}
@@ -874,7 +1560,7 @@ export default function DealRoom() {
                       </thead>
                       <tbody>
                         {DOCS.map((doc, i) => {
-                          const effectiveAccess: DocAccess = dealStage < 4 && doc.stage >= 3
+                          const effectiveAccess: DocAccess = !(ndaStatus ? ndaStatus.status === 'active' : dealStage >= 4) && doc.stage >= 3
                             ? 'nda_required'
                             : doc.access;
                           const isOpen = effectiveAccess === 'available' || effectiveAccess === 'finalized';
@@ -900,7 +1586,7 @@ export default function DealRoom() {
                                 {isOpen
                                   ? <Button variant="ghost" size="sm">Download</Button>
                                   : effectiveAccess === 'nda_required'
-                                    ? <button onClick={() => navigate('/app/nda/nova-health')} className="text-[10.5px] text-[#A78BFA] hover:underline">Review NDA</button>
+                                    ? <button onClick={() => navigate(deal?.business_id ? `/app/nda/${deal.business_id}?return=/app/deals/${deal.id}${user?.id === deal.founder_user_id && deal.counterparty_user_id ? `&counterparty_user_id=${deal.counterparty_user_id}` : ''}` : '/app/nda')} className="text-[10.5px] text-[#A78BFA] hover:underline">Review NDA</button>
                                     : <span className="text-[10.5px] text-[#35446A]">{ACCESS_CFG[effectiveAccess].label}</span>}
                               </td>
                             </tr>
@@ -923,7 +1609,7 @@ export default function DealRoom() {
                           </div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <AccessBadge access={effectiveAccess} />
-                            <span className="text-[10px] text-[#35446A] font-mono">{doc.type} - {doc.date}</span>
+                            <span className="text-[10px] text-[#35446A] font-mono">{doc.type} — {doc.date}</span>
                           </div>
                         </div>
                       );
@@ -941,72 +1627,115 @@ export default function DealRoom() {
                   style={{ background: 'rgba(167,139,250,0.05)', borderColor: 'rgba(167,139,250,0.2)' }}>
                   <div>
                     <p className="text-[13.5px] font-semibold text-[color:var(--vv-text)]">Negotiation Panel</p>
-                    <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mt-0.5">Version 3 - Revised Offer - Awaiting your response</p>
+                    <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mt-0.5">Review, counter, and finalize proposal terms</p>
                   </div>
-                  <Button size="sm" variant="secondary" onClick={() => navigate('/app/negotiation/nova-health?return=/app/deal-room')}>
-                    Open Negotiation ?
+                  <Button size="sm" variant="secondary" onClick={() => navigate(`/app/negotiation/${deal?.id || ''}?return=/app/deal-room/${deal?.id || ''}`)}>
+                    Open Negotiation →
                   </Button>
                 </div>
 
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold">Summary - Version 3 (Current)</p>
-                  <Badge variant="warning">In Negotiation</Badge>
+                  <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold">Summary — Negotiation Terms</p>
+                  <Badge variant={negotiation?.active_proposal?.status === 'accepted' || dealStage >= 6 ? 'success' : 'warning'}>
+                    {negotiation?.active_proposal ? `v${negotiation.active_proposal.version} — ${negotiation.active_proposal.status}` : (deal?.stage_label || 'In Negotiation')}
+                  </Badge>
                 </div>
 
-                {/* Desktop */}
-                <div className="hidden sm:block bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[500px]">
-                      <thead>
-                        <tr className="border-b border-[color:var(--vv-border)]">
-                          {['Term', 'Founder position', 'Investor proposal', 'Status'].map(h => (
-                            <th key={h} className="px-5 py-3 text-left text-[10px] font-semibold text-[color:var(--vv-text-tertiary)] uppercase tracking-widest whitespace-nowrap">{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {TERMS.map((t, i) => (
-                          <tr key={i} className="border-b border-[#1c2a3e] last:border-0 hover:bg-[color:var(--vv-raised)]/30 transition-colors">
-                            <td className="px-5 py-3.5 text-[13px] font-medium text-[color:var(--vv-text)] whitespace-nowrap">{t.term}</td>
-                            <td className="px-5 py-3.5 font-mono text-[12.5px] text-[color:var(--vv-text-secondary)] tabular-nums">{t.founder}</td>
-                            <td className={`px-5 py-3.5 font-mono text-[12.5px] tabular-nums ${t.agreed ? 'text-[#22C55E]' : 'text-[#F59E0B]'}`}>{t.investor}</td>
-                            <td className="px-5 py-3.5"><Badge variant={t.agreed ? 'success' : 'warning'}>{t.agreed ? 'Agreed' : 'Open'}</Badge></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* Mobile */}
-                <div className="sm:hidden bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[10px] overflow-hidden">
-                  {TERMS.map((t, i) => (
-                    <div key={i} className="px-4 py-3 border-b border-[#1c2a3e] last:border-0">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <p className="text-[12.5px] font-medium text-[color:var(--vv-text)]">{t.term}</p>
-                        <Badge variant={t.agreed ? 'success' : 'warning'}>{t.agreed ? 'Agreed' : 'Open'}</Badge>
+                {negotiation?.active_proposal ? (
+                  <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] overflow-hidden">
+                    <div className="px-5 py-4 border-b border-[color:var(--vv-border)] flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <p className="text-[13.5px] font-semibold text-[color:var(--vv-text)] capitalize">
+                          {negotiation.active_proposal.investment_type.replace(/_/g, ' ')}
+                        </p>
+                        <p className="text-[11px] text-[color:var(--vv-text-tertiary)] mt-0.5 capitalize">
+                          Proposed by <span className="text-[color:var(--vv-text-secondary)] font-medium">{negotiation.active_proposal.proposed_by_role}</span>
+                          {negotiation.active_proposal.created_at && ` • ${new Date(negotiation.active_proposal.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div>
-                          <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mb-0.5">Founder</p>
-                          <p className="font-mono text-[12px] text-[color:var(--vv-text-secondary)] tabular-nums">{t.founder}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mb-0.5">Investor</p>
-                          <p className={`font-mono text-[12px] tabular-nums ${t.agreed ? 'text-[#22C55E]' : 'text-[#F59E0B]'}`}>{t.investor}</p>
-                        </div>
-                      </div>
+                      <Badge variant={negotiation.active_proposal.status === 'accepted' ? 'success' : 'warning'}>
+                        {negotiation.active_proposal.status}
+                      </Badge>
                     </div>
-                  ))}
-                </div>
+
+                    <div className="divide-y divide-[color:var(--vv-border)]">
+                      {negotiation.active_proposal.amount !== null && negotiation.active_proposal.amount !== undefined && (
+                        <div className="flex items-center justify-between px-5 py-3.5">
+                          <span className="text-[12.5px] text-[color:var(--vv-text-tertiary)]">Financial Amount</span>
+                          <span className="font-mono text-[13px] font-semibold text-[color:var(--vv-text)]">
+                            BDT {Number(negotiation.active_proposal.amount).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                      )}
+
+                      {negotiation.active_proposal.equity_percentage !== null && negotiation.active_proposal.equity_percentage !== undefined && (
+                        <div className="flex items-center justify-between px-5 py-3.5">
+                          <span className="text-[12.5px] text-[color:var(--vv-text-tertiary)]">Equity Stake</span>
+                          <span className="font-mono text-[13px] font-semibold text-[#22C55E]">
+                            {negotiation.active_proposal.equity_percentage}%
+                          </span>
+                        </div>
+                      )}
+
+                      {negotiation.active_proposal.profit_sharing_percentage !== null && negotiation.active_proposal.profit_sharing_percentage !== undefined && (
+                        <div className="flex items-center justify-between px-5 py-3.5">
+                          <span className="text-[12.5px] text-[color:var(--vv-text-tertiary)]">Profit Sharing</span>
+                          <span className="font-mono text-[13px] font-semibold text-[#C9A24B]">
+                            {negotiation.active_proposal.profit_sharing_percentage}%
+                          </span>
+                        </div>
+                      )}
+
+                      {negotiation.active_proposal.loss_sharing_terms && (
+                        <div className="flex items-center justify-between px-5 py-3.5">
+                          <span className="text-[12.5px] text-[color:var(--vv-text-tertiary)]">Loss Sharing Terms</span>
+                          <span className="text-[12.5px] text-[color:var(--vv-text-secondary)] text-right max-w-[60%]">
+                            {negotiation.active_proposal.loss_sharing_terms}
+                          </span>
+                        </div>
+                      )}
+
+                      {negotiation.active_proposal.proposed_terms && (
+                        <div className="flex items-start justify-between px-5 py-3.5">
+                          <span className="text-[12.5px] text-[color:var(--vv-text-tertiary)]">Deliverables & Milestone Terms</span>
+                          <span className="text-[12.5px] text-[color:var(--vv-text-secondary)] text-right max-w-[60%]">
+                            {negotiation.active_proposal.proposed_terms}
+                          </span>
+                        </div>
+                      )}
+
+                      {negotiation.active_proposal.note && (
+                        <div className="flex items-start justify-between px-5 py-3.5">
+                          <span className="text-[12.5px] text-[color:var(--vv-text-tertiary)]">Note</span>
+                          <span className="text-[12px] text-[color:var(--vv-text-tertiary)] italic text-right max-w-[60%]">
+                            "{negotiation.active_proposal.note}"
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] p-6 text-center">
+                    <p className="text-[13px] font-medium text-[color:var(--vv-text)] mb-1">No Active Term Proposal</p>
+                    <p className="text-[12px] text-[color:var(--vv-text-tertiary)] max-w-sm mx-auto mb-4">
+                      Proposals submitted in the Negotiation Panel will appear here as the deal terms summary.
+                    </p>
+                    <Button size="sm" onClick={() => navigate(`/app/negotiation/${deal?.id || ''}?return=/app/deal-room/${deal?.id || ''}`)}>
+                      Open Negotiation Panel
+                    </Button>
+                  </div>
+                )}
 
                 {canParticipantAct ? (
                   <div className="flex flex-col sm:flex-row gap-3">
-                    <Button variant="secondary" className="flex-1" onClick={() => navigate('/app/negotiation/nova-health?return=/app/deal-room')}>
-                      {canFounderAct ? 'Send Founder Response' : 'Send Counter Offer'}
+                    <Button variant="secondary" className="flex-1" onClick={() => navigate(`/app/negotiation/${deal?.id || ''}?return=/app/deal-room/${deal?.id || ''}`)}>
+                      {canFounderAct ? 'Review / Counter Proposal' : 'Negotiate Terms'}
                     </Button>
-                    <Button className="flex-1" onClick={() => { setDealStage(6); setTab('agreement'); }}>
-                      {canFounderAct ? 'Approve Terms' : 'Accept Terms'}
+                    <Button
+                      className="flex-1"
+                      disabled={transitioning}
+                      onClick={() => handleTransition('agreement')}>
+                      {transitioning ? 'Transitioning...' : canFounderAct ? 'Approve Terms' : 'Accept Terms'}
                     </Button>
                   </div>
                 ) : (
@@ -1022,46 +1751,253 @@ export default function DealRoom() {
               <div className="max-w-4xl space-y-4">
                 <div className="flex items-center justify-between mb-3 gap-3">
                   <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold">Milestone Funding Schedule</p>
-                  <button onClick={() => navigate('/app/milestones?return=/app/deal-room')}
-                    className="text-[11.5px] text-[#C67A4E] hover:underline flex items-center gap-1">
+                  <button
+                    onClick={() => navigate(deal?.id ? `/app/milestones?deal_id=${deal.id}&return=/app/deals/${deal.id}` : '/app/milestones')}
+                    className="text-[11.5px] text-[#C67A4E] hover:underline flex items-center gap-1"
+                  >
                     Full Tracking View
                     <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path d="M5 12h14M12 5l7 7-7 7"/>
                     </svg>
                   </button>
                 </div>
-                <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] overflow-hidden">
-                  {MILESTONES.map((m, i) => (
-                    <div key={i} className={`flex items-center gap-4 px-5 py-4 border-b border-[#1c2a3e] last:border-0 ${m.status === 'active' ? 'bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)]' : ''}`}>
-                      <div className={`w-7 h-7 rounded-full border flex items-center justify-center shrink-0 ${
-                        m.status === 'completed' ? 'bg-[#22C55E] border-[#22C55E]' :
-                        m.status === 'active'    ? 'bg-[#C67A4E] border-[#C67A4E]' : 'border-[color:var(--vv-border-strong)]'
-                      }`}>
-                        {m.status === 'completed'
-                          ? <IconCheck s={11} className="text-white" />
-                          : <span className={`text-[10px] font-bold ${m.status === 'active' ? 'text-white' : 'text-[color:var(--vv-text-tertiary)]'}`}>{i + 1}</span>}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-[13px] font-medium ${m.status === 'pending' ? 'text-[color:var(--vv-text-tertiary)]' : 'text-[color:var(--vv-text)]'}`}>{m.label}</p>
-                        <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] mt-0.5 font-mono">{m.date}</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className={`font-mono text-[12.5px] font-semibold tabular-nums ${m.status === 'completed' ? 'text-[#22C55E]' : m.status === 'active' ? 'text-[#C67A4E]' : 'text-[color:var(--vv-text-tertiary)]'}`}>{m.amount}</p>
-                        <Badge variant={m.status === 'completed' ? 'success' : m.status === 'active' ? 'accent' : 'neutral'} dot>
-                          {m.status === 'completed' ? 'Completed' : m.status === 'active' ? 'Active' : 'Pending'}
-                        </Badge>
-                      </div>
+
+                {/* Funding Summary Banner if available */}
+                {fundingSummary && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-[12px] bg-[#121A2B] border border-[color:var(--vv-border)]">
+                    <div>
+                      <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] uppercase font-semibold">Committed</p>
+                      <p className="text-[13px] font-mono font-bold text-[color:var(--vv-text)] mt-0.5">
+                        ৳{fundingSummary.total_committed_bdt.toLocaleString('en-IN')}
+                      </p>
                     </div>
-                  ))}
-                </div>
+                    <div>
+                      <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] uppercase font-semibold">Allocated</p>
+                      <p className="text-[13px] font-mono font-bold text-[#C67A4E] mt-0.5">
+                        ৳{fundingSummary.total_allocated_bdt.toLocaleString('en-IN')}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] uppercase font-semibold">Released</p>
+                      <p className="text-[13px] font-mono font-bold text-[#22C55E] mt-0.5">
+                        ৳{fundingSummary.total_released_bdt.toLocaleString('en-IN')}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] uppercase font-semibold">Progress</p>
+                      <p className="text-[13px] font-mono font-bold text-[#C9A24B] mt-0.5">
+                        {fundingSummary.funding_progress_percentage}%
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Activation CTA if deal is in agreement stage and agreement is finalized */}
+                {deal?.stage === 'agreement' && agreement && agreement.status === 'accepted' && agreement.finalized_at && (
+                  <div className="p-4 rounded-[12px] bg-[#121A2B] border border-[#C67A4E]/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[13px] font-semibold text-[color:var(--vv-text)]">Agreement Finalized — Ready to Activate Milestones</p>
+                        <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">
+                          Begin active milestone execution and simulated tranche funding.
+                        </p>
+                      </div>
+                      {canParticipantAct && !isAdmin && (
+                        <Button
+                          size="sm"
+                          disabled={isActivatingMilestones}
+                          onClick={handleActivateMilestones}
+                        >
+                          {isActivatingMilestones ? 'Activating...' : 'Activate Milestone Funding'}
+                        </Button>
+                      )}
+                    </div>
+                    {milestoneActivationError && (
+                      <div className="flex items-center gap-2 p-2.5 bg-red-500/10 border border-red-500/20 text-red-400 text-[11.5px] rounded-md">
+                        <IconAlertTriangle s={14} className="shrink-0" />
+                        <span>{milestoneActivationError}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Deal Completion CTA in Milestones tab */}
+                {isDealCompletionEligible && (
+                  <div className="p-4 rounded-[12px] bg-[#121A2B] border border-[#22C55E]/40 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-[#22C55E]/10 border border-[#22C55E]/20 flex items-center justify-center text-[#22C55E] shrink-0 mt-0.5">
+                          <IconCheck s={16} />
+                        </div>
+                        <div>
+                          <p className="text-[13px] font-semibold text-[color:var(--vv-text)]">
+                            All Milestones Funded — Ready to Complete Deal
+                          </p>
+                          <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">
+                            Agreement is finalized, all tranches are released, and the milestone schedule is 100% fulfilled.
+                          </p>
+                        </div>
+                      </div>
+                      {isAdmin ? (
+                        <span className="text-[11px] text-[color:var(--vv-text-tertiary)] italic">
+                          Admin oversight: completion action disabled
+                        </span>
+                      ) : canParticipantAct ? (
+                        <Button
+                          disabled={isCompletingDeal}
+                          onClick={handleCompleteDeal}
+                          className="shrink-0"
+                        >
+                          {isCompletingDeal ? 'Completing Deal...' : 'Complete Deal'}
+                        </Button>
+                      ) : null}
+                    </div>
+                    {dealCompletionError && (
+                      <div className="flex items-center gap-2 p-2.5 bg-red-500/10 border border-red-500/20 text-red-400 text-[11.5px] rounded-md">
+                        <IconAlertTriangle s={14} className="shrink-0" />
+                        <span>{dealCompletionError}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {milestonesLoading ? (
+                  <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] p-8 text-center text-[12px] text-[color:var(--vv-text-tertiary)]">
+                    <div className="w-6 h-6 rounded-full border-2 border-[#C67A4E] border-t-transparent animate-spin mx-auto mb-2" />
+                    Loading milestone schedule...
+                  </div>
+                ) : milestonesError ? (
+                  <div className="bg-[#121A2B] border border-red-500/20 rounded-[12px] p-6 text-center space-y-3">
+                    <IconAlertTriangle s={20} className="text-red-400 mx-auto" />
+                    <p className="text-[13px] font-medium text-red-400">{milestonesError}</p>
+                    <Button size="sm" variant="secondary" onClick={fetchDealData}>Retry Loading</Button>
+                  </div>
+                ) : milestones.length === 0 ? (
+                  <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] p-8 text-center space-y-2">
+                    <p className="text-[13px] font-medium text-[color:var(--vv-text)]">No Milestones Defined Yet</p>
+                    <p className="text-[12px] text-[color:var(--vv-text-tertiary)] max-w-sm mx-auto">
+                      Milestones will be scheduled during the agreement execution or milestone funding phase.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] overflow-hidden">
+                    {milestones.map((m, i) => {
+                      const isCompleted = m.status === 'funded';
+                      const isActive = m.status === 'active' || m.status === 'submitted';
+                      const isPending = m.status === 'pending';
+                      const formattedAmount = m.target_amount !== undefined && m.target_amount !== null
+                        ? `BDT ${Number(m.target_amount).toLocaleString('en-IN')}`
+                        : '—';
+                      const formattedDate = m.target_date
+                        ? new Date(m.target_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+                        : '—';
+                      const statusLabel = m.status === 'funded'
+                        ? 'Funded'
+                        : m.status === 'submitted'
+                        ? 'Submitted'
+                        : m.status === 'active'
+                        ? 'Active'
+                        : 'Pending';
+
+                      return (
+                        <div
+                          key={m.id || i}
+                          className={`flex items-center gap-4 px-5 py-4 border-b border-[#1c2a3e] last:border-0 ${
+                            isActive ? 'bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)]' : ''
+                          }`}
+                        >
+                          <div
+                            className={`w-7 h-7 rounded-full border flex items-center justify-center shrink-0 ${
+                              isCompleted
+                                ? 'bg-[#22C55E] border-[#22C55E]'
+                                : isActive
+                                ? 'bg-[#C67A4E] border-[#C67A4E]'
+                                : 'border-[color:var(--vv-border-strong)]'
+                            }`}
+                          >
+                            {isCompleted ? (
+                              <IconCheck s={11} className="text-white" />
+                            ) : (
+                              <span
+                                className={`text-[10px] font-bold ${
+                                  isActive ? 'text-white' : 'text-[color:var(--vv-text-tertiary)]'
+                                }`}
+                              >
+                                {m.sequence_order || i + 1}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p
+                              className={`text-[13px] font-medium ${
+                                isPending ? 'text-[color:var(--vv-text-tertiary)]' : 'text-[color:var(--vv-text)]'
+                              }`}
+                            >
+                              {m.title}
+                            </p>
+                            <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] mt-0.5 font-mono">
+                              {formattedDate} {m.description ? `• ${m.description}` : ''}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p
+                              className={`font-mono text-[12.5px] font-semibold tabular-nums ${
+                                isCompleted
+                                  ? 'text-[#22C55E]'
+                                  : isActive
+                                  ? 'text-[#C67A4E]'
+                                  : 'text-[color:var(--vv-text-tertiary)]'
+                              }`}
+                            >
+                              {formattedAmount}
+                            </p>
+                            <Badge
+                              variant={
+                                isCompleted
+                                  ? 'success'
+                                  : m.status === 'submitted'
+                                  ? 'warning'
+                                  : isActive
+                                  ? 'accent'
+                                  : 'neutral'
+                              }
+                              dot
+                            >
+                              {statusLabel}
+                            </Badge>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
-            {/* -- AGREEMENT -- */}
             {/* -- INVESTMENT -- */}
             {tab === 'investment' && <InvestmentTab model={investmentModel} />}
 
-            {tab === 'agreement' && <AgreementTab dealStage={dealStage} />}
+            {/* -- AGREEMENT -- */}
+            {tab === 'agreement' && (
+              <AgreementTab
+                deal={deal}
+                business={business}
+                currentUserId={user?.id}
+                userRole={role}
+                dealStage={dealStage}
+                agreement={agreement}
+                negotiation={negotiation}
+                onGenerateAgreement={handleGenerateAgreement}
+                onSignAgreement={handleSignAgreement}
+                onActivateMilestones={handleActivateMilestones}
+                isGenerating={isGeneratingAgreement}
+                isSigning={isSigningAgreement}
+                isActivatingMilestones={isActivatingMilestones}
+                agreementError={agreementError}
+                milestoneActivationError={milestoneActivationError}
+                onNavigateToNegotiation={() => navigate(`/app/negotiation/${deal?.id || ''}?return=/app/deal-room/${deal?.id || ''}`)}
+              />
+            )}
 
             {/* -- CHAT -- */}
             {tab === 'chat' && (
@@ -1082,7 +2018,7 @@ export default function DealRoom() {
                           <div className="flex items-center gap-1.5 flex-shrink-0">
                             <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: entry.dot }} />
                             <p className="text-[10.5px] text-[#35446A]">{entry.text}</p>
-                            <p className="text-[10px] text-[#2A3A52] font-mono">- {entry.time}</p>
+                            <p className="text-[10px] text-[#2A3A52] font-mono">— {entry.time}</p>
                           </div>
                           <div className="flex-1 h-px" style={{ background: 'rgba(43,45,47,0.5)' }} />
                         </div>
@@ -1106,7 +2042,7 @@ export default function DealRoom() {
                 <div className="flex gap-2 mt-auto pt-2 border-t border-[#1E2C44]">
                   <input value={msg} onChange={e => setMsg(e.target.value)} disabled={!canParticipantAct}
                     onKeyDown={e => { if (e.key === 'Enter') handleSendMessage(); }}
-                    placeholder="Message deal participants-"
+                    placeholder="Message deal participants…"
                     className="flex-1 min-w-0 h-9 px-3 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] rounded-md text-[12.5px] text-[color:var(--vv-text)] placeholder-[#5E6D8F] focus:outline-none focus:border-[#C67A4E] transition-colors" />
                   <Button size="sm" icon={<IconMessageSquare s={13} />} onClick={handleSendMessage} disabled={!canParticipantAct}>Send</Button>
                 </div>
@@ -1116,7 +2052,7 @@ export default function DealRoom() {
             {/* Mobile activity log */}
             <div className="xl:hidden mt-6 pt-4 border-t border-[color:var(--vv-border)]">
               <div className="bg-[#0D1626] border border-[color:var(--vv-border)] rounded-[10px] overflow-hidden">
-                <ActivityLog />
+                <ActivityLog histories={histories} />
               </div>
             </div>
 
@@ -1125,7 +2061,7 @@ export default function DealRoom() {
 
         {/* Right: activity log (desktop) */}
         <aside className="hidden xl:flex flex-col w-60 xl:w-64 shrink-0 border-l border-[color:var(--vv-border)] bg-[#0D1626] overflow-y-auto">
-          <ActivityLog />
+          <ActivityLog histories={histories} />
         </aside>
 
       </div>

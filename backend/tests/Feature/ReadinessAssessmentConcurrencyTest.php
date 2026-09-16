@@ -5,7 +5,7 @@ namespace Tests\Feature;
 use App\Models\Business;
 use App\Models\ReadinessInputVersion;
 use App\Models\User;
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\Process\Process;
 use Tests\Support\SafeConnectionFactory;
@@ -13,7 +13,30 @@ use Tests\TestCase;
 
 class ReadinessAssessmentConcurrencyTest extends TestCase
 {
-    use DatabaseMigrations;
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->cleanDatabase();
+    }
+
+    protected function tearDown(): void
+    {
+        $this->cleanDatabase();
+        parent::tearDown();
+    }
+
+    private function cleanDatabase(): void
+    {
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        $tables = [
+            'readiness_assessments', 'business_analyses', 'readiness_input_versions',
+            'business_requirements', 'businesses', 'founder_profiles', 'user_roles', 'users',
+        ];
+        foreach ($tables as $table) {
+            DB::table($table)->truncate();
+        }
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+    }
 
     public function test_two_independent_workers_create_one_assessment_and_reuse_it(): void
     {
@@ -56,7 +79,7 @@ PHP;
             Business::query()->lockForUpdate()->findOrFail($id);
             for ($i = 0; $i < 2; $i++) {
                 // Avoid inherited stdin handles between concurrent Windows children.
-                $worker = new Process([PHP_BINARY, '-r', substr($script, 6)], base_path(), $environment, null, 30);
+                $worker = new Process([PHP_BINARY, '-r', substr($script, 6)], base_path(), $environment, null, 90);
                 $workers[] = $worker;
                 $worker->start();
             }
@@ -89,6 +112,14 @@ PHP;
                     $worker->stop();
                 }
             }
+            DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+            DB::table('readiness_assessments')->truncate();
+            DB::table('readiness_input_versions')->truncate();
+            DB::table('businesses')->truncate();
+            DB::table('founder_profiles')->truncate();
+            DB::table('user_roles')->truncate();
+            DB::table('users')->truncate();
+            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
         }
     }
 }

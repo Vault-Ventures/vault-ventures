@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { IconCheck } from '../../components/layout/Icons';
 import { useAuth } from '../../context/AuthContext';
+import { ApiError } from '../../services/api';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -11,16 +12,37 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  const { signInDemo } = useAuth();
+  const { login } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    setTimeout(() => {
-      signInDemo({ email });
-      navigate('/app/founder/dashboard');
-    }, 800);
+
+    try {
+      const user = await login({ email, password });
+      if (user.isAdmin) {
+        navigate('/app/admin/dashboard');
+      } else if (user.roles && user.roles.length > 0) {
+        navigate(`/app/${user.roles[0]}/dashboard`);
+      } else {
+        navigate('/app/founder/dashboard');
+      }
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        if (err.details && err.details.email) {
+          setError(err.details.email[0]);
+        } else if (err.details && err.details.password) {
+          setError(err.details.password[0]);
+        } else {
+          setError(err.message || 'Login failed. Please check your credentials.');
+        }
+      } else {
+        setError('Unable to connect to server. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -121,11 +143,7 @@ export default function Login() {
             <Button type="submit" className="w-full" size="md" loading={loading}>Sign in</Button>
           </form>
 
-          <div className="mt-5 px-3 py-2.5 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border)] rounded-md">
-            <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] text-center">Demo: click Sign in to enter as Founder. Use the role switcher in the sidebar to explore all roles.</p>
-          </div>
-
-          <p className="text-center mt-5 text-[11px] text-[color:var(--vv-text-tertiary)]">
+          <p className="text-center mt-6 text-[11px] text-[color:var(--vv-text-tertiary)]">
             Admin access?{' '}
             <Link to="/admin-login" className="text-[#C67A4E] hover:underline">Sign in here</Link>
           </p>

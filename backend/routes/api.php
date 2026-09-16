@@ -1,25 +1,37 @@
 <?php
 
+use App\Http\Controllers\AdminFinancialReportController;
+use App\Http\Controllers\AdminReputationController;
 use App\Http\Controllers\AdminVerificationRequestController;
+use App\Http\Controllers\Auth\ChangePasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PhoneVerificationController;
 use App\Http\Controllers\Auth\SessionController;
 use App\Http\Controllers\Auth\VerificationController;
 use App\Http\Controllers\BusinessAnalysisController;
+use App\Http\Controllers\BusinessConnectionController;
 use App\Http\Controllers\BusinessController;
 use App\Http\Controllers\BusinessDisclosureController;
 use App\Http\Controllers\BusinessDocumentController;
 use App\Http\Controllers\BusinessNdaController;
 use App\Http\Controllers\BusinessRequirementController;
 use App\Http\Controllers\BusinessSubmissionController;
+use App\Http\Controllers\DealController;
+use App\Http\Controllers\DealFeedbackController;
+use App\Http\Controllers\DealMilestoneController;
+use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\InvestorPreferenceController;
 use App\Http\Controllers\MatchDetailController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\NotificationPreferenceController;
 use App\Http\Controllers\ParticipantRoleController;
 use App\Http\Controllers\ProfessionalProfileController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReadinessAssessmentController;
 use App\Http\Controllers\ReadinessInputController;
 use App\Http\Controllers\RecommendationController;
+use App\Http\Controllers\ReputationController;
+use App\Http\Controllers\UserPhotoController;
 use App\Http\Controllers\VerificationEvidenceController;
 use App\Http\Controllers\VerificationRequestController;
 use App\Http\Middleware\RequireSpaSession;
@@ -45,6 +57,7 @@ Route::get('/auth/email/verify/{id}/{hash}', [VerificationController::class, 've
     ->middleware(['web', 'auth:sanctum', 'signed', 'throttle:verification'])->name('verification.verify');
 
 Route::prefix('me')->middleware('auth:sanctum')->group(function () {
+    Route::get('/connections', [BusinessConnectionController::class, 'index']);
     Route::get('/businesses/{business}/business-analyses', [BusinessAnalysisController::class, 'index'])->whereNumber('business');
     Route::get('/businesses/{business}/business-analyses/latest', [BusinessAnalysisController::class, 'latest'])->whereNumber('business');
     Route::get('/businesses/{business}/business-analyses/{version}', [BusinessAnalysisController::class, 'show'])->whereNumber('business')->whereNumber('version');
@@ -82,6 +95,38 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
         ->whereNumber('business');
     Route::get('/businesses/{business}/nda', [BusinessNdaController::class, 'show'])
         ->whereNumber('business');
+    Route::get('/businesses/{business}/connection-status', [BusinessConnectionController::class, 'status'])
+        ->whereNumber('business');
+    Route::get('/businesses/{business}/connection', [BusinessConnectionController::class, 'status'])
+        ->whereNumber('business');
+    Route::get('/deals/{deal}', [DealController::class, 'show'])
+        ->whereNumber('deal');
+    Route::get('/deals/{deal}/history', [DealController::class, 'history'])
+        ->whereNumber('deal');
+    Route::get('/deals/{deal}/negotiation', [DealController::class, 'getNegotiation'])
+        ->whereNumber('deal');
+    Route::get('/deals/{deal}/agreement', [DealController::class, 'getAgreement'])
+        ->whereNumber('deal');
+    Route::get('/deals/{deal}/milestones', [DealMilestoneController::class, 'index'])
+        ->whereNumber('deal');
+    Route::get('/deals/{deal}/funding-summary', [DealMilestoneController::class, 'fundingSummary'])
+        ->whereNumber('deal');
+    Route::get('/deals/{deal}/feedback', [DealFeedbackController::class, 'show'])
+        ->whereNumber('deal');
+    Route::get('/deals/{deal}/financial-reports', [FinancialReportController::class, 'index'])
+        ->whereNumber('deal');
+    Route::get('/deals/{deal}/financial-overview', [FinancialReportController::class, 'financialOverview'])
+        ->whereNumber('deal');
+    Route::get('/financial-reports/{report}', [FinancialReportController::class, 'show'])
+        ->whereNumber('report');
+    Route::get('/financial-reports/{report}/evidence/{evidence}/download', [FinancialReportController::class, 'downloadEvidence'])
+        ->whereNumber('report')->whereNumber('evidence');
+    Route::get('/financial-reports/{report}/discrepancies', [FinancialReportController::class, 'discrepancies'])
+        ->whereNumber('report');
+    Route::get('/financial-reports/{report}/audit-logs', [FinancialReportController::class, 'auditLogs'])
+        ->whereNumber('report');
+    Route::get('/reputation', [ReputationController::class, 'show']);
+
     Route::middleware(RequireSpaSession::class)->group(function () {
         Route::post('/businesses', [BusinessController::class, 'store']);
         Route::patch('/businesses/{business}', [BusinessController::class, 'update'])->whereNumber('business');
@@ -89,6 +134,48 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
         Route::post('/businesses/{business}/submit', [BusinessSubmissionController::class, 'store'])->whereNumber('business');
         Route::post('/businesses/{business}/express-interest', [BusinessDisclosureController::class, 'expressInterest'])
             ->whereNumber('business');
+        Route::post('/businesses/{business}/interests', [BusinessConnectionController::class, 'expressInterest'])
+            ->whereNumber('business');
+        Route::post('/businesses/{business}/reciprocal-interest', [BusinessConnectionController::class, 'expressReciprocalInterest'])
+            ->whereNumber('business');
+        Route::post('/businesses/{business}/reciprocate-interest', [BusinessConnectionController::class, 'expressReciprocalInterest'])
+            ->whereNumber('business');
+        Route::post('/connections/{connection}/deal', [DealController::class, 'createFromConnection'])
+            ->whereNumber('connection');
+        Route::post('/deals/{deal}/transition', [DealController::class, 'transition'])
+            ->whereNumber('deal');
+        Route::post('/deals/{deal}/negotiation/propose', [DealController::class, 'proposeNegotiation'])
+            ->whereNumber('deal');
+        Route::post('/deals/{deal}/negotiation/{proposal}/respond', [DealController::class, 'respondNegotiation'])
+            ->whereNumber('deal')->whereNumber('proposal');
+        Route::post('/deals/{deal}/agreement/generate', [DealController::class, 'generateAgreement'])
+            ->whereNumber('deal');
+        Route::post('/deals/{deal}/agreement/sign', [DealController::class, 'signAgreement'])
+            ->whereNumber('deal');
+        Route::post('/deals/{deal}/milestones', [DealMilestoneController::class, 'store'])
+            ->whereNumber('deal');
+        Route::put('/deals/{deal}/milestones/{milestone}', [DealMilestoneController::class, 'update'])
+            ->whereNumber('deal')->whereNumber('milestone');
+        Route::post('/deals/{deal}/milestones/{milestone}/progress', [DealMilestoneController::class, 'progress'])
+            ->whereNumber('deal')->whereNumber('milestone');
+        Route::post('/deals/{deal}/milestones/{milestone}/submit', [DealMilestoneController::class, 'submit'])
+            ->whereNumber('deal')->whereNumber('milestone');
+        Route::post('/deals/{deal}/milestones/{milestone}/confirm', [DealMilestoneController::class, 'confirm'])
+            ->whereNumber('deal')->whereNumber('milestone');
+        Route::post('/deals/{deal}/milestones/{milestone}/dispute', [DealMilestoneController::class, 'dispute'])
+            ->whereNumber('deal')->whereNumber('milestone');
+        Route::post('/deals/{deal}/activate-milestones', [DealMilestoneController::class, 'activateMilestones'])
+            ->whereNumber('deal');
+        Route::post('/deals/{deal}/complete', [DealMilestoneController::class, 'complete'])
+            ->whereNumber('deal');
+        Route::post('/deals/{deal}/feedback', [DealFeedbackController::class, 'store'])
+            ->whereNumber('deal');
+        Route::post('/deals/{deal}/financial-reports', [FinancialReportController::class, 'store'])
+            ->whereNumber('deal');
+        Route::post('/financial-reports/{report}/evidence', [FinancialReportController::class, 'uploadEvidence'])
+            ->whereNumber('report');
+        Route::post('/financial-reports/{report}/discrepancies', [FinancialReportController::class, 'flagDiscrepancy'])
+            ->whereNumber('report');
         Route::post('/businesses/{business}/disclosure/confirm-stage-4', [BusinessDisclosureController::class, 'confirmStageFour'])
             ->whereNumber('business');
         Route::post('/businesses/{business}/nda/request', [BusinessNdaController::class, 'requestNda'])
@@ -103,23 +190,57 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
     Route::get('/verification-requests/latest', [VerificationRequestController::class, 'latest']);
     Route::get('/verification-requests/{verification_request}', [VerificationRequestController::class, 'show'])->whereNumber('verification_request');
     Route::get('/verification-requests/{verification_request}/evidence', [VerificationEvidenceController::class, 'index'])->whereNumber('verification_request');
+
+    // Notifications
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+
+    // Notification preferences
+    Route::get('/notification-preferences', [NotificationPreferenceController::class, 'show']);
+
     Route::middleware(RequireSpaSession::class)->group(function () {
+        Route::patch('/profile', [ProfileController::class, 'update']);
+        Route::post('/avatar', [UserPhotoController::class, 'uploadAvatar']);
+        Route::post('/cover-photo', [UserPhotoController::class, 'uploadCoverPhoto']);
         Route::post('/roles', [ParticipantRoleController::class, 'store']);
+        Route::delete('/roles/{role}', [ParticipantRoleController::class, 'destroy']);
         Route::patch('/profiles/professional', [ProfessionalProfileController::class, 'update']);
         Route::patch('/investor-preferences', [InvestorPreferenceController::class, 'update']);
         Route::post('/phone/send-code', [PhoneVerificationController::class, 'sendCode'])->middleware('throttle:phone_verification');
         Route::post('/phone/verify-code', [PhoneVerificationController::class, 'verifyCode'])->middleware('throttle:phone_verification');
         Route::post('/verification-requests', [VerificationRequestController::class, 'store']);
         Route::post('/verification-requests/{verification_request}/evidence', [VerificationEvidenceController::class, 'store'])->whereNumber('verification_request');
+
+        // Mark notifications as read (state-changing — require SPA session)
+        Route::patch('/notifications/{id}/read', [NotificationController::class, 'markRead']);
+        Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllRead']);
+
+        // Authenticated password change
+        Route::put('/password', [ChangePasswordController::class, 'update']);
+
+        // Notification preferences update
+        Route::patch('/notification-preferences', [NotificationPreferenceController::class, 'update']);
     });
 });
 
-Route::prefix('admin')->middleware('auth:sanctum')->group(function () {
+Route::middleware('auth:sanctum')->get('/users/{user}/reputation', [ReputationController::class, 'showUser'])->whereNumber('user');
+
+Route::prefix('admin')->middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::get('/verification-requests', [AdminVerificationRequestController::class, 'index']);
     Route::get('/verification-requests/{verification_request}', [AdminVerificationRequestController::class, 'show'])->whereNumber('verification_request');
+    Route::get('/reputation/users/{user}', [AdminReputationController::class, 'showUser'])->whereNumber('user');
+    Route::get('/financial-reports', [AdminFinancialReportController::class, 'index']);
+    Route::get('/financial-reports/{report}', [AdminFinancialReportController::class, 'show'])->whereNumber('report');
+    Route::get('/financial-reports/{report}/evidence/{evidence}/download', [AdminFinancialReportController::class, 'downloadEvidence'])
+        ->whereNumber('report')->whereNumber('evidence');
+    Route::get('/financial-reports/{report}/audit-logs', [AdminFinancialReportController::class, 'auditLogs'])
+        ->whereNumber('report');
+    Route::get('/financial-governance', [AdminFinancialReportController::class, 'governanceOverview']);
     Route::middleware(RequireSpaSession::class)->group(function () {
         Route::post('/verification-requests/{verification_request}/approve', [AdminVerificationRequestController::class, 'approve'])->whereNumber('verification_request');
         Route::post('/verification-requests/{verification_request}/reject', [AdminVerificationRequestController::class, 'reject'])->whereNumber('verification_request');
         Route::post('/verification-requests/{verification_request}/request-information', [AdminVerificationRequestController::class, 'requestInformation'])->whereNumber('verification_request');
+        Route::post('/financial-reports/{report}/review', [AdminFinancialReportController::class, 'review'])->whereNumber('report');
+        Route::post('/financial-discrepancies/{discrepancy}/resolve', [AdminFinancialReportController::class, 'resolveDiscrepancy'])->whereNumber('discrepancy');
     });
 });

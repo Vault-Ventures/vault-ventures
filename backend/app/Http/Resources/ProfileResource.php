@@ -10,7 +10,19 @@ class ProfileResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'user' => ['id' => $this->id, 'name' => $this->name, 'email' => $this->email],
+            'user' => [
+                'id' => $this->id,
+                'name' => $this->name,
+                'email' => $this->email,
+                'headline' => $this->headline,
+                'bio' => $this->bio,
+                'location' => $this->location,
+                'avatar_url' => $this->avatar_url,
+                'cover_photo_url' => $this->cover_photo_url,
+                'experience' => $this->experience ?? [],
+                'portfolio' => $this->portfolio ?? [],
+                'preferences' => $this->preferences ?? [],
+            ],
             'roles' => $this->roles->map(fn ($membership) => $membership->role->value)->sort()->values()->all(),
             'profiles' => [
                 'founder' => $this->founderProfile ? (new FounderProfileResource($this->founderProfile))->resolve($request) : null,

@@ -42,9 +42,9 @@ export function Badge({ variant = 'neutral', children, className = '', dot }: Ba
 
 // --- Verification badge -------------------------------------------------------
 
-export function VerificationBadge({ tier }: { tier: 0 | 1 | 2 | 3 }) {
+export function VerificationBadge({ tier }: { tier: 0 | 1 | 2 }) {
   if (tier === 0) return null;
-  const labels: Record<number, string> = { 1: 'Identity Verified', 2: 'Track-record Verified', 3: 'Verified' };
+  const labels: Record<number, string> = { 1: 'Identity Verified', 2: 'Track-record Verified' };
   return (
     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#C9A24B] text-[color:var(--vv-on-copper)] leading-none">
       <svg width="8" height="8" viewBox="0 0 10 10" fill="currentColor">
@@ -61,7 +61,7 @@ export function VerificationBadge({ tier }: { tier: 0 | 1 | 2 | 3 }) {
 type ApplicationStatus = 'Submitted' | 'Under Review' | 'Accepted' | 'Rejected' | 'Withdrawn';
 type DealStatus = 'Matched' | 'Interest Confirmed' | 'Deal Room' | 'NDA Signed' | 'Negotiation' | 'Agreement' | 'Milestone Funding Active' | 'Completed';
 type ReportStatus = 'Open' | 'Under Review' | 'Awaiting Information' | 'Escalated' | 'Resolved' | 'Dismissed';
-type VerificationStatus = 'Unverified' | 'Tier 1' | 'Tier 2' | 'Tier 3';
+type VerificationStatus = 'Unverified' | 'Tier 1' | 'Tier 2';
 
 export type AnyStatus = ApplicationStatus | DealStatus | ReportStatus | VerificationStatus | string;
 
@@ -91,7 +91,6 @@ const STATUS_MAP: Record<string, { variant: BadgeVariant; dot?: boolean }> = {
   'Unverified':          { variant: 'neutral' },
   'Tier 1':              { variant: 'gold' },
   'Tier 2':              { variant: 'gold' },
-  'Tier 3':              { variant: 'gold' },
 };
 
 interface StatusBadgeProps {

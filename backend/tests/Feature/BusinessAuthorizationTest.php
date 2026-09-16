@@ -103,4 +103,24 @@ class BusinessAuthorizationTest extends TestCase
         $this->getJson("/api/me/businesses/$id")->assertOk();
         $this->getJson('/api/auth/user')->assertOk()->assertJsonMissingPath('data.businesses');
     }
+    public function test_paginated_business_identity_and_profile_patch_persist_independently(): void
+    {
+        $first = $this->draft(['name' => 'First business']);
+        for ($i = 0; $i < 15; $i++) {
+            $this->draft(['name' => "Later business $i"]);
+        }
+        $this->getJson('/api/me/businesses?page=1')->assertOk()->assertJsonCount(15, 'data.items');
+        $this->getJson('/api/me/businesses?page=2')->assertOk()->assertJsonCount(1, 'data.items')
+            ->assertJsonPath('data.items.0.id', $first)->assertJsonPath('data.pagination.total', 16);
+        $this->patchJson("/api/me/businesses/$first", ['name' => 'Saved profile', 'description' => 'Persistent description'])
+            ->assertOk()->assertJsonPath('data.id', $first);
+        $this->getJson("/api/me/businesses/$first")->assertOk()->assertJsonPath('data.name', 'Saved profile')
+            ->assertJsonPath('data.description', 'Persistent description');
+        $this->getJson('/api/me/businesses?page=1')->assertOk()->assertJsonPath('data.items.0.name', 'Later business 14');
+        $this->assertDatabaseHas('businesses', ['id' => $first, 'name' => 'Saved profile']);
+        foreach (['new', 'edit', '99999999'] as $invalid) {
+            $this->getJson("/api/me/businesses/$invalid")->assertNotFound();
+        }
+    }
+
 }

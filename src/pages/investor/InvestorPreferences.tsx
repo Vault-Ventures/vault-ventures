@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
+import { api, InvestorPreferencesData, ApiError } from '../../services/api';
 
 // --- Options ------------------------------------------------------------------
 
@@ -26,28 +27,35 @@ const LOCATIONS = [
 
 const RISK = ['Conservative', 'Moderate', 'Balanced', 'Aggressive'];
 
-// --- Default prefs (pre-filled for existing investor) -------------------------
+const INVESTMENT_TYPES = [
+  { value: 'micro', label: 'Micro Investment (Profit Sharing)', desc: 'Small checks with structured revenue/profit distribution' },
+  { value: 'large_standard', label: 'Standard Equity / Large', desc: 'Direct equity stake with formal governance and board involvement' },
+];
+
+// --- Form State Interface -----------------------------------------------------
 
 interface Prefs {
   industries: string[];
   stages: string[];
   rangeMin: string;
   rangeMax: string;
+  availableInvestment: string;
   involvement: string;
   locations: string[];
-  expertise: string;
   risk: string;
+  investmentTypes: string[];
 }
 
-const DEFAULT_PREFS: Prefs = {
-  industries: ['FinTech', 'AI / ML', 'SaaS / B2B'],
-  stages: ['Seed', 'Early Stage'],
-  rangeMin: '5,00,000',
-  rangeMax: '50,00,000',
-  involvement: 'advisory',
-  locations: ['Bangladesh', 'South Asia', 'Remote / Global'],
-  expertise: 'Enterprise SaaS, financial infrastructure, B2B marketplaces',
-  risk: 'Moderate',
+const EMPTY_PREFS: Prefs = {
+  industries: [],
+  stages: [],
+  rangeMin: '',
+  rangeMax: '',
+  availableInvestment: '',
+  involvement: '',
+  locations: [],
+  risk: '',
+  investmentTypes: ['micro', 'large_standard'],
 };
 
 // --- Multi-select pill group ---------------------------------------------------
@@ -62,6 +70,7 @@ function PillGroup({
         return (
           <button
             key={opt}
+            type="button"
             onClick={() => onToggle(opt)}
             className="px-3 py-1.5 rounded-lg text-[12px] font-medium border transition-all"
             style={active ? {
@@ -99,41 +108,160 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
 
 export default function InvestorPreferences() {
   const navigate = useNavigate();
-  const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
+  const [prefs, setPrefs] = useState<Prefs>(EMPTY_PREFS);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function toggleSet(key: keyof Prefs, value: string) {
+  useEffect(() => {
+    let mounted = true;
+    async function loadPreferences() {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await api.investorPreferences.get();
+        if (mounted && data) {
+          const parseList = (val: string | null | undefined): string[] => {
+            if (!val) return [];
+            return val.split(',').map(s => s.trim()).filter(Boolean);
+          };
+
+          setPrefs({
+            industries: parseList(data.industry),
+            stages: parseList(data.business_stage),
+            rangeMin: data.minimum_investment ? String(data.minimum_investment) : '',
+            rangeMax: data.maximum_investment ? String(data.maximum_investment) : '',
+            availableInvestment: data.available_investment ? String(data.available_investment) : '',
+            involvement: data.involvement || '',
+            locations: parseList(data.location),
+            risk: data.risk_level || '',
+            investmentTypes: Array.isArray(data.investment_types) && data.investment_types.length > 0
+              ? data.investment_types
+              : ['micro', 'large_standard'],
+          });
+        }
+      } catch (err: any) {
+        if (mounted) {
+          setError(err.message || 'Failed to load investor preferences from backend.');
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadPreferences();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  function toggleSet(key: 'industries' | 'stages' | 'locations' | 'investmentTypes', value: string) {
     setPrefs(p => {
-      const arr = p[key] as string[];
+      const arr = p[key];
       return { ...p, [key]: arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value] };
     });
   }
 
-  function handleSave() {
-    setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
+  async function handleSave() {
+    try {
+      setSaving(true);
+      setError(null);
+
+      const cleanNum = (val: string): number | null => {
+        const cleaned = val.replace(/,/g, '').trim();
+        if (!cleaned) return null;
+        const num = parseFloat(cleaned);
+        return isNaN(num) ? null : num;
+      };
+
+      const minVal = cleanNum(prefs.rangeMin);
+      const maxVal = cleanNum(prefs.rangeMax);
+      const availVal = cleanNum(prefs.availableInvestment);
+
+      if (minVal !== null && maxVal !== null && minVal > maxVal) {
+        setError('Minimum investment cannot exceed maximum investment.');
+        setSaving(false);
+        return;
+      }
+
+      const payload: Partial<InvestorPreferencesData> = {
+        industry: prefs.industries.length > 0 ? prefs.industries.join(', ') : null,
+        business_stage: prefs.stages.length > 0 ? prefs.stages.join(', ') : null,
+        location: prefs.locations.length > 0 ? prefs.locations.join(', ') : null,
+        risk_level: prefs.risk || null,
+        involvement: prefs.involvement || null,
+        minimum_investment: minVal !== null ? minVal : null,
+        maximum_investment: maxVal !== null ? maxVal : null,
+        available_investment: availVal !== null ? availVal : (maxVal !== null ? maxVal : null),
+        investment_types: prefs.investmentTypes.length > 0 ? prefs.investmentTypes : ['micro', 'large_standard'],
+      };
+
+      const updated = await api.investorPreferences.update(payload);
+      if (updated) {
+        const parseList = (val: string | null | undefined): string[] => {
+          if (!val) return [];
+          return val.split(',').map(s => s.trim()).filter(Boolean);
+        };
+
+        setPrefs({
+          industries: parseList(updated.industry),
+          stages: parseList(updated.business_stage),
+          rangeMin: updated.minimum_investment ? String(updated.minimum_investment) : '',
+          rangeMax: updated.maximum_investment ? String(updated.maximum_investment) : '',
+          availableInvestment: updated.available_investment ? String(updated.available_investment) : '',
+          involvement: updated.involvement || '',
+          locations: parseList(updated.location),
+          risk: updated.risk_level || '',
+          investmentTypes: Array.isArray(updated.investment_types) && updated.investment_types.length > 0
+            ? updated.investment_types
+            : ['micro', 'large_standard'],
+        });
+      }
+
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    }, 900);
+      setTimeout(() => setSaved(false), 4000);
+    } catch (err: any) {
+      if (err instanceof ApiError && err.details) {
+        const firstErr = Object.values(err.details).flat()[0];
+        setError(firstErr || err.message);
+      } else {
+        setError(err.message || 'Failed to save preferences.');
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   const completeness = [
     prefs.industries.length > 0,
     prefs.stages.length > 0,
-    prefs.rangeMin && prefs.rangeMax,
-    prefs.involvement,
+    Boolean(prefs.rangeMin || prefs.rangeMax || prefs.availableInvestment),
+    Boolean(prefs.involvement),
     prefs.locations.length > 0,
   ].filter(Boolean).length;
+
+  if (loading) {
+    return (
+      <div className="max-w-[860px] mx-auto px-4 sm:px-6 py-12 text-center">
+        <div className="inline-block w-8 h-8 border-2 border-[#C67A4E] border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-[13px] text-[color:var(--vv-text-tertiary)]">Loading investment preferences from server...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[860px] mx-auto px-4 sm:px-6 py-6">
 
       {/* Nav */}
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate('/app/investor/dashboard')}
-          className="flex items-center gap-1.5 text-[12px] text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] transition-colors">
+        <button
+          type="button"
+          onClick={() => navigate('/app/investor/dashboard')}
+          className="flex items-center gap-1.5 text-[12px] text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] transition-colors"
+        >
           <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path d="M19 12H5M12 5l-7 7 7 7"/>
           </svg>
@@ -150,7 +278,7 @@ export default function InvestorPreferences() {
             Investment Preferences
           </h1>
           <p className="text-[13px] text-[color:var(--vv-text-tertiary)] mt-1">
-            These shape your AI match scores and surface the most relevant opportunities.
+            These shape your deal matching and surface the most relevant business opportunities.
           </p>
         </div>
 
@@ -171,10 +299,22 @@ export default function InvestorPreferences() {
             <p className="text-[11px] font-semibold text-[color:var(--vv-text)]">
               {completeness === 5 ? 'Complete' : 'Incomplete'}
             </p>
-            <p className="text-[10px] text-[color:var(--vv-text-tertiary)]">{completeness} of 5 sections</p>
+            <p className="text-[10px] text-[color:var(--vv-text-tertiary)]">{completeness} of 5 criteria</p>
           </div>
         </div>
       </div>
+
+      {/* Error alert */}
+      {error && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-[10px] mb-5 bg-rose-500/10 border border-rose-500/20 text-rose-400">
+          <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <p className="text-[12.5px]">{error}</p>
+        </div>
+      )}
 
       {/* Saved banner */}
       {saved && (
@@ -183,7 +323,7 @@ export default function InvestorPreferences() {
           <svg width="14" height="14" fill="none" stroke="#22C55E" strokeWidth="2.5" viewBox="0 0 24 24">
             <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          <p className="text-[12.5px] text-[#22C55E]">Preferences updated - your match scores will refresh shortly.</p>
+          <p className="text-[12.5px] text-[#22C55E]">Preferences saved to backend — your opportunity match rankings are updated.</p>
         </div>
       )}
 
@@ -199,7 +339,7 @@ export default function InvestorPreferences() {
           />
           {prefs.industries.length > 0 && (
             <p className="mt-3 text-[11px] text-[color:var(--vv-text-tertiary)]">
-              {prefs.industries.length} selected: {prefs.industries.join(' - ')}
+              {prefs.industries.length} selected: {prefs.industries.join(' • ')}
             </p>
           )}
         </Section>
@@ -212,35 +352,102 @@ export default function InvestorPreferences() {
             selected={prefs.stages}
             onToggle={v => toggleSet('stages', v)}
           />
+          {prefs.stages.length > 0 && (
+            <p className="mt-3 text-[11px] text-[color:var(--vv-text-tertiary)]">
+              {prefs.stages.length} selected: {prefs.stages.join(' • ')}
+            </p>
+          )}
         </Section>
 
         {/* Investment range */}
-        <Section title="Investment Range (BDT)"
-          subtitle="The typical check size you write per deal.">
+        <Section title="Investment Range (BDT ৳)"
+          subtitle="The typical check size and available capital you allocate per deal.">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {(['rangeMin', 'rangeMax'] as const).map(key => (
-              <div key={key}>
-                <label className="block text-[12px] text-[color:var(--vv-text-tertiary)] mb-1.5">
-                  {key === 'rangeMin' ? 'Minimum' : 'Maximum'}
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-[color:var(--vv-text-tertiary)] font-semibold pointer-events-none">?</span>
-                  <input
-                    type="text"
-                    value={prefs[key]}
-                    onChange={e => setPrefs(p => ({ ...p, [key]: e.target.value }))}
-                    placeholder={key === 'rangeMin' ? '5,00,000' : '1,00,00,000'}
-                    className="w-full pl-8 pr-3 py-2.5 rounded-[8px] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] text-[13px] text-[color:var(--vv-text)] placeholder-[#35446A] outline-none transition-colors font-mono"
-                  />
-                </div>
+            <div>
+              <label className="block text-[12px] text-[color:var(--vv-text-tertiary)] mb-1.5">
+                Minimum Investment (৳)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-[color:var(--vv-text-tertiary)] font-semibold pointer-events-none">৳</span>
+                <input
+                  type="text"
+                  value={prefs.rangeMin}
+                  onChange={e => setPrefs(p => ({ ...p, rangeMin: e.target.value }))}
+                  placeholder="500000"
+                  className="w-full pl-8 pr-3 py-2.5 rounded-[8px] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] text-[13px] text-[color:var(--vv-text)] placeholder-[#35446A] outline-none transition-colors font-mono"
+                />
               </div>
-            ))}
+            </div>
+            <div>
+              <label className="block text-[12px] text-[color:var(--vv-text-tertiary)] mb-1.5">
+                Maximum Investment (৳)
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-[color:var(--vv-text-tertiary)] font-semibold pointer-events-none">৳</span>
+                <input
+                  type="text"
+                  value={prefs.rangeMax}
+                  onChange={e => setPrefs(p => ({ ...p, rangeMax: e.target.value }))}
+                  placeholder="5000000"
+                  className="w-full pl-8 pr-3 py-2.5 rounded-[8px] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] text-[13px] text-[color:var(--vv-text)] placeholder-[#35446A] outline-none transition-colors font-mono"
+                />
+              </div>
+            </div>
           </div>
-          {prefs.rangeMin && prefs.rangeMax && (
+          <div className="mt-4">
+            <label className="block text-[12px] text-[color:var(--vv-text-tertiary)] mb-1.5">
+              Total Available Investment Capital (৳)
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-[color:var(--vv-text-tertiary)] font-semibold pointer-events-none">৳</span>
+              <input
+                type="text"
+                value={prefs.availableInvestment}
+                onChange={e => setPrefs(p => ({ ...p, availableInvestment: e.target.value }))}
+                placeholder="10000000"
+                className="w-full pl-8 pr-3 py-2.5 rounded-[8px] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] text-[13px] text-[color:var(--vv-text)] placeholder-[#35446A] outline-none transition-colors font-mono"
+              />
+            </div>
+          </div>
+          {(prefs.rangeMin || prefs.rangeMax) && (
             <p className="mt-2.5 text-[11.5px] text-[color:var(--vv-text-tertiary)]">
-              Range: ?{prefs.rangeMin} - ?{prefs.rangeMax}
+              Target check range: ৳{prefs.rangeMin || '0'} — ৳{prefs.rangeMax || 'Unlimited'}
             </p>
           )}
+        </Section>
+
+        {/* Investment Structure Preference */}
+        <Section title="Investment Structures"
+          subtitle="Select supported investment models for your portfolio.">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {INVESTMENT_TYPES.map(opt => {
+              const active = prefs.investmentTypes.includes(opt.value);
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => toggleSet('investmentTypes', opt.value)}
+                  className="flex items-start gap-3 p-3.5 rounded-[10px] border text-left transition-all"
+                  style={active ? {
+                    background: 'rgba(198,122,78,0.07)',
+                    borderColor: 'rgba(198,122,78,0.28)',
+                  } : {
+                    background: 'rgba(24,35,56,0.5)',
+                    borderColor: 'rgba(36,48,74,0.9)',
+                  }}>
+                  <div className={`w-4 h-4 rounded-md border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition-all ${
+                    active ? 'border-[#C67A4E] bg-[#C67A4E]' : 'border-[color:var(--vv-border-strong)]'
+                  }`}>
+                    {active && <span className="text-[10px] text-white font-bold">✓</span>}
+                  </div>
+                  <div>
+                    <p className={`text-[12.5px] font-semibold ${active ? 'text-[#C67A4E]' : 'text-[color:var(--vv-text)]'}`}>{opt.label}</p>
+                    <p className="text-[11px] text-[color:var(--vv-text-tertiary)] mt-0.5">{opt.desc}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </Section>
 
         {/* Involvement */}
@@ -252,6 +459,7 @@ export default function InvestorPreferences() {
               return (
                 <button
                   key={opt.value}
+                  type="button"
                   onClick={() => setPrefs(p => ({ ...p, involvement: opt.value }))}
                   className="flex items-start gap-3 p-3.5 rounded-[10px] border text-left transition-all"
                   style={active ? {
@@ -277,12 +485,15 @@ export default function InvestorPreferences() {
         </Section>
 
         {/* Risk appetite */}
-        <Section title="Risk Appetite">
+        <Section title="Risk Appetite" subtitle="Indicate your preferred risk profile.">
           <div className="flex flex-wrap gap-2">
             {RISK.map(r => {
-              const active = prefs.risk === r;
+              const active = prefs.risk.toLowerCase() === r.toLowerCase();
               return (
-                <button key={r} onClick={() => setPrefs(p => ({ ...p, risk: r }))}
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setPrefs(p => ({ ...p, risk: r }))}
                   className="px-4 py-2 rounded-[8px] text-[12.5px] font-medium border transition-all"
                   style={active ? {
                     background: 'rgba(198,122,78,0.10)',
@@ -308,24 +519,17 @@ export default function InvestorPreferences() {
             selected={prefs.locations}
             onToggle={v => toggleSet('locations', v)}
           />
-        </Section>
-
-        {/* Expertise */}
-        <Section title="Relevant Expertise & Interests"
-          subtitle="Help the AI understand your background for better matches.">
-          <textarea
-            rows={3}
-            value={prefs.expertise}
-            onChange={e => setPrefs(p => ({ ...p, expertise: e.target.value }))}
-            placeholder="e.g. Enterprise SaaS, financial infrastructure, healthcare technology..."
-            className="w-full px-3.5 py-3 rounded-[8px] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] text-[12.5px] text-[color:var(--vv-text)] placeholder-[#35446A] outline-none resize-none leading-relaxed"
-          />
+          {prefs.locations.length > 0 && (
+            <p className="mt-3 text-[11px] text-[color:var(--vv-text-tertiary)]">
+              {prefs.locations.length} selected: {prefs.locations.join(' • ')}
+            </p>
+          )}
         </Section>
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
           <Button className="flex-1 sm:flex-none sm:min-w-[160px]" onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving-' : 'Save Preferences'}
+            {saving ? 'Saving...' : 'Save Preferences'}
           </Button>
           <Button variant="secondary" onClick={() => navigate('/app/investor/discover')}>
             View Matched Opportunities

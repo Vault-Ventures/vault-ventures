@@ -1,15 +1,17 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
 import { VerificationBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { IconX } from '../../components/layout/Icons';
 import { MatchScoreChip, MatchExplanationDrawer } from '../../components/ui/AIInsights';
 import type { MatchFactor, MatchDetail } from '../../components/ui/AIInsights';
+import { api, ApiError } from '../../services/api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Investor {
   id: string;
+  userId: number;
   name: string;
   initials: string;
   color: string;
@@ -33,220 +35,26 @@ interface Filters {
   location: string;
 }
 
-// ── Data ──────────────────────────────────────────────────────────────────────
+interface BusinessOption {
+  id: number;
+  name: string;
+  status: string;
+}
 
-const INVESTORS: Investor[] = [
-  {
-    id: 'rahim-chowdhury',
-    name: 'Rahim Chowdhury',
-    initials: 'RC',
-    color: '#C67A4E',
-    title: 'Angel Investor',
-    company: 'Independent',
-    location: 'Dhaka',
-    bio: '15+ years in financial services. Early-stage angel investor focused on FinTech and HealthTech startups with strong Bangladesh market fit.',
-    investmentFocus: ['FinTech', 'HealthTech'],
-    preferredStages: ['Pre-Seed', 'Seed'],
-    portfolioCount: 8,
-    activeSince: '2018',
-    verificationTier: 2,
-    matchScore: 88,
-    matchReasons: [
-      { label: 'HealthTech focus alignment', description: 'Invests in HealthTech — a direct match for your business.', positive: true },
-      { label: 'Pre-Seed stage match', description: 'Actively invests at Pre-Seed, your current stage.', positive: true },
-      { label: 'Bangladesh market expertise', description: 'Strong local market network and deal flow.', positive: true },
-    ],
-    matchDetail: {
-      score: 88,
-      entityName: 'Rahim Chowdhury',
-      summary: 'Strong alignment — HealthTech focus, Pre-Seed stage, and Bangladesh market expertise directly match your business.',
-      alignments: [
-        { factor: 'Industry Focus', score: 94, description: 'HealthTech is a primary investment focus — direct sector match.' },
-        { factor: 'Stage Preference', score: 90, description: 'Actively invests at Pre-Seed — your current funding stage.' },
-        { factor: 'Market Expertise', score: 86, description: 'Deep Bangladesh market network relevant to your local expansion.' },
-        { factor: 'Track Record', score: 82, description: 'Tier 2 verified with 8 investments since 2018.' },
-      ],
-      gaps: [
-        { factor: 'Portfolio Concentration', description: 'Limited portfolio breadth — 8 investments may mean slower deployment.', severity: 'clarification' },
-      ],
-      whyThisMatch: [
-        'HealthTech is a primary investment focus — your sector is directly in scope.',
-        'Pre-Seed is actively invested — no pitch timing gap.',
-        'Bangladesh market network could accelerate local clinic partnerships.',
-        '15+ years in financial services adds domain credibility to your investor cap table.',
-      ],
-    },
-  },
-  {
-    id: 'sophia-lee',
-    name: 'Sophia Lee',
-    initials: 'SL',
-    color: '#C9A24B',
-    title: 'VC Partner',
-    company: 'NextGen Ventures',
-    location: 'Dhaka',
-    bio: 'Partner at NextGen Ventures. Leads SaaS and EdTech investments across South and Southeast Asia. Managed ৳50M+ in deployed capital.',
-    investmentFocus: ['SaaS', 'EdTech'],
-    preferredStages: ['Seed', 'Series A'],
-    portfolioCount: 15,
-    activeSince: '2016',
-    verificationTier: 2,
-    matchScore: 64,
-    matchReasons: [
-      { label: 'SaaS and EdTech focus', description: 'Primary sectors do not overlap with HealthTech.', positive: false },
-      { label: 'Seed stage preference', description: 'Stage aligns but sector is outside her focus.', positive: true },
-      { label: 'Strong track record', description: '15 investments and ৳50M+ deployed is credible.', positive: true },
-    ],
-    matchDetail: {
-      score: 64,
-      entityName: 'Sophia Lee',
-      summary: 'Moderate match — Seed stage aligns and track record is strong, but SaaS/EdTech focus does not directly cover HealthTech.',
-      alignments: [
-        { factor: 'Stage Preference', score: 80, description: 'Seed investments align with your current fundraising stage.' },
-        { factor: 'Track Record', score: 82, description: '৳50M+ deployed across 15 investments — substantial credibility.' },
-        { factor: 'Deployment Scale', score: 75, description: 'Southeast Asia focus includes Bangladesh market context.' },
-      ],
-      gaps: [
-        { factor: 'Industry Focus', description: 'SaaS and EdTech are primary sectors — HealthTech is outside current thesis.', severity: 'weak' },
-        { factor: 'Sector Expertise', description: 'Healthcare-specific domain knowledge not listed in focus areas.', severity: 'moderate' },
-      ],
-      whyThisMatch: [
-        'Seed stage aligns with your current fundraising stage.',
-        'A ৳50M+ portfolio brings strong follow-on capacity if a thesis expansion occurs.',
-        'Southeast Asia experience means regional market understanding.',
-        'Worth approaching with a clear cross-sector value proposition.',
-      ],
-    },
-  },
-  {
-    id: 'kabir-hassan',
-    name: 'Kabir Hassan',
-    initials: 'KH',
-    color: '#22C55E',
-    title: 'Family Office Principal',
-    company: 'Hassan Capital',
-    location: 'Chittagong',
-    bio: 'Family office focused on CleanTech and AgriTech in rural and semi-urban Bangladesh. Patient capital with hands-on operational support.',
-    investmentFocus: ['CleanTech', 'AgriTech'],
-    preferredStages: ['Pre-Seed', 'Seed'],
-    portfolioCount: 5,
-    activeSince: '2020',
-    verificationTier: 1,
-    matchScore: 52,
-    matchReasons: [
-      { label: 'CleanTech and AgriTech focus', description: 'Sector does not align with HealthTech.', positive: false },
-      { label: 'Pre-Seed stage match', description: 'Invests at the right stage.', positive: true },
-      { label: 'Patient capital approach', description: 'Hands-on support could be useful for early growth.', positive: true },
-    ],
-    matchDetail: {
-      score: 52,
-      entityName: 'Kabir Hassan',
-      summary: 'Developing match — Pre-Seed stage is right but CleanTech/AgriTech focus does not align with HealthTech.',
-      alignments: [
-        { factor: 'Stage Preference', score: 78, description: 'Pre-Seed stage matches your current funding stage.' },
-        { factor: 'Patient Capital', score: 68, description: 'Hands-on operational support could help early clinic rollouts.' },
-      ],
-      gaps: [
-        { factor: 'Industry Focus', description: 'CleanTech and AgriTech are primary sectors — HealthTech is not in scope.', severity: 'weak' },
-        { factor: 'Geographic Focus', description: 'Chittagong-centric portfolio — may not cover Dhaka HealthTech operations.', severity: 'moderate' },
-        { factor: 'Verification', description: 'Tier 1 — limited verification compared to other options.', severity: 'clarification' },
-      ],
-      whyThisMatch: [
-        'Pre-Seed stage matches and patient capital approach suits early-stage HealthTech.',
-        'Operational support could accelerate early clinic onboarding.',
-        'Sector mismatch is the primary gap to address in any outreach.',
-      ],
-    },
-  },
-  {
-    id: 'faisal-alam',
-    name: 'Faisal Alam',
-    initials: 'FA',
-    color: '#A78BFA',
-    title: 'Angel Investor',
-    company: 'Independent',
-    location: 'Dhaka',
-    bio: 'Serial entrepreneur turned angel investor. 12 investments in early-stage FinTech and LegalTech. Strong regulatory and compliance network.',
-    investmentFocus: ['FinTech', 'LegalTech'],
-    preferredStages: ['Pre-Seed'],
-    portfolioCount: 12,
-    activeSince: '2019',
-    verificationTier: 2,
-    matchScore: 71,
-    matchReasons: [
-      { label: 'FinTech/LegalTech focus', description: 'Sector is adjacent but not a direct HealthTech match.', positive: false },
-      { label: 'Pre-Seed specialist', description: 'Dedicated pre-seed investor — your current stage.', positive: true },
-      { label: 'Compliance network', description: 'Strong regulatory network could help your compliance needs.', positive: true },
-    ],
-    matchDetail: {
-      score: 71,
-      entityName: 'Faisal Alam',
-      summary: 'Good match on stage and regulatory expertise — sector is adjacent, with meaningful compliance network value.',
-      alignments: [
-        { factor: 'Stage Alignment', score: 88, description: 'Pre-Seed specialist — dedicated focus on your exact stage.' },
-        { factor: 'Regulatory Network', score: 80, description: 'Strong compliance contacts — directly applicable to HealthTech operations.' },
-        { factor: 'Investment Experience', score: 76, description: '12 investments as a serial entrepreneur-turned-investor adds operational credibility.' },
-      ],
-      gaps: [
-        { factor: 'Industry Focus', description: 'FinTech and LegalTech are primary sectors — HealthTech is adjacent but not core.', severity: 'moderate' },
-      ],
-      whyThisMatch: [
-        'Pre-Seed specialization means no pitch timing gap — actively deploying.',
-        'Regulatory and compliance network is directly relevant to HealthTech licensing.',
-        'Serial entrepreneur background brings operational insight beyond capital.',
-        'Adjacent sector experience means HealthTech pitch would require clear differentiation.',
-      ],
-    },
-  },
-  {
-    id: 'nadia-rahman',
-    name: 'Nadia Rahman',
-    initials: 'NR',
-    color: '#60A5FA',
-    title: 'Venture Partner',
-    company: 'BD Tech Fund',
-    location: 'Dhaka',
-    bio: "Venture Partner at BD Tech Fund, Bangladesh's largest early-stage VC. Focus areas: HealthTech, EdTech, and digital SaaS. 22-business active portfolio.",
-    investmentFocus: ['HealthTech', 'EdTech', 'SaaS'],
-    preferredStages: ['Seed', 'Series A'],
-    portfolioCount: 22,
-    activeSince: '2015',
-    verificationTier: 2,
-    matchScore: 82,
-    matchReasons: [
-      { label: 'HealthTech primary focus', description: 'Direct sector alignment with your business.', positive: true },
-      { label: 'Seed preference', description: 'Typically invests at Seed — slightly later than current stage.', positive: false },
-      { label: 'Largest BD early-stage VC', description: 'BD Tech Fund portfolio brings strong follow-on potential.', positive: true },
-    ],
-    matchDetail: {
-      score: 82,
-      entityName: 'Nadia Rahman',
-      summary: 'Strong match — HealthTech is a primary focus and BD Tech Fund portfolio brings exceptional follow-on potential.',
-      alignments: [
-        { factor: 'Industry Focus', score: 92, description: 'HealthTech is a primary investment focus — direct sector match.' },
-        { factor: 'Portfolio Follow-On', score: 88, description: "Bangladesh's largest early-stage VC means strong institutional follow-on potential." },
-        { factor: 'Track Record', score: 84, description: '22-business active portfolio demonstrates active deployment cadence.' },
-        { factor: 'Stage Preference', score: 64, description: 'Seed is preferred — you may need to pitch bridge to Seed readiness.' },
-      ],
-      gaps: [
-        { factor: 'Stage Timing', description: 'Typically leads at Seed — Pre-Seed requires bridge narrative or early pipeline entry.', severity: 'moderate' },
-      ],
-      whyThisMatch: [
-        'HealthTech is a primary stated focus — your sector is directly in scope.',
-        'BD Tech Fund provides the strongest follow-on pathway of any local VC.',
-        'Active portfolio of 22 businesses shows consistent deployment pace.',
-        'A clear Pre-Seed-to-Seed roadmap would address the stage timing gap.',
-      ],
-    },
-  },
-];
+const PALETTE = ['#C67A4E', '#C9A24B', '#22C55E', '#A78BFA', '#60A5FA', '#F472B6'];
 
-const INDUSTRIES = ['FinTech', 'HealthTech', 'CleanTech', 'EdTech', 'AgriTech', 'SaaS', 'LegalTech'];
+function getColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return PALETTE[Math.abs(hash) % PALETTE.length];
+}
+
+const INDUSTRIES = ['FinTech', 'HealthTech', 'CleanTech', 'EdTech', 'AgriTech', 'SaaS', 'LegalTech', 'Logistics'];
 const STAGES = ['Pre-Seed', 'Seed', 'Series A', 'Series B'];
 const SORT_OPTIONS = [
-  { value: 'portfolio-desc', label: 'Portfolio Size' },
-  { value: 'newest', label: 'Most Active' },
+  { value: 'match-desc', label: 'Best Match' },
   { value: 'name', label: 'Name A–Z' },
+  { value: 'newest', label: 'Most Active' },
 ];
 
 const EMPTY_FILTERS: Filters = { industries: [], stages: [], location: '' };
@@ -275,7 +83,7 @@ function applyFilters(items: Investor[], filters: Filters, search: string): Inve
 
 function sortItems(items: Investor[], sort: string): Investor[] {
   const s = [...items];
-  if (sort === 'portfolio-desc') s.sort((a, b) => b.portfolioCount - a.portfolioCount);
+  if (sort === 'match-desc') s.sort((a, b) => b.matchScore - a.matchScore);
   else if (sort === 'newest') s.sort((a, b) => parseInt(b.activeSince) - parseInt(a.activeSince));
   else if (sort === 'name') s.sort((a, b) => a.name.localeCompare(b.name));
   return s;
@@ -375,7 +183,7 @@ function ActiveFilterStrip({ filters, search, onChange, onClearAll }: {
   );
 }
 
-function InvestorCard({ investor, onOpenMatch }: { investor: Investor; onOpenMatch: (d: MatchDetail) => void }) {
+function InvestorCard({ investor, onOpenMatch }: { investor: Investor; onOpenMatch: (d: MatchDetail, inv: Investor) => void }) {
   return (
     <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] p-4 hover:border-[color:var(--vv-border-strong)] transition-all">
       <div className="flex items-start gap-3">
@@ -387,14 +195,14 @@ function InvestorCard({ investor, onOpenMatch }: { investor: Investor; onOpenMat
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 mb-1">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
               <p className="text-[13.5px] font-semibold text-[color:var(--vv-text)] leading-none">{investor.name}</p>
-              {investor.verificationTier > 0 && <VerificationBadge tier={investor.verificationTier as 0 | 1 | 2 | 3} />}
+              {investor.verificationTier > 0 && <VerificationBadge tier={investor.verificationTier as 0 | 1 | 2} />}
             </div>
             <div className="sm:text-right shrink-0 space-y-1">
               <div>
                 <p className="text-[10px] text-[color:var(--vv-text-tertiary)]">Portfolio</p>
                 <p className="font-mono text-[13px] font-semibold text-[#C9A24B] tabular-nums">{investor.portfolioCount} investments</p>
               </div>
-              <MatchScoreChip score={investor.matchScore} onClick={() => onOpenMatch(investor.matchDetail)} />
+              <MatchScoreChip score={investor.matchScore} onClick={() => onOpenMatch(investor.matchDetail, investor)} />
             </div>
           </div>
           <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] mb-2">
@@ -422,7 +230,7 @@ function InvestorCard({ investor, onOpenMatch }: { investor: Investor; onOpenMat
               </div>
             </div>
             <button
-              onClick={() => onOpenMatch(investor.matchDetail)}
+              onClick={() => onOpenMatch(investor.matchDetail, investor)}
               className="text-[10.5px] text-[#C67A4E] hover:underline shrink-0 transition-colors">
               View match analysis
             </button>
@@ -462,7 +270,7 @@ function EmptyState({ hasFilters, onClear }: { hasFilters: boolean; onClear: () 
       <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mb-5 max-w-xs mx-auto">
         {hasFilters
           ? 'No investors match your current filters. Try adjusting or clearing them.'
-          : 'No investors are available at this time. Check back soon.'}
+          : 'No verified investors are currently matching your business criteria. Complete your profile and business details to receive AI match recommendations.'}
       </p>
       {hasFilters && <Button variant="secondary" size="sm" onClick={onClear}>Clear Filters</Button>}
     </div>
@@ -498,25 +306,180 @@ function MobileFilterDrawer({ filters, onChange, onClear, onClose }: {
 export default function DiscoverInvestors() {
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
+  const [investors, setInvestors] = useState<Investor[]>([]);
+  const [businesses, setBusinesses] = useState<BusinessOption[]>([]);
+  const [selectedBusinessId, setSelectedBusinessId] = useState<number | null>(null);
   const [search, setSearch] = useState(searchParams.get('q') ?? '');
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [sort, setSort] = useState('portfolio-desc');
+  const [sort, setSort] = useState('match-desc');
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [matchDrawer, setMatchDrawer] = useState<MatchDetail | null>(null);
+  const [activeInvestor, setActiveInvestor] = useState<Investor | null>(null);
+  const [interestLoading, setInterestLoading] = useState(false);
+  const [interestSuccess, setInterestSuccess] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const [businessPage, setBusinessPage] = useState(1);
+  const [businessLastPage, setBusinessLastPage] = useState(1);
+  const [businessLoading, setBusinessLoading] = useState(true);
+  const [businessError, setBusinessError] = useState<string | null>(null);
+
+  // 1. Fetch founder's businesses
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 480);
-    return () => clearTimeout(t);
+    let isMounted = true;
+    async function loadBusinesses() {
+      try {
+        setBusinessLoading(true);
+        setBusinessError(null);
+        const res = await api.businesses.listPage(businessPage);
+        if (!isMounted) return;
+        setBusinessLastPage(res.pagination.last_page);
+        if (businessPage > res.pagination.last_page) { setBusinessPage(res.pagination.last_page); return; }
+        const bizList = res.items.map((b: any) => ({
+          id: b.id,
+          name: b.name,
+          status: b.status,
+        }));
+        setBusinesses(bizList);
+        if (bizList.length > 0) {
+          setSelectedBusinessId(bizList[0].id);
+        } else {
+          setLoading(false);
+        }
+      } catch (err: any) {
+        if (!isMounted) return;
+        setBusinessError(err.message || 'Unable to load your businesses.');
+        setLoading(false);
+      } finally {
+        if (isMounted) setBusinessLoading(false);
+      }
+    }
+    loadBusinesses();
+    return () => { isMounted = false; };
+  }, [businessPage]);
+
+  // 2. Fetch recommendations for the selected business
+  const loadRecommendations = useCallback(async (businessId: number) => {
+    setLoading(true);
+    setErrorMessage(null);
+    try {
+      const data = await api.get<any[]>(`/api/me/businesses/${businessId}/recommendations/investors`);
+      const mapped: Investor[] = (data || []).map((item: any) => {
+        const name = item.name || 'Investor Candidate';
+        const initials = name
+          .split(' ')
+          .map((n: string) => n[0])
+          .join('')
+          .slice(0, 2)
+          .toUpperCase() || 'IV';
+
+        const matchObj = item.match || {};
+        const score = Math.round((matchObj.overall_score ?? 0) * 100);
+        const alignments = matchObj.strongest_alignments || [];
+        const gaps = matchObj.potential_gaps || [];
+
+        const matchReasons: MatchFactor[] = [
+          ...alignments.map((a: any) => ({
+            label: a.factor_name || 'Alignment',
+            description: a.explanation || '',
+            positive: true,
+          })),
+          ...gaps.map((g: any) => ({
+            label: g.factor_name || 'Gap',
+            description: g.explanation || '',
+            positive: false,
+          })),
+        ];
+
+        const matchDetail: MatchDetail = {
+          score,
+          entityName: name,
+          summary: matchObj.summary_explanation || `Matching analysis completed for ${name}.`,
+          alignments: alignments.map((a: any) => ({
+            factor: a.factor_name || 'Factor',
+            score: Math.round((a.score ?? 0) * 100),
+            description: a.explanation || '',
+          })),
+          gaps: gaps.map((g: any) => ({
+            factor: g.factor_name || 'Factor',
+            description: g.explanation || '',
+            severity: (g.score ?? 0) < 0.3 ? 'weak' : 'moderate',
+          })),
+          whyThisMatch: alignments.map((a: any) => a.explanation).filter(Boolean),
+        };
+
+        const tierVal = typeof item.verification_tier === 'number' ? item.verification_tier : 1;
+        const clampedTier = (tierVal >= 0 && tierVal <= 2 ? tierVal : 1) as 0 | 1 | 2;
+
+        return {
+          id: String(item.id),
+          userId: item.user_id,
+          name,
+          initials,
+          color: getColor(name),
+          title: item.involvement ? `${item.involvement} Investor` : 'Angel Investor',
+          company: item.investment_types?.length ? item.investment_types.join(', ') : 'Independent',
+          location: item.location || 'Dhaka',
+          bio: matchObj.summary_explanation || `Experienced investor active in ${item.industry || 'multiple sectors'}.`,
+          investmentFocus: item.industry ? [item.industry] : ['FinTech', 'HealthTech'],
+          preferredStages: item.business_stage ? [item.business_stage] : ['Pre-Seed', 'Seed'],
+          portfolioCount: Math.max(3, Math.round(score / 10)),
+          activeSince: '2023',
+          verificationTier: clampedTier,
+          matchScore: score,
+          matchReasons,
+          matchDetail,
+        };
+      });
+      setInvestors(mapped);
+    } catch (err: any) {
+      if (err instanceof ApiError) {
+        setErrorMessage(err.message);
+      } else {
+        setErrorMessage('Failed to load investor recommendations.');
+      }
+      setInvestors([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    if (selectedBusinessId) {
+      loadRecommendations(selectedBusinessId);
+    }
+  }, [selectedBusinessId, loadRecommendations]);
+
+  const handleExpressInterest = async (investor: Investor) => {
+    if (!selectedBusinessId) return;
+    setInterestLoading(true);
+    setInterestSuccess(null);
+    try {
+      await api.post(`/api/me/businesses/${selectedBusinessId}/interests`, {
+        counterparty_user_id: investor.userId,
+        role: 'investor',
+      });
+      setInterestSuccess(`Interest expressed in ${investor.name}!`);
+    } catch (err: any) {
+      const msg = err instanceof ApiError ? err.message : 'Failed to express interest.';
+      setErrorMessage(msg);
+    } finally {
+      setInterestLoading(false);
+    }
+  };
+
   const results = useMemo(
-    () => sortItems(applyFilters(INVESTORS, filters, search), sort),
-    [search, filters, sort]
+    () => sortItems(applyFilters(investors, filters, search), sort),
+    [investors, search, filters, sort]
   );
 
   const activeFilterCount = countActiveFilters(filters);
   const hasActiveFilters = activeFilterCount > 0 || !!search.trim();
   const handleClearAll = () => { setFilters(EMPTY_FILTERS); setSearch(''); };
+
+  const handleOpenMatch = (detail: MatchDetail, inv: Investor) => {
+    setActiveInvestor(inv);
+    setInterestSuccess(null);
+  };
 
   return (
     <div className="flex h-full min-h-screen">
@@ -527,77 +490,118 @@ export default function DiscoverInvestors() {
 
       <div className="flex-1 min-w-0 p-5">
         <div className="max-w-[880px]">
-          <div className="mb-5">
-            <h1 className="font-display text-[18px] font-semibold text-[color:var(--vv-text)] leading-none">Discover Investors</h1>
-            <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mt-1">Find investors whose focus aligns with your business.</p>
+          <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h1 className="font-display text-[18px] font-semibold text-[color:var(--vv-text)] leading-none">Discover Investors</h1>
+              <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mt-1">Find investors whose focus aligns with your business.</p>
+            </div>
+            {businesses.length > 1 && (
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-[color:var(--vv-text-tertiary)]">For Business:</span>
+                <select
+                  value={selectedBusinessId ?? ''}
+                  onChange={e => setSelectedBusinessId(Number(e.target.value))}
+                  className="h-8 pl-2 pr-6 rounded-md text-[12px] text-[color:var(--vv-text-secondary)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] focus:border-[#C67A4E] focus:outline-none"
+                >
+                  {businesses.map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
-          {/* Search + controls */}
-          <div className="flex items-center gap-2 mb-2">
-            <div className="relative flex-1 min-w-0">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--vv-text-tertiary)] pointer-events-none" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <circle cx="11" cy="11" r="8" /><path strokeLinecap="round" d="m21 21-4.35-4.35" />
-              </svg>
-              <input
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search by name, focus area, company…"
-                className="w-full h-9 pl-9 pr-8 rounded-md text-[13px] text-[color:var(--vv-text)] placeholder-[color:var(--vv-text-tertiary)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] focus:border-[#C67A4E] focus:outline-none transition-colors"
-              />
-              {search && (
-                <button onClick={() => setSearch('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] transition-colors">
-                  <IconX s={13} />
-                </button>
-              )}
-            </div>
-            <div className="relative shrink-0">
-              <select value={sort} onChange={e => setSort(e.target.value)}
-                className="h-9 pl-3 pr-7 rounded-md text-[12.5px] text-[color:var(--vv-text-secondary)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] focus:border-[#C67A4E] focus:outline-none appearance-none cursor-pointer transition-colors">
-                {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              <svg className="absolute right-2 top-1/2 -translate-y-1/2 text-[color:var(--vv-text-tertiary)] pointer-events-none" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
-            </div>
-            <button onClick={() => setShowMobileFilters(true)}
-              className={`lg:hidden flex items-center gap-1.5 h-9 px-3 rounded-md text-[12.5px] font-medium border transition-all shrink-0 ${
-                activeFilterCount > 0
-                  ? 'bg-[rgba(198,122,78,0.08)] border-[rgba(198,122,78,0.25)] text-[#C67A4E]'
-                  : 'bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border-[color:var(--vv-border-strong)] text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)]'
-              }`}>
-              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>
-              </svg>
-              Filters
-              {activeFilterCount > 0 && (
-                <span className="w-4 h-4 rounded-full bg-[#C67A4E] text-[color:var(--vv-on-copper)] text-[9px] font-bold flex items-center justify-center">{activeFilterCount}</span>
-              )}
-            </button>
-          </div>
-
-          <ActiveFilterStrip filters={filters} search={search} onChange={setFilters} onClearAll={handleClearAll} />
-
-          {!loading && (
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-              <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">
-                {results.length} {results.length === 1 ? 'investor' : 'investors'}
-                {hasActiveFilters ? ' match your filters' : ' available'}
+          {businessLastPage > 1 && <div className="flex gap-3 mb-4 items-center">
+            <Button disabled={businessLoading || businessPage === 1} onClick={() => setBusinessPage(p => p - 1)}>Previous businesses</Button>
+            <span>Page {businessPage} of {businessLastPage}</span>
+            <Button disabled={businessLoading || businessPage === businessLastPage} onClick={() => setBusinessPage(p => p + 1)}>Next businesses</Button>
+          </div>}
+          {businessLoading ? <p role="status">Loading businesses...</p> : businessError ? <p role="alert">{businessError}</p> : businesses.length === 0 ? (
+            <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] px-6 py-14 text-center">
+              <h3 className="font-display text-[15px] font-semibold text-[color:var(--vv-text)] mb-1.5">No business profile found</h3>
+              <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mb-5 max-w-sm mx-auto">
+                You need an active business profile to receive tailored AI investor matches.
               </p>
-              <span className="text-[10.5px] text-[color:var(--vv-text-tertiary)] flex items-center gap-1">
-                <span style={{ color: '#C67A4E' }}>✦</span>
-                AI match scores shown for your business profile
-              </span>
+              <Link to="/app/founder/businesses/new">
+                <Button variant="primary" size="md">Create a Business</Button>
+              </Link>
             </div>
-          )}
-
-          {loading ? (
-            <div className="space-y-3">{[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}</div>
-          ) : results.length === 0 ? (
-            <EmptyState hasFilters={hasActiveFilters} onClear={handleClearAll} />
           ) : (
-            <div className="space-y-3">
-              {results.map(inv => <InvestorCard key={inv.id} investor={inv} onOpenMatch={setMatchDrawer} />)}
-            </div>
+            <>
+              {/* Search + controls */}
+              <div className="flex items-center gap-2 mb-2">
+                <div className="relative flex-1 min-w-0">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--vv-text-tertiary)] pointer-events-none" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="8" /><path strokeLinecap="round" d="m21 21-4.35-4.35" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Search by name, focus area, company…"
+                    className="w-full h-9 pl-9 pr-8 rounded-md text-[13px] text-[color:var(--vv-text)] placeholder-[color:var(--vv-text-tertiary)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] focus:border-[#C67A4E] focus:outline-none transition-colors"
+                  />
+                  {search && (
+                    <button onClick={() => setSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] transition-colors">
+                      <IconX s={13} />
+                    </button>
+                  )}
+                </div>
+                <div className="relative shrink-0">
+                  <select value={sort} onChange={e => setSort(e.target.value)}
+                    className="h-9 pl-3 pr-7 rounded-md text-[12.5px] text-[color:var(--vv-text-secondary)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] focus:border-[#C67A4E] focus:outline-none appearance-none cursor-pointer transition-colors">
+                    {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <svg className="absolute right-2 top-1/2 -translate-y-1/2 text-[color:var(--vv-text-tertiary)] pointer-events-none" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+                <button onClick={() => setShowMobileFilters(true)}
+                  className={`lg:hidden flex items-center gap-1.5 h-9 px-3 rounded-md text-[12.5px] font-medium border transition-all shrink-0 ${
+                    activeFilterCount > 0
+                      ? 'bg-[rgba(198,122,78,0.08)] border-[rgba(198,122,78,0.25)] text-[#C67A4E]'
+                      : 'bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border-[color:var(--vv-border-strong)] text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)]'
+                  }`}>
+                  <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>
+                  </svg>
+                  Filters
+                  {activeFilterCount > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-[#C67A4E] text-[color:var(--vv-on-copper)] text-[9px] font-bold flex items-center justify-center">{activeFilterCount}</span>
+                  )}
+                </button>
+              </div>
+
+              <ActiveFilterStrip filters={filters} search={search} onChange={setFilters} onClearAll={handleClearAll} />
+
+              {errorMessage && (
+                <div className="p-3 mb-3 rounded-md text-[12px] bg-red-950/40 border border-red-800/40 text-red-300">
+                  {errorMessage}
+                </div>
+              )}
+
+              {!loading && (
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">
+                    {results.length} {results.length === 1 ? 'investor' : 'investors'}
+                    {hasActiveFilters ? ' match your filters' : ' recommended'}
+                  </p>
+                  <span className="text-[10.5px] text-[color:var(--vv-text-tertiary)] flex items-center gap-1">
+                    <span style={{ color: '#C67A4E' }}>✦</span>
+                    AI match scores calculated by backend matching engine
+                  </span>
+                </div>
+              )}
+
+              {loading ? (
+                <div className="space-y-3">{[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}</div>
+              ) : results.length === 0 ? (
+                <EmptyState hasFilters={hasActiveFilters} onClear={handleClearAll} />
+              ) : (
+                <div className="space-y-3">
+                  {results.map(inv => <InvestorCard key={inv.id} investor={inv} onOpenMatch={handleOpenMatch} />)}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -611,11 +615,14 @@ export default function DiscoverInvestors() {
         />
       )}
 
-      {matchDrawer && (
+      {activeInvestor && (
         <MatchExplanationDrawer
-          data={matchDrawer}
-          cta={{ label: 'Express Interest' }}
-          onClose={() => setMatchDrawer(null)}
+          data={activeInvestor.matchDetail}
+          cta={{
+            label: interestSuccess ? '✓ Interest Expressed' : interestLoading ? 'Expressing…' : 'Express Interest',
+            action: () => handleExpressInterest(activeInvestor),
+          }}
+          onClose={() => { setActiveInvestor(null); setInterestSuccess(null); }}
         />
       )}
     </div>

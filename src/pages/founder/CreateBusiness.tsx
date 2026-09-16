@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { IconCheck, IconArrowRight, IconChevronDown } from '../../components/layout/Icons';
+import { api, ApiError } from '../../services/api';
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -208,18 +209,62 @@ export default function CreateBusiness() {
     return Object.keys(errs).length === 0;
   };
 
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   const next = () => {
     if (validateStep(step)) setStep(s => s + 1);
   };
 
   const back = () => setStep(s => s - 1);
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
+    setSubmitError(null);
+    try {
+      const descriptionParts = [
+        data.shortDesc,
+        data.problem ? `Problem: ${data.problem}` : '',
+        data.solution ? `Solution: ${data.solution}` : '',
+        data.targetMarket ? `Target Market: ${data.targetMarket}` : '',
+        data.businessModel ? `Business Model: ${data.businessModel}` : '',
+      ].filter(Boolean).join('\n\n');
+
+      const businessPayload = {
+        name: data.name.trim(),
+        description: descriptionParts || null,
+        industry: data.industry || null,
+        business_stage: data.stage || null,
+        location: data.location || null,
+        expected_involvement: data.teamSize ? `${data.teamSize} team members` : null,
+      };
+
+      const createdBiz = await api.post<{ id: number }>('/api/me/businesses', businessPayload);
+
+      const rawFunding = data.fundingAmount.replace(/[৳,\s]/g, '');
+      const fundingAmount = rawFunding ? Number(rawFunding) : undefined;
+      const skills = data.requiredSkills.length > 0 ? data.requiredSkills : undefined;
+
+      if (createdBiz?.id && (fundingAmount !== undefined || skills !== undefined)) {
+        try {
+          await api.patch(`/api/me/businesses/${createdBiz.id}/requirements`, {
+            ...(fundingAmount !== undefined && { funding_amount: fundingAmount }),
+            ...(skills !== undefined && { skills }),
+          });
+        } catch {
+          // Business is created; requirements update is non-fatal
+        }
+      }
+
       setCreated(true);
-    }, 900);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setSubmitError(err.message || 'Failed to create business.');
+      } else {
+        setSubmitError('An unexpected network error occurred while creating the business.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const hasData = Object.entries(data).some(([k, v]) => k === 'requiredSkills' ? (v as string[]).length > 0 : (v as string).trim().length > 0);
@@ -592,6 +637,12 @@ export default function CreateBusiness() {
                   <span className="text-[#F59E0B] font-medium">Draft status</span> — Your business will be saved as a draft. Tier 1 identity verification is required before it appears in Discovery.
                 </p>
               </div>
+            </div>
+          )}
+
+          {submitError && (
+            <div className="mt-4 p-3 rounded-md bg-[#F04438]/10 border border-[#F04438]/30 text-[#F04438] text-[12px]">
+              {submitError}
             </div>
           )}
 

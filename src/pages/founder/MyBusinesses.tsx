@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Badge, VerificationBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { IconPlus, IconArrowRight } from '../../components/layout/Icons';
+import { api, ApiError } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 // --- BDT ---------------------------------------------------------------------
 
@@ -11,6 +13,26 @@ function fmtBDT(n: number): string {
 }
 
 // --- Types --------------------------------------------------------------------
+
+interface BackendBusiness {
+  id: number;
+  name: string;
+  description: string | null;
+  industry: string | null;
+  business_stage: string | null;
+  risk_level: string | null;
+  expected_involvement: string | null;
+  location: string | null;
+  status: 'draft' | 'under_review' | 'published' | 'suspended' | 'archived';
+  submitted_at: string | null;
+  created_at: string;
+  updated_at: string;
+  requirements?: {
+    funding_amount: number | null;
+    skills: string[];
+    accepted_investment_types?: string[];
+  } | null;
+}
 
 interface Business {
   id: string;
@@ -29,40 +51,59 @@ interface Business {
   missingFields: string[];
 }
 
-const BUSINESSES: Business[] = [
-  {
-    id: 'novatech-ai',
-    name: 'NovaTech AI',
-    initials: 'NA',
-    industry: 'FinTech - AI/ML',
-    stage: 'Seed',
-    funding: 5000000,
-    fundingStage: 'Seed',
-    verificationTier: 2,
-    readiness: 78,
-    status: 'Published',
-    updatedAt: '2 days ago',
-    requiredSkills: ['Machine Learning', 'FinTech', 'Product Management', 'Business Development'],
-    completionPct: 95,
-    missingFields: [],
-  },
-  {
-    id: 'greenpath-logistics',
-    name: 'GreenPath Logistics',
-    initials: 'GL',
-    industry: 'CleanTech - SaaS',
-    stage: 'Pre-seed',
-    funding: 1500000,
-    fundingStage: 'Pre-seed',
-    verificationTier: 1,
-    readiness: 54,
-    status: 'Draft',
-    updatedAt: '5 days ago',
-    requiredSkills: ['Logistics Engineering', 'Operations', 'Sales'],
-    completionPct: 72,
-    missingFields: ['Pitch deck', 'Use of funds detail', 'Team profiles'],
-  },
-];
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return (name.slice(0, 2) || 'BU').toUpperCase();
+}
+
+function formatRelativeTime(dateStr: string): string {
+  try {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays <= 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    return `${diffDays} days ago`;
+  } catch {
+    return 'Recently';
+  }
+}
+
+function mapBackendToUI(b: BackendBusiness, tier: 0 | 1 | 2): Business {
+  const missing: string[] = [];
+  if (!b.description) missing.push('Description');
+  if (!b.industry) missing.push('Industry');
+  if (!b.business_stage) missing.push('Stage');
+  if (!b.location) missing.push('Location');
+  if (!b.requirements?.funding_amount || Number(b.requirements.funding_amount) <= 0) missing.push('Funding requirement');
+  if (!b.requirements?.skills || b.requirements.skills.length === 0) missing.push('Required skills');
+
+  const filledCount = 6 - missing.length;
+  const completionPct = Math.round((filledCount / 6) * 100);
+  const isPub = b.status === 'published' || b.status === 'under_review';
+  const readiness = isPub ? Math.max(65, completionPct) : Math.round(completionPct * 0.8);
+
+  return {
+    id: String(b.id),
+    name: b.name,
+    initials: getInitials(b.name),
+    industry: b.industry || 'General',
+    stage: b.business_stage || 'Idea',
+    funding: b.requirements?.funding_amount ? Number(b.requirements.funding_amount) : 0,
+    fundingStage: b.business_stage || 'Not specified',
+    verificationTier: tier,
+    readiness,
+    status: isPub ? 'Published' : 'Draft',
+    updatedAt: formatRelativeTime(b.updated_at || b.created_at),
+    requiredSkills: b.requirements?.skills || [],
+    completionPct,
+    missingFields: missing,
+  };
+}
 
 // --- Helpers -----------------------------------------------------------------
 
@@ -135,12 +176,10 @@ function DraftRequirements({ business, onPublish }: { business: Business; onPubl
 
 // --- Row actions menu ---------------------------------------------------------
 
-function RowActions({ business, onPublish, onUnpublish }: {
+function RowActions({ business, onPublish }: {
   business: Business;
   onPublish: (id: string) => void;
-  onUnpublish: (id: string) => void;
 }) {
-  const navigate = useNavigate();
   return (
     <div className="flex items-center gap-1.5 justify-end">
       <Link to={`/app/founder/businesses/${business.id}`}>
@@ -155,7 +194,9 @@ function RowActions({ business, onPublish, onUnpublish }: {
         </Link>
       )}
       {business.status === 'Published' && (
-        <Button variant="ghost" size="sm" onClick={() => onUnpublish(business.id)}>Unpublish</Button>
+        <Link to={`/app/founder/businesses/${business.id}`}>
+          <Button variant="ghost" size="sm">Manage</Button>
+        </Link>
       )}
     </div>
   );
@@ -165,25 +206,56 @@ function RowActions({ business, onPublish, onUnpublish }: {
 
 export default function MyBusinesses() {
   const navigate = useNavigate();
-  const [businesses, setBusinesses] = useState<Business[]>(BUSINESSES);
+  const { user } = useAuth();
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState<string | null>(null);
   const [justPublished, setJustPublished] = useState<string | null>(null);
+
+  const tier = user?.verification_tier ?? 0;
+
+  const loadBusinesses = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await api.get<{ items: BackendBusiness[] }>('/api/me/businesses');
+      const mapped = (res.items || []).map(b => mapBackendToUI(b, tier));
+      setBusinesses(mapped);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError('Failed to load businesses.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [tier]);
+
+  useEffect(() => {
+    loadBusinesses();
+  }, [loadBusinesses]);
 
   const published = businesses.filter(b => b.status === 'Published').length;
   const drafts = businesses.filter(b => b.status === 'Draft').length;
 
-  function handlePublish(id: string) {
-    setPublishing(id);
-    setTimeout(() => {
-      setBusinesses(prev => prev.map(b => b.id === id ? { ...b, status: 'Published', missingFields: [], updatedAt: 'just now' } : b));
+  async function handlePublish(id: string) {
+    try {
+      setPublishing(id);
+      await api.post(`/api/me/businesses/${id}/submit`);
       setPublishing(null);
       setJustPublished(id);
-      setTimeout(() => setJustPublished(null), 3000);
-    }, 900);
-  }
-
-  function handleUnpublish(id: string) {
-    setBusinesses(prev => prev.map(b => b.id === id ? { ...b, status: 'Draft', updatedAt: 'just now' } : b));
+      await loadBusinesses();
+      setTimeout(() => setJustPublished(null), 4000);
+    } catch (err) {
+      setPublishing(null);
+      if (err instanceof ApiError) {
+        alert(err.message || 'Failed to publish business.');
+      } else {
+        alert('An unexpected error occurred while publishing.');
+      }
+    }
   }
 
   return (
@@ -211,6 +283,14 @@ export default function MyBusinesses() {
         </Link>
       </div>
 
+      {/* Error banner */}
+      {error && (
+        <div className="mb-4 px-4 py-3 rounded-[10px] flex items-center gap-3 bg-red-500/10 border border-red-500/30 text-red-400 text-[12.5px]">
+          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+          <span>{error}</span>
+        </div>
+      )}
+
       {/* Published banner */}
       {justPublished && (
         <div className="mb-4 px-4 py-3 rounded-[10px] flex items-center gap-3"
@@ -222,7 +302,19 @@ export default function MyBusinesses() {
         </div>
       )}
 
-      {businesses.length === 0 ? (
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2].map(i => (
+            <div key={i} className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] p-5 animate-pulse flex items-center gap-4">
+              <div className="w-8 h-8 rounded-lg bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 w-40 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] rounded" />
+                <div className="h-2 w-24 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : businesses.length === 0 ? (
         /* Empty state */
         <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] px-6 py-14 text-center">
           <div className="w-12 h-12 rounded-xl mx-auto mb-4 flex items-center justify-center"
@@ -301,9 +393,9 @@ export default function MyBusinesses() {
                 {/* Actions */}
                 <div className="shrink-0">
                   {publishing === business.id ? (
-                    <Button size="sm" loading>Publishing-</Button>
+                    <Button size="sm" loading>Publishing...</Button>
                   ) : (
-                    <RowActions business={business} onPublish={handlePublish} onUnpublish={handleUnpublish} />
+                    <RowActions business={business} onPublish={handlePublish} />
                   )}
                 </div>
               </div>
@@ -353,9 +445,9 @@ export default function MyBusinesses() {
                     )}
                     <div className="flex items-center gap-2">
                       {publishing === business.id ? (
-                        <Button size="sm" loading>Publishing-</Button>
+                        <Button size="sm" loading>Publishing...</Button>
                       ) : (
-                        <RowActions business={business} onPublish={handlePublish} onUnpublish={handleUnpublish} />
+                        <RowActions business={business} onPublish={handlePublish} />
                       )}
                     </div>
                   </div>
