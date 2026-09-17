@@ -65,9 +65,10 @@ function ThemeToggle({ theme, setTheme }: { theme: 'dark' | 'light'; setTheme: (
   );
 }
 
-function Toggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void }) {
+function Toggle({ enabled, onToggle, label }: { enabled: boolean; onToggle: () => void; label?: string }) {
   return (
     <button
+      type="button"
       onClick={onToggle}
       className="relative w-9 h-5 rounded-full cursor-pointer transition-all duration-200 flex items-center flex-shrink-0"
       style={{
@@ -75,6 +76,7 @@ function Toggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void 
         border: enabled ? '1px solid rgba(198,122,78,0.35)' : '1px solid rgba(94,109,143,0.25)',
       }}
       aria-pressed={enabled}
+      aria-label={label}
     >
       <span
         className="absolute w-3.5 h-3.5 rounded-full transition-all duration-200"
@@ -298,6 +300,7 @@ export default function Settings() {
             <Toggle
               enabled={notifPrefs[item.key] !== false}
               onToggle={() => togglePref(item.key)}
+              label={item.label}
             />
           </Row>
         ))}

@@ -47,7 +47,7 @@ it.each([
   });
   mountDeal();
   fireEvent.click(await screen.findByRole('button', { name: 'Negotiation Terms' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Accept Terms' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Accept Terms' }));
   await waitFor(() => expect(post).toHaveBeenCalledWith('/api/me/deals/81/transition', { target_state: 'agreement', role: 'investor' }));
   await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
   expect(get).toHaveBeenLastCalledWith('81', 'investor');

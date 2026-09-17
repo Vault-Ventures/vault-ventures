@@ -12,6 +12,7 @@ import { ManageRolesModal } from './ManageRolesModal';
 import { VerificationBadge } from '../ui/Badge';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../hooks/useNotifications';
+import { resolveMediaUrl } from '../../services/api';
 
 type NormalRole = 'founder' | 'investor' | 'professional';
 type Role = NormalRole | 'admin';
@@ -572,9 +573,12 @@ export function AppShell() {
               <div className="relative ml-1">
                 <button onClick={() => { setShowAccountMenu(v => !v); setShowNotifs(false); }} aria-label="Open profile menu" aria-expanded={showAccountMenu} aria-haspopup="menu"
                   className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[color:var(--vv-raised)] transition-colors">
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 overflow-hidden"
                     style={{ background: activeColor + '18', color: activeColor, border: `1px solid ${activeColor}40` }}>
-                    {user?.name?.charAt(0)?.toUpperCase() || (isAdmin ? 'A' : 'U')}
+                    {user?.avatar_url ? (
+                      <img src={resolveMediaUrl(user.avatar_url) || undefined} alt="" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                    ) : null}
+                    <span className={user?.avatar_url ? 'hidden' : ''}>{user?.name?.charAt(0)?.toUpperCase() || (isAdmin ? 'A' : 'U')}</span>
                   </div>
                   <div className="hidden sm:block text-left">
                     <p className="text-[11.5px] font-semibold text-[color:var(--vv-text)] leading-none">{user?.name || (isAdmin ? 'Admin' : 'User')}</p>

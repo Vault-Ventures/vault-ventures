@@ -17,7 +17,7 @@ return new class extends Migration
                 $table->string($field, 100)->nullable();
             }
             $table->string('location')->nullable();
-            $table->enum('status', ['draft', 'submitted'])->default('draft');
+            $table->string('status', 50)->default('draft');
             $table->timestamp('submitted_at')->nullable();
             $table->timestamps();
         });

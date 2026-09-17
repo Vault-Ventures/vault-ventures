@@ -73,7 +73,7 @@ class MatchDetailController extends Controller
             && $businessModel->founder_profile_id === $user->founderProfile?->id;
 
         // Draft protection for non-owners
-        if (! $isOwner && $businessModel->status !== BusinessStatus::Submitted) {
+        if (! $isOwner && ! in_array($businessModel->status, [BusinessStatus::Published, BusinessStatus::Submitted], true)) {
             return ApiResponse::error('Business not found or not published.', 'NOT_FOUND', 404);
         }
 
@@ -197,8 +197,8 @@ class MatchDetailController extends Controller
             return ApiResponse::error('Forbidden. You do not have permission to view this match detail.', 'FORBIDDEN', 403);
         }
 
-        // If the requesting user is the investor, the business must be submitted (unless they also own it)
-        if ($isInvestorTarget && ! $isFounderOwner && $businessModel->status !== BusinessStatus::Submitted) {
+        // If the requesting user is the investor, the business must be published/submitted (unless they also own it)
+        if ($isInvestorTarget && ! $isFounderOwner && ! in_array($businessModel->status, [BusinessStatus::Published, BusinessStatus::Submitted], true)) {
             return ApiResponse::error('Business not found or not published.', 'NOT_FOUND', 404);
         }
 
@@ -267,8 +267,8 @@ class MatchDetailController extends Controller
             return ApiResponse::error('Forbidden. You do not have permission to view this match detail.', 'FORBIDDEN', 403);
         }
 
-        // If the requesting user is the professional, the business must be submitted (unless they also own it)
-        if ($isProfessionalTarget && ! $isFounderOwner && $businessModel->status !== BusinessStatus::Submitted) {
+        // If the requesting user is the professional, the business must be published/submitted (unless they also own it)
+        if ($isProfessionalTarget && ! $isFounderOwner && ! in_array($businessModel->status, [BusinessStatus::Published, BusinessStatus::Submitted], true)) {
             return ApiResponse::error('Business not found or not published.', 'NOT_FOUND', 404);
         }
 

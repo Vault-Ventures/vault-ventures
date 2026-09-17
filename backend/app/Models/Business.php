@@ -10,7 +10,17 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Business extends Model
 {
-    protected $fillable = ['name', 'description', 'industry', 'business_stage', 'risk_level', 'expected_involvement', 'location'];
+    protected $fillable = [
+        'name',
+        'description',
+        'industry',
+        'business_stage',
+        'risk_level',
+        'expected_involvement',
+        'location',
+        'logo_url',
+        'cover_photo_url',
+    ];
 
     protected $attributes = ['status' => 'draft'];
 
@@ -66,12 +76,28 @@ class Business extends Model
 
     protected function casts(): array
     {
-        return ['status' => BusinessStatus::class, 'submitted_at' => 'datetime'];
+        return [
+            'status' => BusinessStatus::class,
+            'submitted_at' => 'datetime',
+            'approved_at' => 'datetime',
+            'rejected_at' => 'datetime',
+            'published_at' => 'datetime',
+        ];
     }
 
     public function founderProfile(): BelongsTo
     {
         return $this->belongsTo(FounderProfile::class);
+    }
+
+    public function approvedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by_user_id');
+    }
+
+    public function rejectedByUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by_user_id');
     }
 
     public function requirements(): HasOne

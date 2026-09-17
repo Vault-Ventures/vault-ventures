@@ -79,9 +79,9 @@ function applyFilters(items: Business[], filters: Filters, search: string): Busi
   return items.filter(b => {
     if (q && ![b.name, b.industry, b.description, ...b.requiredSkills]
       .some(t => t.toLowerCase().includes(q))) return false;
-    if (filters.industries.length > 0 && !filters.industries.includes(b.industry)) return false;
-    if (filters.stages.length > 0 && !filters.stages.includes(b.stage)) return false;
-    if (filters.skills.length > 0 && !filters.skills.some(s => b.requiredSkills.includes(s))) return false;
+    if (filters.industries.length > 0 && !filters.industries.some(i => i.toLowerCase() === b.industry.toLowerCase())) return false;
+    if (filters.stages.length > 0 && !filters.stages.some(s => s.toLowerCase() === b.stage.toLowerCase())) return false;
+    if (filters.skills.length > 0 && !filters.skills.some(s => b.requiredSkills.map(x => x.toLowerCase()).includes(s.toLowerCase()))) return false;
     if (filters.fundingPreset) {
       const preset = FUNDING_PRESETS.find(p => p.id === filters.fundingPreset);
       if (preset && (b.fundingAmount < preset.min || b.fundingAmount > preset.max)) return false;

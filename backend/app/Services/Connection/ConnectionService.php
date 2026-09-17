@@ -36,7 +36,7 @@ final class ConnectionService
             ->union($scope(DB::table('business_connections')->select($columns)));
         $query = DB::query()->fromSub($pairs, 'pairs')->join('businesses', 'businesses.id', '=', 'pairs.business_id');
         if ($role !== 'founder') {
-            $query->where('businesses.status', BusinessStatus::Submitted->value);
+            $query->whereIn('businesses.status', [BusinessStatus::Published->value, BusinessStatus::Submitted->value]);
         }
         $page = $query->select('pairs.*')->orderBy('pairs.business_id')->orderBy('pairs.counterparty_user_id')
             ->orderBy('pairs.counterparty_role')->paginate(25, ['*'], 'page', max(1, $page));
@@ -349,7 +349,7 @@ final class ConnectionService
     private function enforceBusinessAccess(Business $business, User $user): void
     {
         $isOwner = $business->founderProfile !== null && $business->founderProfile->user_id === $user->id;
-        if (! $isOwner && $business->status !== BusinessStatus::Submitted) {
+        if (! $isOwner && ! in_array($business->status, [BusinessStatus::Published, BusinessStatus::Submitted], true)) {
             throw (new ModelNotFoundException)->setModel(Business::class, [$business->id]);
         }
     }
@@ -363,7 +363,7 @@ final class ConnectionService
     {
         $isOwner = $business->founderProfile !== null && $business->founderProfile->user_id === $user->id;
         if (! $isOwner) {
-            if ($business->status !== BusinessStatus::Submitted) {
+            if (! in_array($business->status, [BusinessStatus::Published, BusinessStatus::Submitted], true)) {
                 throw (new ModelNotFoundException)->setModel(Business::class, [$business->id]);
             }
 

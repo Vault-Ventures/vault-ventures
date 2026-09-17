@@ -93,7 +93,7 @@ final class DisclosureService
 
         // Validate business published status
         $isOwner = $business->founderProfile && $business->founderProfile->user_id === $user->id;
-        if (! $isOwner && $business->status !== BusinessStatus::Submitted) {
+        if (! $isOwner && ! in_array($business->status, [BusinessStatus::Published, BusinessStatus::Submitted], true)) {
             throw (new ModelNotFoundException)->setModel(Business::class, [$business->id]);
         }
 

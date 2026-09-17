@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminBusinessController;
 use App\Http\Controllers\AdminFinancialReportController;
 use App\Http\Controllers\AdminReputationController;
 use App\Http\Controllers\AdminVerificationRequestController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\BusinessController;
 use App\Http\Controllers\BusinessDisclosureController;
 use App\Http\Controllers\BusinessDocumentController;
 use App\Http\Controllers\BusinessNdaController;
+use App\Http\Controllers\BusinessPhotoController;
 use App\Http\Controllers\BusinessRequirementController;
 use App\Http\Controllers\BusinessSubmissionController;
 use App\Http\Controllers\DealController;
@@ -132,6 +134,9 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
         Route::patch('/businesses/{business}', [BusinessController::class, 'update'])->whereNumber('business');
         Route::patch('/businesses/{business}/requirements', [BusinessRequirementController::class, 'update'])->whereNumber('business');
         Route::post('/businesses/{business}/submit', [BusinessSubmissionController::class, 'store'])->whereNumber('business');
+        Route::post('/businesses/{business}/publish', [BusinessSubmissionController::class, 'publish'])->whereNumber('business');
+        Route::post('/businesses/{business}/logo', [BusinessPhotoController::class, 'uploadLogo'])->whereNumber('business');
+        Route::post('/businesses/{business}/cover-photo', [BusinessPhotoController::class, 'uploadCoverPhoto'])->whereNumber('business');
         Route::post('/businesses/{business}/express-interest', [BusinessDisclosureController::class, 'expressInterest'])
             ->whereNumber('business');
         Route::post('/businesses/{business}/interests', [BusinessConnectionController::class, 'expressInterest'])
@@ -236,7 +241,11 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'admin'])->group(function ()
     Route::get('/financial-reports/{report}/audit-logs', [AdminFinancialReportController::class, 'auditLogs'])
         ->whereNumber('report');
     Route::get('/financial-governance', [AdminFinancialReportController::class, 'governanceOverview']);
+    Route::get('/businesses', [AdminBusinessController::class, 'index']);
+    Route::get('/businesses/{business}', [AdminBusinessController::class, 'show'])->whereNumber('business');
     Route::middleware(RequireSpaSession::class)->group(function () {
+        Route::post('/businesses/{business}/approve', [AdminBusinessController::class, 'approve'])->whereNumber('business');
+        Route::post('/businesses/{business}/reject', [AdminBusinessController::class, 'reject'])->whereNumber('business');
         Route::post('/verification-requests/{verification_request}/approve', [AdminVerificationRequestController::class, 'approve'])->whereNumber('verification_request');
         Route::post('/verification-requests/{verification_request}/reject', [AdminVerificationRequestController::class, 'reject'])->whereNumber('verification_request');
         Route::post('/verification-requests/{verification_request}/request-information', [AdminVerificationRequestController::class, 'requestInformation'])->whereNumber('verification_request');

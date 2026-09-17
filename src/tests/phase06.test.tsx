@@ -38,7 +38,7 @@ beforeEach(() => {
 describe.each([['investors', DiscoverInvestors], ['professionals', DiscoverProfessionals]] as const)('Discovery %s', (_, Component) => {
   it('shows a genuine empty state and the registered create route', async () => {
     mount(<Component />, '/discovery');
-    const button = await screen.findByRole('button', { name: 'Create a Business' });
+    const button = await screen.findByRole('button', { name: 'Create a Business' }, { timeout: 3000 });
     expect(button.closest('a')?.getAttribute('href')).toBe('/app/founder/businesses/new');
   });
   it('reads items and loads subsequent business pages', async () => {
@@ -53,9 +53,11 @@ describe.each([['investors', DiscoverInvestors], ['professionals', DiscoverProfe
   });
   it('shows loading then an API error without a false empty state', async () => {
     let reject!: (error: Error) => void;
-    vi.mocked(api.businesses.listPage).mockReturnValue(new Promise((_, fail) => { reject = fail; }));
+    const p = new Promise((_, fail) => { reject = fail; });
+    p.catch(() => {});
+    vi.mocked(api.businesses.listPage).mockReturnValue(p as any);
     mount(<Component />, '/discovery');
-    expect(screen.getByRole('status').textContent).toContain('Loading businesses');
+    expect((await screen.findByRole('status')).textContent).toContain('Loading businesses');
     reject(new Error('Service unavailable'));
     expect((await screen.findByRole('alert')).textContent).toContain('Service unavailable');
     expect(screen.queryByText('No business profile found')).toBeNull();
@@ -73,7 +75,7 @@ describe('Readiness identity', () => {
     fireEvent.click(recalculate);
     await waitFor(() => expect(api.readiness.createAssessment).toHaveBeenCalledWith(id));
     fireEvent.click(await screen.findByRole('button', { name: 'Update Profile' }));
-    expect(screen.getByTestId('location').textContent).toBe(`/app/founder/businesses/${id}`);
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe(`/app/founder/businesses/${id}`));
   });
   it.each(['new', 'edit', '0', 'abc'])('rejects invalid ID %s without loading another business', async id => {
     mount(<Readiness />, `/app/founder/readiness?businessId=${id}`);
@@ -99,7 +101,7 @@ describe('Readiness identity', () => {
   it('uses the real creation route when there are no businesses', async () => {
     mount(<Readiness />, '/app/founder/readiness', '/app/founder/readiness');
     fireEvent.click(await screen.findByRole('button', { name: 'Register Business' }));
-    expect(screen.getByTestId('location').textContent).toBe('/app/founder/businesses/new');
+    await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/app/founder/businesses/new'));
   });
 });
 
@@ -114,8 +116,9 @@ describe('Business Profile', () => {
     mount(<BusinessProfile />, '/app/founder/businesses/42', '/app/founder/businesses/:id');
     const edits = await screen.findAllByRole('button', { name: /Edit/ });
     fireEvent.click(edits[0]);
-    fireEvent.change(screen.getByLabelText('Business Name'), { target: { value: 'Saved name' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    const input = await screen.findByLabelText('Business Name');
+    fireEvent.change(input, { target: { value: 'Saved name' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Save Changes' }));
     await waitFor(() => expect(api.businesses.updateRecord).toHaveBeenCalledWith(42, expect.objectContaining({ name: 'Saved name' })));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(screen.getAllByText('Saved name').length).toBeGreaterThan(0);
@@ -123,8 +126,9 @@ describe('Business Profile', () => {
   it('keeps failed edits open with an error', async () => {
     vi.spyOn(api.businesses, 'updateRecord').mockRejectedValue(new Error('Save rejected'));
     mount(<BusinessProfile />, '/app/founder/businesses/42', '/app/founder/businesses/:id');
-    fireEvent.click((await screen.findAllByRole('button', { name: /Edit/ }))[0]);
-    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    const edits = await screen.findAllByRole('button', { name: /Edit/ });
+    fireEvent.click(edits[0]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Save Changes' }));
     expect((await screen.findByRole('alert')).textContent).toContain('Save rejected');
     expect(screen.getByRole('dialog')).toBeTruthy();
   });
@@ -159,7 +163,7 @@ it('Business Profile opens the readiness report with its current ID', async () =
   mount(<BusinessProfile />, '/app/founder/businesses/42', '/app/founder/businesses/:id');
   fireEvent.click(await screen.findByRole('tab', { name: 'Readiness' }));
   fireEvent.click(await screen.findByRole('button', { name: /Full Report/ }));
-  expect(screen.getByTestId('location').textContent).toBe('/app/founder/readiness?businessId=42');
+  await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/app/founder/readiness?businessId=42'));
 });
 
 it('counterparty can reciprocate a pending interest using the business and role', async () => {

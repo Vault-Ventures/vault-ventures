@@ -204,7 +204,7 @@ class BusinessDocumentController extends Controller
             throw new HttpException(403, 'User does not possess an authorized participant role.');
         }
 
-        if ($business->status !== BusinessStatus::Submitted) {
+        if (! in_array($business->status, [BusinessStatus::Published, BusinessStatus::Submitted], true)) {
             throw (new ModelNotFoundException)->setModel(Business::class, [$business->id]);
         }
     }

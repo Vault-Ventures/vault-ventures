@@ -4,6 +4,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth, NormalRole } from './context/AuthContext';
 import { canAccess, type Workspace } from './utils/permissions';
 import { AppShell } from './components/layout/AppShell';
+import { ToastProvider } from './components/ui/Feedback';
 
 const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/auth/Login'));
@@ -113,6 +114,7 @@ export default function App() {
     <ThemeProvider>
     <BrowserRouter>
     <AuthProvider>
+      <ToastProvider>
       <Suspense fallback={<PageLoadingFallback />}>
       <Routes>
         {/* Public */}
@@ -220,6 +222,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </Suspense>
+      </ToastProvider>
     </AuthProvider>
     </BrowserRouter>
     </ThemeProvider>

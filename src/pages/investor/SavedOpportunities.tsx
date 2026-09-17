@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
-import { api } from '../../services/api';
+import { api, ConnectionItem } from '../../services/api';
 
 // --- Types & Status Config ---------------------------------------------------
 
-type SavedStatus = 'saved' | 'interest_sent' | 'in_deal' | 'completed';
+export type SavedStatus = 'saved' | 'interest_sent' | 'in_deal' | 'completed';
 
-interface SavedItem {
+export interface SavedItem {
   id: string;
   name: string;
   initials: string;
@@ -18,11 +18,62 @@ interface SavedItem {
   funding: string;
   savedDate: string;
   status: SavedStatus;
+  dealId?: string;
+}
+
+export function mapConnectionsToSavedItems(
+  connList: ConnectionItem[] = [],
+  recs: any[] = []
+): SavedItem[] {
+  const recMap = new Map<number, any>(recs.map((r: any) => [Number(r.id), r]));
+  const savedList: SavedItem[] = [];
+  const seenBusinessIds = new Set<number>();
+
+  for (const conn of connList) {
+    const bizId = Number(conn.business?.id);
+    if (!bizId || seenBusinessIds.has(bizId)) continue;
+    seenBusinessIds.add(bizId);
+
+    const rec = recMap.get(bizId);
+
+    let status: SavedStatus = 'saved';
+    if (conn.deal) {
+      status = conn.deal.stage === 'completed' ? 'completed' : 'in_deal';
+    } else if (conn.is_connected || conn.is_mutual) {
+      status = 'saved';
+    } else if (conn.has_counterparty_interest || conn.has_founder_interest) {
+      status = 'interest_sent';
+    }
+
+    const rawFunding = rec?.funding_amount_cents
+      ? rec.funding_amount_cents / 100
+      : (rec?.funding_amount || 2500000);
+
+    const fundingFormatted = rawFunding >= 10000000
+      ? `৳${(rawFunding / 10000000).toFixed(1)}Cr`
+      : `৳${(rawFunding / 100000).toFixed(0)}L`;
+
+    savedList.push({
+      id: String(bizId),
+      name: conn.business?.name || rec?.name || 'Startup',
+      initials: (conn.business?.name || rec?.name || 'ST').substring(0, 2).toUpperCase(),
+      industry: rec?.industry || 'Technology',
+      stage: rec?.business_stage || rec?.stage || 'Active',
+      description: rec?.tagline || rec?.short_description || rec?.description || 'High-growth Bangladesh opportunity',
+      match: rec?.match?.overall_score ?? rec?.match_score ?? 85,
+      funding: fundingFormatted,
+      savedDate: conn.connected_at ? new Date(conn.connected_at).toLocaleDateString() : 'Active',
+      status,
+      dealId: conn.deal?.id ? String(conn.deal.id) : undefined,
+    });
+  }
+
+  return savedList;
 }
 
 const FILTER_TABS = [
   { key: 'all', label: 'All' },
-  { key: 'saved', label: 'Saved' },
+  { key: 'saved', label: 'Connected' },
   { key: 'interest_sent', label: 'Interest Sent' },
   { key: 'in_deal', label: 'In Deal Room' },
   { key: 'completed', label: 'Completed' },
@@ -33,49 +84,33 @@ export default function SavedOpportunities() {
   const [activeTab, setActiveTab] = useState<string>('all');
   const [search, setSearch] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<SavedItem[]>([]);
 
-  useEffect(() => {
-    let isMounted = true;
-    async function loadSaved() {
-      setLoading(true);
-      try {
-        const recs = await api.recommendations.businesses('investor');
-        if (recs && recs.length > 0 && isMounted) {
-          // Check for any expressed or saved items
-          const savedList: SavedItem[] = [];
-          for (const b of recs.slice(0, 5)) {
-            try {
-              const statusRes = await api.businesses.getConnectionStatus(b.id);
-              if (statusRes && statusRes.status && statusRes.status !== 'none') {
-                const raw = b.funding_amount_cents ? b.funding_amount_cents / 100 : (b.funding_amount || 2500000);
-                const s = statusRes.status === 'deal_active' ? 'in_deal' : statusRes.status === 'completed' ? 'completed' : 'interest_sent';
-                savedList.push({
-                  id: String(b.id),
-                  name: b.name || 'Startup',
-                  initials: (b.name || 'ST').substring(0, 2).toUpperCase(),
-                  industry: b.industry || 'Technology',
-                  stage: b.stage || 'Seed',
-                  description: b.tagline || b.short_description || 'High-growth Bangladesh opportunity',
-                  match: b.match_score ?? 85,
-                  funding: `৳${(raw / 100000).toFixed(0)}L`,
-                  savedDate: 'Recently',
-                  status: s as SavedStatus,
-                });
-              }
-            } catch (e) {}
-          }
-          if (isMounted) setItems(savedList);
-        }
-      } catch (e) {
-        // empty list
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+  const loadSaved = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [connRes, recsRes] = await Promise.all([
+        api.connections.list('investor').catch(() => ({ items: [] as ConnectionItem[], pagination: { current_page: 1, last_page: 1, per_page: 25, total: 0 } })),
+        api.recommendations.businesses('investor').catch(() => []),
+      ]);
+
+      const recs = Array.isArray(recsRes) ? recsRes : ((recsRes as any)?.data || []);
+      const connList = connRes?.items || [];
+      const savedList = mapConnectionsToSavedItems(connList, recs);
+
+      setItems(savedList);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load saved opportunities pipeline.');
+    } finally {
+      setLoading(false);
     }
-    loadSaved();
-    return () => { isMounted = false; };
   }, []);
+
+  useEffect(() => {
+    loadSaved();
+  }, [loadSaved]);
 
   const filtered = items.filter(item => {
     const matchTab = activeTab === 'all' || item.status === activeTab;
@@ -119,6 +154,13 @@ export default function SavedOpportunities() {
         </Button>
       </div>
 
+      {error && (
+        <div className="mb-6 p-4 bg-[#2C1818] border border-[#F04438]/30 rounded-[10px] flex items-center justify-between">
+          <p className="text-[13px] text-[#F04438]">{error}</p>
+          <Button variant="secondary" size="sm" onClick={loadSaved}>Retry</Button>
+        </div>
+      )}
+
       {/* Filter bar & Search */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-6">
         {/* Tabs */}
@@ -158,7 +200,24 @@ export default function SavedOpportunities() {
       </div>
 
       {/* Content */}
-      {filtered.length > 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[14px] p-5 animate-pulse">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-[10px] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)]" />
+                <div className="space-y-1.5 flex-1">
+                  <div className="h-3.5 w-32 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] rounded" />
+                  <div className="h-2.5 w-24 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] rounded" />
+                </div>
+              </div>
+              <div className="h-2.5 w-full bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] rounded mb-2" />
+              <div className="h-2.5 w-3/4 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] rounded mb-4" />
+              <div className="h-4 w-28 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] rounded" />
+            </div>
+          ))}
+        </div>
+      ) : filtered.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filtered.map(item => (
             <div
@@ -176,17 +235,39 @@ export default function SavedOpportunities() {
                     <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">{item.industry} • {item.stage}</p>
                   </div>
                 </div>
+                <span className={`px-2 py-0.5 rounded text-[10.5px] font-medium border shrink-0 ${
+                  item.status === 'in_deal'
+                    ? 'bg-[#C67A4E]/10 border-[#C67A4E]/30 text-[#C67A4E]'
+                    : item.status === 'completed'
+                    ? 'bg-[#22C55E]/10 border-[#22C55E]/30 text-[#22C55E]'
+                    : item.status === 'interest_sent'
+                    ? 'bg-[#F59E0B]/10 border-[#F59E0B]/30 text-[#F59E0B]'
+                    : 'bg-[rgba(198,122,78,0.08)] border-[rgba(198,122,78,0.20)] text-[#C67A4E]'
+                }`}>
+                  {item.status === 'in_deal' ? 'In Deal Room' : item.status === 'completed' ? 'Completed' : item.status === 'interest_sent' ? 'Interest Sent' : 'Connected'}
+                </span>
               </div>
               <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mb-4">{item.description}</p>
               <div className="flex items-center justify-between text-[11.5px] pt-3 border-t border-[color:var(--vv-border)]">
-                <span className="text-[color:var(--vv-text-secondary)]">Seeking: {item.funding}</span>
-                <button
-                  type="button"
-                  onClick={() => setItems(prev => prev.filter(i => i.id !== item.id))}
-                  className="text-rose-400 hover:underline text-[11px]"
-                >
-                  Remove
-                </button>
+                <span className="text-[color:var(--vv-text-secondary)] font-mono">Seeking: {item.funding}</span>
+                <div className="flex items-center gap-3">
+                  {item.status === 'in_deal' && item.dealId && (
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/app/deals/${item.dealId}`)}
+                      className="text-[#C67A4E] hover:underline text-[11.5px] font-medium"
+                    >
+                      Deal Room →
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/app/businesses/${item.id}`)}
+                    className="text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)] text-[11.5px]"
+                  >
+                    View Details
+                  </button>
+                </div>
               </div>
             </div>
           ))}

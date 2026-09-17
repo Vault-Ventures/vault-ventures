@@ -397,24 +397,22 @@ class MatchingRecommendationTest extends TestCase
         $this->assertContains($tier1Prof->professionalProfile->id, $profIds);
         $this->assertNotContains($prof0->id, $profIds, 'Tier 0 professional must be excluded from recommendations');
 
-        // 3. Business owned by Tier 0 Founder vs Tier 1 Founder
-        $tier0Founder = User::factory()->create(['verification_tier' => VerificationTier::Tier0]);
-        $tier0Founder->roles()->firstOrCreate(['role' => ParticipantRole::Founder->value]);
-        $f0Profile = $tier0Founder->founderProfile()->firstOrCreate([]);
-        $tier0Business = $f0Profile->businesses()->create(['name' => 'Tier 0 Business', 'industry' => 'Fintech']);
-        $tier0Business->forceFill(['status' => BusinessStatus::Submitted])->save();
-        $tier0Business->requirements()->create([
-            'funding_amount' => 500000.00,
-            'required_experience_level' => 'Senior',
-        ]);
+        // 3. Draft, Pending Approval, and Rejected businesses must be excluded
+        $draftBiz = $founder->founderProfile->businesses()->create(['name' => 'Draft Business', 'industry' => 'Fintech']);
+        $draftBiz->forceFill(['status' => BusinessStatus::Draft])->save();
+        $draftBiz->requirements()->create(['funding_amount' => 500000.00]);
 
-        $tier1Founder = $this->createFounderUser();
-        $tier1Business = $tier1Founder->founderProfile->businesses()->create(['name' => 'Tier 1 Business', 'industry' => 'Fintech']);
-        $tier1Business->forceFill(['status' => BusinessStatus::Submitted])->save();
-        $tier1Business->requirements()->create([
-            'funding_amount' => 500000.00,
-            'required_experience_level' => 'Senior',
-        ]);
+        $pendingBiz = $founder->founderProfile->businesses()->create(['name' => 'Pending Business', 'industry' => 'Fintech']);
+        $pendingBiz->forceFill(['status' => BusinessStatus::PendingApproval, 'submitted_at' => now()])->save();
+        $pendingBiz->requirements()->create(['funding_amount' => 500000.00]);
+
+        $rejectedBiz = $founder->founderProfile->businesses()->create(['name' => 'Rejected Business', 'industry' => 'Fintech']);
+        $rejectedBiz->forceFill(['status' => BusinessStatus::Rejected, 'rejected_at' => now()])->save();
+        $rejectedBiz->requirements()->create(['funding_amount' => 500000.00]);
+
+        $publishedBiz = $founder->founderProfile->businesses()->create(['name' => 'Published Business', 'industry' => 'Fintech']);
+        $publishedBiz->forceFill(['status' => BusinessStatus::Published, 'published_at' => now()])->save();
+        $publishedBiz->requirements()->create(['funding_amount' => 500000.00]);
 
         $this->app['auth']->forgetGuards();
         $res = $this->actingAs($tier1Investor, 'web')
@@ -422,8 +420,47 @@ class MatchingRecommendationTest extends TestCase
             ->assertOk();
 
         $bIds = array_column($res->json('data'), 'id');
-        $this->assertContains($tier1Business->id, $bIds);
-        $this->assertNotContains($tier0Business->id, $bIds, 'Business of Tier 0 founder must not be recommended to investor');
+        $this->assertContains($publishedBiz->id, $bIds, 'Published business must be recommended to investor');
+        $this->assertNotContains($draftBiz->id, $bIds, 'Draft business must not be recommended to investor');
+        $this->assertNotContains($pendingBiz->id, $bIds, 'Pending approval business must not be recommended to investor');
+        $this->assertNotContains($rejectedBiz->id, $bIds, 'Rejected business must not be recommended to investor');
+    }
+
+    public function test_published_business_by_standard_registered_founder_is_discoverable_by_investor(): void
+    {
+        // Standard founder registering at Tier 0
+        $founder = User::factory()->create(['verification_tier' => VerificationTier::Tier0]);
+        $founder->roles()->firstOrCreate(['role' => ParticipantRole::Founder->value]);
+        $founderProfile = $founder->founderProfile()->firstOrCreate([]);
+
+        // Business approved by Admin and Published by Founder
+        $business = $founderProfile->businesses()->create([
+            'name' => 'Green Energy Solutions Ltd',
+            'industry' => 'Fintech',
+            'business_stage' => 'Seed',
+            'location' => 'Dhaka',
+        ]);
+        $business->forceFill(['status' => BusinessStatus::Published, 'published_at' => now()])->save();
+        $business->requirements()->create([
+            'funding_amount' => 2000000.00,
+            'accepted_investment_types' => ['Equity'],
+        ]);
+
+        $investor = $this->createInvestorUser(['industry' => 'Fintech', 'location' => 'Dhaka']);
+
+        $res = $this->actingAs($investor, 'web')
+            ->getJson('/api/me/recommendations/businesses?role=investor')
+            ->assertOk();
+
+        $data = $res->json('data');
+        $ids = array_column($data, 'id');
+        $this->assertContains($business->id, $ids, 'Admin-approved and published business must be discovered by investor');
+
+        $found = collect($data)->firstWhere('id', $business->id);
+        $this->assertSame('Green Energy Solutions Ltd', $found['name']);
+        $this->assertSame(2000000.00, (float) $found['funding_amount']);
+        $this->assertArrayHasKey('match', $found);
+        $this->assertArrayHasKey('overall_score', $found['match']);
     }
 
     public function test_business_opportunity_filtering_for_investors_and_professionals(): void

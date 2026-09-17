@@ -210,7 +210,7 @@ class ReadinessInputTest extends TestCase
         ])->assertOk();
         $date = $this->postJson("/api/me/businesses/{$this->businessId}/submit")->assertOk()->json('data.submitted_at');
         $this->saveAnswers($this->completeAnswers())->assertCreated();
-        $this->getJson("/api/me/businesses/{$this->businessId}")->assertJsonPath('data.status', 'submitted')
+        $this->getJson("/api/me/businesses/{$this->businessId}")->assertJsonPath('data.status', 'pending_approval')
             ->assertJsonPath('data.submitted_at', $date);
         $this->assertDatabaseCount('business_documents', 0);
     }

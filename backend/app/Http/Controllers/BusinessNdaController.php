@@ -137,7 +137,7 @@ class BusinessNdaController extends Controller
     private function enforceBusinessAccess(Business $business, User $user): void
     {
         $isOwner = $this->isBusinessOwner($business, $user);
-        if (! $isOwner && $business->status !== BusinessStatus::Submitted) {
+        if (! $isOwner && ! in_array($business->status, [BusinessStatus::Published, BusinessStatus::Submitted], true)) {
             throw (new ModelNotFoundException)->setModel(Business::class, [$business->id]);
         }
     }

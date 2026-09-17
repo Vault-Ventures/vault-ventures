@@ -6,6 +6,7 @@ use App\Enums\BusinessStatus;
 use App\Enums\DisclosureStage;
 use App\Enums\NdaStatus;
 use App\Enums\ParticipantRole;
+use App\Enums\VerificationTier;
 use App\Http\Resources\BusinessDocumentResource;
 use App\Http\Responses\ApiResponse;
 use App\Models\Business;
@@ -31,7 +32,7 @@ class BusinessDisclosureController extends Controller
         $user = $request->user();
 
         $isOwner = $businessModel->founderProfile && $businessModel->founderProfile->user_id === $user->id;
-        if (! $isOwner && $businessModel->status !== BusinessStatus::Submitted) {
+        if (! $isOwner && ! in_array($businessModel->status, [BusinessStatus::Published, BusinessStatus::Submitted], true)) {
             throw (new ModelNotFoundException)->setModel(Business::class, [$business]);
         }
 
@@ -58,7 +59,7 @@ class BusinessDisclosureController extends Controller
         $user = $request->user();
 
         $isOwner = $businessModel->founderProfile && $businessModel->founderProfile->user_id === $user->id;
-        if (! $isOwner && $businessModel->status !== BusinessStatus::Submitted) {
+        if (! $isOwner && ! in_array($businessModel->status, [BusinessStatus::Published, BusinessStatus::Submitted], true)) {
             throw (new ModelNotFoundException)->setModel(Business::class, [$business]);
         }
 
@@ -97,7 +98,7 @@ class BusinessDisclosureController extends Controller
 
         $isOwner = $businessModel->founderProfile !== null && $businessModel->founderProfile->user_id === $user->id;
         if (! $isOwner) {
-            if ($businessModel->status !== BusinessStatus::Submitted) {
+            if (! in_array($businessModel->status, [BusinessStatus::Published, BusinessStatus::Submitted], true)) {
                 throw (new ModelNotFoundException)->setModel(Business::class, [$business]);
             }
 
@@ -141,7 +142,7 @@ class BusinessDisclosureController extends Controller
         $user = $request->user();
 
         $isOwner = $businessModel->founderProfile !== null && $businessModel->founderProfile->user_id === $user->id;
-        if (! $isOwner && $businessModel->status !== BusinessStatus::Submitted) {
+        if (! $isOwner && ! in_array($businessModel->status, [BusinessStatus::Published, BusinessStatus::Submitted], true)) {
             throw (new ModelNotFoundException)->setModel(Business::class, [$business]);
         }
 
@@ -265,6 +266,12 @@ class BusinessDisclosureController extends Controller
             'industry' => $business->industry,
             'business_stage' => $business->business_stage,
             'location' => $business->location,
+            'logo_url' => $business->logo_url,
+            'cover_photo_url' => $business->cover_photo_url,
+            'status' => $business->status->value,
+            'founder_verification_tier' => $business->founderProfile?->user?->verification_tier instanceof VerificationTier
+                ? $business->founderProfile->user->verification_tier->value
+                : (int) ($business->founderProfile?->user?->verification_tier ?? 0),
         ];
 
         if ($stage->value >= DisclosureStage::Extended->value) {

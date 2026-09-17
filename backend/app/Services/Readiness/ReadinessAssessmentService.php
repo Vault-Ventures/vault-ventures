@@ -37,7 +37,7 @@ class ReadinessAssessmentService
     {
         $reasons = [];
         $old = $assessment->source_snapshot;
-        if ($current['business_status'] !== 'submitted') {
+        if (! in_array($current['business_status'], ['submitted', 'pending_approval', 'approved', 'published'], true)) {
             $reasons[] = 'BUSINESS_NOT_SUBMITTED';
         }
         if ($current['readiness_input_version_id'] !== $old['readiness_input_version_id']) {
@@ -61,7 +61,7 @@ class ReadinessAssessmentService
     {
         return DB::transaction(function () use ($businessId) {
             $business = Business::query()->lockForUpdate()->findOrFail($businessId);
-            if ($business->status !== BusinessStatus::Submitted) {
+            if ($business->status === BusinessStatus::Draft || $business->status === BusinessStatus::Rejected) {
                 throw ValidationException::withMessages(['business' => ['The business must be submitted before assessment.']]);
             }
             $requirements = $business->requirements()->lockForUpdate()->firstOrFail();
@@ -97,7 +97,7 @@ class ReadinessAssessmentService
     {
         try {
             $business = Business::find($businessId);
-            if ($business === null || $business->status !== BusinessStatus::Submitted || ! $business->readinessInputs()->exists()) {
+            if ($business === null || in_array($business->status, [BusinessStatus::Draft, BusinessStatus::Rejected], true) || ! $business->readinessInputs()->exists()) {
                 return;
             }
             $this->assess($businessId);

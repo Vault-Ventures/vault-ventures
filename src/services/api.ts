@@ -3,7 +3,16 @@
  * Communicates with the Laravel backend using Sanctum SPA session authentication.
  */
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+
+export function resolveMediaUrl(url?: string | null): string | null {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:') || url.startsWith('blob:')) {
+    return url;
+  }
+  const cleanPath = url.startsWith('/') ? url : `/${url}`;
+  return `${API_BASE_URL}${cleanPath}`;
+}
 
 export interface ApiErrorPayload {
   message: string;
@@ -672,7 +681,18 @@ export interface BusinessRecord {
   risk_level: string | null;
   expected_involvement: string | null;
   location: string | null;
+  logo_url?: string | null;
+  cover_photo_url?: string | null;
   status: string;
+  submitted_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  requirements?: {
+    funding_amount?: number | null;
+    skills?: string[];
+    accepted_investment_types?: string[];
+    [key: string]: any;
+  } | null;
   [key: string]: any;
 }
 export interface PaginatedItems<T> {
@@ -693,8 +713,46 @@ export interface ConnectionItem {
   deal: { id: number; stage: string } | null;
 }
 
+export interface BusinessRecord {
+  id: number;
+  name: string;
+  description: string | null;
+  industry: string | null;
+  business_stage: string | null;
+  risk_level: string | null;
+  expected_involvement: string | null;
+  location: string | null;
+  logo_url?: string | null;
+  cover_photo_url?: string | null;
+  status: 'draft' | 'pending_approval' | 'approved' | 'published' | 'rejected' | 'submitted' | string;
+  submitted_at: string | null;
+  approved_at?: string | null;
+  approved_by?: { id: number; name: string } | null;
+  rejected_at?: string | null;
+  rejected_by?: { id: number; name: string } | null;
+  rejection_reason?: string | null;
+  published_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  requirements?: {
+    funding_amount: number | null;
+    skills: string[];
+    accepted_investment_types?: string[];
+    micro_proposed_terms?: string | null;
+    large_standard_proposed_terms?: string | null;
+    required_experience_level?: string | null;
+    required_availability?: string | null;
+    compensation_preferences?: string[];
+  } | null;
+  founder?: {
+    id: number;
+    name: string;
+    email: string;
+  } | null;
+}
+
 export const api = {
-  get: <T = unknown>(url: string, options?: RequestOptions) => apiClient<T>(url, { ...options, method: 'GET' }),
+  get: <T = unknown>(url: string, params?: Record<string, any>) => apiClient<T>(url, { params }),
   post: <T = unknown>(url: string, body?: unknown, options?: RequestOptions) => apiClient<T>(url, { ...options, method: 'POST', body: body as any }),
   put: <T = unknown>(url: string, body?: unknown, options?: RequestOptions) => apiClient<T>(url, { ...options, method: 'PUT', body: body as any }),
   patch: <T = unknown>(url: string, body?: unknown, options?: RequestOptions) => apiClient<T>(url, { ...options, method: 'PATCH', body: body as any }),
@@ -776,17 +834,17 @@ export const api = {
       approve: (id: number | string, notes?: string) =>
         apiClient<AdminVerificationRequestData>(`/api/admin/verification-requests/${id}/approve`, {
           method: 'POST',
-          body: { admin_notes: notes },
+          body: { admin_notes: notes, notes },
         }),
-      reject: (id: number | string, reason: string, notes?: string) =>
+      reject: (id: number | string, reason?: string, notes?: string) =>
         apiClient<AdminVerificationRequestData>(`/api/admin/verification-requests/${id}/reject`, {
           method: 'POST',
-          body: { rejection_reason: reason, admin_notes: notes },
+          body: { rejection_reason: reason, reason, admin_notes: notes, notes },
         }),
       requestInformation: (id: number | string, notes: string) =>
         apiClient<AdminVerificationRequestData>(`/api/admin/verification-requests/${id}/request-information`, {
           method: 'POST',
-          body: { admin_notes: notes },
+          body: { admin_notes: notes, notes },
         }),
     },
     reputation: {
@@ -804,6 +862,20 @@ export const api = {
         apiClient<any>(`/api/admin/financial-reports/${reportId}/review`, { method: 'POST', body: payload }),
       resolveDiscrepancy: (discrepancyId: number | string, payload: { status: 'resolved' | 'disputed' | 'under_review'; notes?: string }) =>
         apiClient<any>(`/api/admin/financial-discrepancies/${discrepancyId}/resolve`, { method: 'POST', body: payload }),
+      getAuditLogs: (reportId: number | string) =>
+        apiClient<{ financial_report_id: number; audit_logs: any[] }>(`/api/admin/financial-reports/${reportId}/audit-logs`),
+      downloadEvidenceUrl: (reportId: number | string, evidenceId: number | string) =>
+        `${API_BASE_URL}/api/admin/financial-reports/${reportId}/evidence/${evidenceId}/download`,
+    },
+    businesses: {
+      list: (params?: { status?: string }) =>
+        apiClient<{ businesses: BusinessRecord[] }>(`/api/admin/businesses`, { params }),
+      get: (id: number | string) =>
+        apiClient<BusinessRecord>(`/api/admin/businesses/${id}`),
+      approve: (id: number | string) =>
+        apiClient<BusinessRecord>(`/api/admin/businesses/${id}/approve`, { method: 'POST' }),
+      reject: (id: number | string, reason: string) =>
+        apiClient<BusinessRecord>(`/api/admin/businesses/${id}/reject`, { method: 'POST', body: { rejection_reason: reason } }),
     },
   },
 
@@ -829,6 +901,26 @@ export const api = {
       return { ...result, pagination: { ...result.pagination, last_page: result.pagination.last_page ?? Math.max(1, Math.ceil(result.pagination.total / result.pagination.per_page)) } };
     },
     updateRecord: (id: number | string, payload: Partial<BusinessRecord>) => apiClient<BusinessRecord>(`/api/me/businesses/${id}`, { method: 'PATCH', body: payload }),
+    submit: (businessId: number | string) =>
+      apiClient<BusinessRecord>(`/api/me/businesses/${businessId}/submit`, { method: 'POST' }),
+    publish: (businessId: number | string) =>
+      apiClient<BusinessRecord>(`/api/me/businesses/${businessId}/publish`, { method: 'POST' }),
+    uploadLogo: (businessId: number | string, file: File) => {
+      const formData = new FormData();
+      formData.append('logo', file);
+      return apiClient<{ logo_url: string; business: BusinessRecord }>(`/api/me/businesses/${businessId}/logo`, {
+        method: 'POST',
+        body: formData,
+      });
+    },
+    uploadCoverPhoto: (businessId: number | string, file: File) => {
+      const formData = new FormData();
+      formData.append('cover_photo', file);
+      return apiClient<{ cover_photo_url: string; business: BusinessRecord }>(`/api/me/businesses/${businessId}/cover-photo`, {
+        method: 'POST',
+        body: formData,
+      });
+    },
     list: () => apiClient<any[]>(`/api/me/businesses`),
     get: (businessId: number | string) =>
       apiClient<any>(`/api/me/businesses/${businessId}`),

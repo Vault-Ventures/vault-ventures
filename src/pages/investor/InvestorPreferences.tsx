@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { api, InvestorPreferencesData, ApiError } from '../../services/api';
+import { useToast } from '../../components/ui/Feedback';
 
 // --- Options ------------------------------------------------------------------
 
@@ -108,11 +109,24 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
 
 export default function InvestorPreferences() {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [prefs, setPrefs] = useState<Prefs>(EMPTY_PREFS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const cleanNum = (val: string): number | null => {
+    const cleaned = val.replace(/,/g, '').trim();
+    if (!cleaned) return null;
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? null : num;
+  };
+
+  const minVal = cleanNum(prefs.rangeMin);
+  const maxVal = cleanNum(prefs.rangeMax);
+  const availVal = cleanNum(prefs.availableInvestment);
+  const isRangeInvalid = minVal !== null && maxVal !== null && minVal > maxVal;
 
   useEffect(() => {
     let mounted = true;
@@ -170,19 +184,9 @@ export default function InvestorPreferences() {
       setSaving(true);
       setError(null);
 
-      const cleanNum = (val: string): number | null => {
-        const cleaned = val.replace(/,/g, '').trim();
-        if (!cleaned) return null;
-        const num = parseFloat(cleaned);
-        return isNaN(num) ? null : num;
-      };
-
-      const minVal = cleanNum(prefs.rangeMin);
-      const maxVal = cleanNum(prefs.rangeMax);
-      const availVal = cleanNum(prefs.availableInvestment);
-
-      if (minVal !== null && maxVal !== null && minVal > maxVal) {
+      if (isRangeInvalid) {
         setError('Minimum investment cannot exceed maximum investment.');
+        toast('danger', 'Validation Error', 'Minimum investment cannot exceed maximum investment.');
         setSaving(false);
         return;
       }
@@ -222,13 +226,17 @@ export default function InvestorPreferences() {
       }
 
       setSaved(true);
+      toast('success', 'Preferences Saved', 'Your investment preferences have been updated.');
       setTimeout(() => setSaved(false), 4000);
     } catch (err: any) {
       if (err instanceof ApiError && err.details) {
         const firstErr = Object.values(err.details).flat()[0];
         setError(firstErr || err.message);
+        toast('danger', 'Save Error', firstErr || err.message);
       } else {
-        setError(err.message || 'Failed to save preferences.');
+        const msg = err.message || 'Failed to save preferences.';
+        setError(msg);
+        toast('danger', 'Save Error', msg);
       }
     } finally {
       setSaving(false);
@@ -374,7 +382,9 @@ export default function InvestorPreferences() {
                   value={prefs.rangeMin}
                   onChange={e => setPrefs(p => ({ ...p, rangeMin: e.target.value }))}
                   placeholder="500000"
-                  className="w-full pl-8 pr-3 py-2.5 rounded-[8px] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] text-[13px] text-[color:var(--vv-text)] placeholder-[#35446A] outline-none transition-colors font-mono"
+                  className={`w-full pl-8 pr-3 py-2.5 rounded-[8px] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border text-[13px] text-[color:var(--vv-text)] placeholder-[#35446A] outline-none transition-colors font-mono ${
+                    isRangeInvalid ? 'border-rose-500/70 focus:border-rose-500' : 'border-[color:var(--vv-border-strong)]'
+                  }`}
                 />
               </div>
             </div>
@@ -389,11 +399,25 @@ export default function InvestorPreferences() {
                   value={prefs.rangeMax}
                   onChange={e => setPrefs(p => ({ ...p, rangeMax: e.target.value }))}
                   placeholder="5000000"
-                  className="w-full pl-8 pr-3 py-2.5 rounded-[8px] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] text-[13px] text-[color:var(--vv-text)] placeholder-[#35446A] outline-none transition-colors font-mono"
+                  className={`w-full pl-8 pr-3 py-2.5 rounded-[8px] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border text-[13px] text-[color:var(--vv-text)] placeholder-[#35446A] outline-none transition-colors font-mono ${
+                    isRangeInvalid ? 'border-rose-500/70 focus:border-rose-500' : 'border-[color:var(--vv-border-strong)]'
+                  }`}
                 />
               </div>
             </div>
           </div>
+          {isRangeInvalid && (
+            <div className="mt-3 flex items-center gap-2.5 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[12px] leading-snug">
+              <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="shrink-0">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <span>
+                <strong>Invalid Investment Range:</strong> Minimum investment (৳{minVal?.toLocaleString()}) cannot exceed maximum investment (৳{maxVal?.toLocaleString()}).
+              </span>
+            </div>
+          )}
           <div className="mt-4">
             <label className="block text-[12px] text-[color:var(--vv-text-tertiary)] mb-1.5">
               Total Available Investment Capital (৳)

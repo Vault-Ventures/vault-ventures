@@ -164,10 +164,9 @@ class CandidateRecommendationService
         $investorPreference = $user->investorProfile?->preferences;
         $excludedFounderProfileId = $user->founderProfile?->id;
 
-        $query = Business::where('status', BusinessStatus::Submitted->value)
-            ->whereHas('founderProfile.user', fn ($q) => $q->where('verification_tier', '>=', 1))
+        $query = Business::whereIn('status', [BusinessStatus::Published->value, BusinessStatus::Submitted->value])
             ->whereHas('requirements', fn ($q) => $q->whereNotNull('funding_amount')->where('funding_amount', '>', 0))
-            ->with(['requirements.skills']);
+            ->with(['requirements.skills', 'founderProfile.user']);
 
         if ($excludedFounderProfileId) {
             $query->where('founder_profile_id', '!=', $excludedFounderProfileId);
@@ -194,6 +193,10 @@ class CandidateRecommendationService
                 'location' => $business->location,
                 'funding_amount' => $business->requirements?->funding_amount,
                 'accepted_investment_types' => $business->requirements?->accepted_investment_types ?? [],
+                'skills' => $business->requirements?->skills?->pluck('name')->values()->all() ?? [],
+                'founder_verification_tier' => $business->founderProfile?->user?->verification_tier instanceof VerificationTier
+                    ? $business->founderProfile->user->verification_tier->value
+                    : (int) ($business->founderProfile?->user?->verification_tier ?? 0),
                 'match' => $matchResult->toArray(),
                 'overall_score' => $matchResult->overallScore,
             ];
@@ -218,7 +221,7 @@ class CandidateRecommendationService
     /**
      * Recommend top 10 published businesses seeking professionals for a professional.
      *
-     * Only published businesses seeking professional roles/skills with Tier 1+ founders are recommended.
+     * Only published businesses seeking professional roles/skills are recommended.
      *
      * @return array<int, array<string, mixed>>
      */
@@ -229,8 +232,7 @@ class CandidateRecommendationService
         $professionalProfile = $user->professionalProfile;
         $excludedFounderProfileId = $user->founderProfile?->id;
 
-        $query = Business::where('status', BusinessStatus::Submitted->value)
-            ->whereHas('founderProfile.user', fn ($q) => $q->where('verification_tier', '>=', 1))
+        $query = Business::whereIn('status', [BusinessStatus::Published->value, BusinessStatus::Submitted->value])
             ->whereHas('requirements', function ($q) {
                 $q->where(function ($sub) {
                     $sub->whereHas('skills')
@@ -238,7 +240,7 @@ class CandidateRecommendationService
                         ->orWhereNotNull('required_availability');
                 });
             })
-            ->with(['requirements.skills']);
+            ->with(['requirements.skills', 'founderProfile.user']);
 
         if ($excludedFounderProfileId) {
             $query->where('founder_profile_id', '!=', $excludedFounderProfileId);
@@ -267,7 +269,10 @@ class CandidateRecommendationService
                 'required_experience_level' => $business->requirements?->required_experience_level,
                 'required_availability' => $business->requirements?->required_availability,
                 'compensation_preferences' => $business->requirements?->compensation_preferences ?? [],
-                'skills' => $business->requirements?->skills->pluck('name')->values()->all() ?? [],
+                'skills' => $business->requirements?->skills?->pluck('name')->values()->all() ?? [],
+                'founder_verification_tier' => $business->founderProfile?->user?->verification_tier instanceof VerificationTier
+                    ? $business->founderProfile->user->verification_tier->value
+                    : (int) ($business->founderProfile?->user?->verification_tier ?? 0),
                 'match' => $matchResult->toArray(),
                 'overall_score' => $matchResult->overallScore,
             ];

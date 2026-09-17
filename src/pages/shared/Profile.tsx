@@ -4,9 +4,10 @@ import { Badge, VerificationBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { useRole } from '../../components/layout/AppShell';
 import { useAuth, NormalRole } from '../../context/AuthContext';
-import { api, ExperienceItem, PortfolioItem, UserProfileResponseData } from '../../services/api';
+import { api, ExperienceItem, PortfolioItem, UserProfileResponseData, resolveMediaUrl } from '../../services/api';
 import { ScoreChip } from '../../components/ui/ScoreComponents';
 import { ManageRolesModal } from '../../components/layout/ManageRolesModal';
+import { useToast } from '../../components/ui/Feedback';
 
 const ROLE_COLORS: Record<NormalRole, string> = {
   founder: '#C67A4E',
@@ -168,18 +169,20 @@ function CoverBanner({
   onEdit: () => void;
   isUploading?: boolean;
 }) {
+  const resolvedImage = resolveMediaUrl(image);
+
   return (
     <div
       className="relative overflow-hidden"
       style={{
         height: 148,
-        backgroundImage: image ? `url(${image})` : undefined,
+        backgroundImage: resolvedImage ? `url("${resolvedImage}")` : undefined,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }}
     >
-      {!image && <div className="absolute inset-0 bg-gradient-to-br from-[#212324] via-[#1A1C1D] to-[#0B0C0E]" />}
-      {!image && (
+      {!resolvedImage && <div className="absolute inset-0 bg-gradient-to-br from-[#212324] via-[#1A1C1D] to-[#0B0C0E]" />}
+      {!resolvedImage && (
         <svg className="absolute inset-0 w-full h-full" viewBox="0 0 960 148" preserveAspectRatio="xMidYMid slice" aria-hidden>
           <defs>
             <pattern id="pg" width="48" height="48" patternUnits="userSpaceOnUse">
@@ -206,7 +209,7 @@ function CoverBanner({
           <rect x="0" y="90" width="960" height="58" fill="url(#bottomFade)" />
         </svg>
       )}
-      {image && <div className="absolute inset-0 bg-black/25" aria-hidden="true" />}
+      {resolvedImage && <div className="absolute inset-0 bg-black/25" aria-hidden="true" />}
       {editable && (
         <button
           type="button"
@@ -243,14 +246,28 @@ function Avatar({
   onEdit: () => void;
   isUploading?: boolean;
 }) {
+  const [imgError, setImgError] = useState(false);
+  const [prevImage, setPrevImage] = useState(image);
+  const resolvedImage = resolveMediaUrl(image);
+
+  if (image !== prevImage) {
+    setPrevImage(image);
+    setImgError(false);
+  }
+
   return (
     <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
       <div
         style={{ width: size, height: size, borderWidth: 4, borderColor: '#121A2B' }}
         className="rounded-full bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border-solid flex items-center justify-center text-[#C67A4E] font-semibold ring-1 ring-[#35446A] overflow-hidden"
       >
-        {image ? (
-          <img src={image} alt="Profile" className="h-full w-full object-cover" />
+        {resolvedImage && !imgError ? (
+          <img
+            src={resolvedImage}
+            alt="Profile"
+            className="h-full w-full object-cover"
+            onError={() => setImgError(true)}
+          />
         ) : (
           <span style={{ fontSize: size * 0.33 }}>{initials}</span>
         )}
@@ -439,6 +456,7 @@ function FounderSection({
 function InvestorSection({
   investorData,
   goEdit,
+  onManagePreferences,
 }: {
   investorData?: {
     thesis?: string;
@@ -452,6 +470,7 @@ function InvestorSection({
     location?: string;
   } | null;
   goEdit: () => void;
+  onManagePreferences?: () => void;
 }) {
   const thesis = investorData?.thesis || 'Backing high-growth ventures and ambitious founders.';
   const type = investorData?.type || 'Angel Investor';
@@ -464,7 +483,25 @@ function InvestorSection({
 
   return (
     <div className="space-y-3">
-      <SectionCard title="Investment Thesis" action={<button onClick={goEdit} className="text-[11.5px] text-[#C67A4E] hover:underline">Edit</button>}>
+      <SectionCard
+        title="Investment Thesis"
+        action={
+          <div className="flex items-center gap-3">
+            {onManagePreferences && (
+              <button
+                type="button"
+                onClick={onManagePreferences}
+                className="text-[11.5px] text-[#C67A4E] hover:underline font-medium"
+              >
+                Manage Investment Preferences →
+              </button>
+            )}
+            <button type="button" onClick={goEdit} className="text-[11.5px] text-[color:var(--vv-text-tertiary)] hover:text-[#C67A4E] transition-colors">
+              Edit
+            </button>
+          </div>
+        }
+      >
         <p className="text-[12.5px] text-[color:var(--vv-text-secondary)] leading-relaxed mb-3">{thesis}</p>
         <InfoRow label="Investor type" value={type} />
         <InfoRow label="Investment range" value={<span className="font-mono tabular-nums text-[color:var(--vv-text)]">{rangeDisplay}</span>} />
@@ -477,6 +514,21 @@ function InvestorSection({
       <SectionCard title="Preferred Stages">
         <TagList items={stages} />
       </SectionCard>
+      {onManagePreferences && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-[10px] bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)] border border-[color:var(--vv-border)]">
+          <div>
+            <p className="text-[12.5px] font-medium text-[color:var(--vv-text)]">Full Investment Preferences</p>
+            <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">Configure risk appetite, available capital, target sectors, and matching criteria.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onManagePreferences}
+            className="px-3 py-1.5 rounded-md text-[12px] font-medium bg-[rgba(198,122,78,0.12)] border border-[rgba(198,122,78,0.25)] text-[#C67A4E] hover:bg-[rgba(198,122,78,0.2)] transition-colors shrink-0 self-start sm:self-auto"
+          >
+            Manage Investment Preferences →
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -655,6 +707,7 @@ function EditProfileModal({
   profileData: UserProfileResponseData | null;
   onSaved: () => void;
 }) {
+  const navigate = useNavigate();
   const { refreshUser } = useAuth();
   const [active, setActive] = useState<ModalSection>(initialSection);
   const [isSaving, setIsSaving] = useState(false);
@@ -721,6 +774,14 @@ function EditProfileModal({
   const handleSave = async () => {
     setIsSaving(true);
     setError(null);
+
+    const minNum = parseFloat(minInvestment);
+    const maxNum = parseFloat(maxInvestment);
+    if (!isNaN(minNum) && !isNaN(maxNum) && minNum > maxNum) {
+      setError('Minimum investment cannot exceed maximum investment.');
+      setIsSaving(false);
+      return;
+    }
 
     try {
       // 1. Update Core Profile
@@ -839,15 +900,43 @@ function EditProfileModal({
 
             {active === 'Investor Information' && (
               <div className="space-y-4">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#C9A24B] mb-3">Investor Information</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-[#C9A24B]">Investor Information</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      navigate('/app/investor/preferences');
+                    }}
+                    className="text-[11.5px] text-[#C67A4E] hover:underline font-medium"
+                  >
+                    Manage Investment Preferences →
+                  </button>
+                </div>
                 <Textarea label="Investment Thesis" placeholder="Your thesis and mandate..." rows={3} value={investorThesis} onChange={(e) => setInvestorThesis(e.target.value)} />
                 <div className="grid grid-cols-2 gap-3">
                   <Input label="Min Investment (BDT)" type="number" value={minInvestment} onChange={(e) => setMinInvestment(e.target.value)} />
                   <Input label="Max Investment (BDT)" type="number" value={maxInvestment} onChange={(e) => setMaxInvestment(e.target.value)} />
                 </div>
+                {parseFloat(minInvestment) > 0 && parseFloat(maxInvestment) > 0 && parseFloat(minInvestment) > parseFloat(maxInvestment) && (
+                  <p className="text-[11.5px] text-[#F04438] -mt-2 font-medium">Minimum investment cannot exceed maximum investment.</p>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <Select label="Target Industry" options={['FinTech', 'HealthTech', 'AI & Data', 'SaaS', 'CleanTech', 'E-commerce']} value={investorIndustry} onChange={(e) => setInvestorIndustry(e.target.value)} />
                   <Select label="Preferred Stage" options={['Idea / Pre-Seed', 'Seed', 'Series A', 'Series B+', 'Growth']} value={investorStage} onChange={(e) => setInvestorStage(e.target.value)} />
+                </div>
+                <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-[color:var(--vv-border)]">
+                  <span className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">Configure risk appetite, available capital & target locations in full preferences.</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      navigate('/app/investor/preferences');
+                    }}
+                    className="text-[11.5px] text-[#C67A4E] hover:underline font-medium self-start sm:self-auto"
+                  >
+                    Manage Investment Preferences →
+                  </button>
                 </div>
               </div>
             )}
@@ -1052,6 +1141,7 @@ const IconCal = () => <svg width="11" height="11" fill="none" stroke="currentCol
 export default function Profile() {
   const { role } = useRole();
   const { session, isAdmin, user, refreshUser } = useAuth();
+  const { toast } = useToast();
   const [profileData, setProfileData] = useState<UserProfileResponseData | null>(null);
   const [section, setSection] = useState<Section>('Overview');
   const [manageRoles, setManageRoles] = useState(false);
@@ -1137,11 +1227,15 @@ export default function Profile() {
     if (!file) return;
 
     if (!file.type.match(/^image\/(jpeg|png|webp|jpg)$/i)) {
-      setPhotoError('Invalid image format. Supported formats: JPEG, PNG, WEBP.');
+      const msg = 'Invalid image format. Supported formats: JPEG, PNG, WEBP.';
+      setPhotoError(msg);
+      toast('danger', 'Photo Upload Error', msg);
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      setPhotoError('File exceeds maximum allowable size of 5 MB.');
+      const msg = 'File exceeds maximum allowable size of 5 MB.';
+      setPhotoError(msg);
+      toast('danger', 'Photo Upload Error', msg);
       return;
     }
 
@@ -1162,8 +1256,11 @@ export default function Profile() {
       }
       await refreshUser();
       loadProfile();
+      toast('success', 'Photo Updated', uploadKind === 'avatar' ? 'Profile picture updated successfully.' : 'Cover photo updated successfully.');
     } catch (err: any) {
-      setPhotoError(err?.response?.data?.message || err?.message || 'Failed to upload photo.');
+      const msg = err?.response?.data?.message || err?.message || 'Failed to upload photo.';
+      setPhotoError(msg);
+      toast('danger', 'Photo Upload Error', msg);
     } finally {
       setIsUploadingPhoto(false);
       if (photoInputRef.current) photoInputRef.current.value = '';
@@ -1330,6 +1427,7 @@ export default function Profile() {
                 <InvestorSection
                   investorData={profileData?.profiles?.investor?.preferences || null}
                   goEdit={() => openEdit('Investor Information')}
+                  onManagePreferences={() => navigate('/app/investor/preferences')}
                 />
               );
             }
@@ -1469,6 +1567,21 @@ export default function Profile() {
 
         {section === 'Preferences' && (
           <div className="space-y-4 max-w-2xl">
+            {(displayRoles.includes('investor') || role === 'investor') && (
+              <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[10px] p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-semibold text-[#C9A24B] uppercase tracking-widest mb-1">Investor Mandate & Preferences</p>
+                  <p className="text-[12.5px] text-[color:var(--vv-text-secondary)]">Manage your ticket sizes, risk tolerance, preferred stages, and match criteria.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate('/app/investor/preferences')}
+                  className="px-3 py-1.5 rounded-md text-[12px] font-medium bg-[rgba(198,122,78,0.12)] border border-[rgba(198,122,78,0.25)] text-[#C67A4E] hover:bg-[rgba(198,122,78,0.2)] transition-colors shrink-0 self-start sm:self-auto"
+                >
+                  Manage Investment Preferences →
+                </button>
+              </div>
+            )}
             <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[10px] p-5">
               <p className="text-[10px] font-semibold text-[color:var(--vv-text-tertiary)] uppercase tracking-widest mb-4">Visibility & Contact</p>
               <div className="space-y-3.5">

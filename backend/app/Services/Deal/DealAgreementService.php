@@ -2,9 +2,11 @@
 
 namespace App\Services\Deal;
 
+use App\Enums\DealStage;
 use App\Enums\ParticipantRole;
 use App\Models\Deal;
 use App\Models\DealAgreement;
+use App\Models\DealStateHistory;
 use App\Models\DealTermProposal;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -157,7 +159,7 @@ final class DealAgreementService
         $isFounder = $deal->founder_user_id === $user->id;
         $isCounterparty = $deal->counterparty_user_id === $user->id;
 
-        return DB::transaction(function () use ($agreement, $user, $isFounder, $isCounterparty) {
+        return DB::transaction(function () use ($deal, $agreement, $user, $isFounder, $isCounterparty) {
             $locked = DealAgreement::where('id', $agreement->id)->lockForUpdate()->firstOrFail();
 
             if ($isFounder) {
@@ -173,6 +175,20 @@ final class DealAgreementService
             if ($locked->founder_signed_at !== null && $locked->counterparty_signed_at !== null) {
                 $locked->status = 'accepted';
                 $locked->finalized_at = now();
+
+                $lockedDeal = Deal::where('id', $deal->id)->lockForUpdate()->first();
+                if ($lockedDeal && $lockedDeal->stage === DealStage::Negotiation) {
+                    $lockedDeal->stage = DealStage::Agreement;
+                    $lockedDeal->save();
+
+                    DealStateHistory::create([
+                        'deal_id' => $lockedDeal->id,
+                        'previous_state' => DealStage::Negotiation,
+                        'new_state' => DealStage::Agreement,
+                        'changed_by_user_id' => $user->id,
+                        'changed_at' => now(),
+                    ]);
+                }
             }
 
             $locked->save();

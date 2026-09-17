@@ -52,7 +52,7 @@ class BusinessSubmissionTest extends TestCase
         $this->getJson('/api/me/businesses?per_page=101')->assertUnprocessable();
         $this->getJson('/api/me/businesses?status=draft')->assertUnprocessable();
         $this->getJson("/api/businesses/$id")->assertNotFound();
-        $this->postJson("/api/me/businesses/$id/publish")->assertNotFound();
+        $this->postJson("/api/me/businesses/$id/publish")->assertUnprocessable();
         $this->deleteJson("/api/me/businesses/$id")->assertStatus(405);
     }
 
@@ -66,12 +66,12 @@ class BusinessSubmissionTest extends TestCase
         $this->postJson("/api/me/businesses/$id/submit")->assertUnprocessable()
             ->assertJsonValidationErrors(['business_stage', 'location'], 'error.details');
         $this->patchJson("/api/me/businesses/$id", ['business_stage' => 'Idea', 'location' => 'Dhaka'])->assertOk();
-        $first = $this->postJson("/api/me/businesses/$id/submit")->assertOk()->assertJsonPath('data.status', 'submitted')
+        $first = $this->postJson("/api/me/businesses/$id/submit")->assertOk()->assertJsonPath('data.status', 'pending_approval')
             ->assertJsonPath('data.requirements.funding_amount', null)->json('data.submitted_at');
         $this->assertNotNull($first);
         $this->travel(1)->hour();
         $this->patchJson("/api/me/businesses/$id", ['description' => null, 'name' => 'Changed'])->assertOk()
-            ->assertJsonPath('data.status', 'submitted')->assertJsonPath('data.industry', 'Technology');
+            ->assertJsonPath('data.status', 'pending_approval')->assertJsonPath('data.industry', 'Technology');
         $this->postJson("/api/me/businesses/$id/submit")->assertOk()->assertJsonPath('data.submitted_at', $first);
     }
 

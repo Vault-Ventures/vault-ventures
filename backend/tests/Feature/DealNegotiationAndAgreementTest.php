@@ -451,6 +451,7 @@ class DealNegotiationAndAgreementTest extends TestCase
         $this->assertNotNull($sign2->json('data.founder_signed_at'));
         $this->assertNotNull($sign2->json('data.counterparty_signed_at'));
         $this->assertNotNull($sign2->json('data.finalized_at'));
+        $this->assertSame(DealStage::Agreement, $deal->fresh()->stage);
 
         // 3. Agreement cannot be regenerated once finalized (immutability)
         $regenResp = $this->actingAs($founder)->postJson("/api/me/deals/{$deal->id}/agreement/generate");
