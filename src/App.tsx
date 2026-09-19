@@ -3,8 +3,9 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'rea
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth, NormalRole } from './context/AuthContext';
 import { canAccess, type Workspace } from './utils/permissions';
-import { AppShell } from './components/layout/AppShell';
 import { ToastProvider } from './components/ui/Feedback';
+import { PhotoViewerProvider } from './context/PhotoViewerContext';
+import AppShell from './components/layout/AppShell';
 
 const Landing = lazy(() => import('./pages/Landing'));
 const Login = lazy(() => import('./pages/auth/Login'));
@@ -16,7 +17,9 @@ const ResetPassword = lazy(() => import('./pages/auth/ResetPassword'));
 const AdminLogin = lazy(() => import('./pages/auth/AdminLogin'));
 const VerifyEmail = lazy(() => import('./pages/auth/VerifyEmail'));
 const FounderDashboard = lazy(() => import('./pages/founder/Dashboard'));
+const FounderApplications = lazy(() => import('./pages/founder/Applications'));
 const InvestorDashboard = lazy(() => import('./pages/investor/Dashboard'));
+const DealHub = lazy(() => import('./pages/shared/DealHub'));
 const DealRoom = lazy(() => import('./pages/shared/DealRoom'));
 const Profile = lazy(() => import('./pages/shared/Profile'));
 const NDAFlow = lazy(() => import('./pages/shared/NDAFlow'));
@@ -115,6 +118,7 @@ export default function App() {
     <BrowserRouter>
     <AuthProvider>
       <ToastProvider>
+      <PhotoViewerProvider>
       <Suspense fallback={<PageLoadingFallback />}>
       <Routes>
         {/* Public */}
@@ -139,12 +143,16 @@ export default function App() {
           <Route element={<NormalUserGuard />}>
           {/* Shared */}
           <Route path="profile" element={<Profile />} />
+          <Route path="profile/:userId" element={<Profile />} />
+          <Route path="users/:userId/profile" element={<Profile />} />
+          <Route path="users/:userId" element={<Profile />} />
           <Route path="businesses/:id" element={<BusinessProfile />} />
 
           {/* Shared */}
+          <Route path="deals" element={<DealHub />} />
           <Route path="deals/:dealId" element={<DealRoom />} />
           <Route path="deal-room/:dealId" element={<DealRoom />} />
-          <Route path="deal-room" element={<DealRoom />} />
+          <Route path="deal-room" element={<DealHub />} />
           <Route path="nda/:id" element={<NDAFlow />} />
           <Route path="nda" element={<NDAFlow />} />
           <Route path="negotiation/:id" element={<NegotiationPanel />} />
@@ -161,6 +169,7 @@ export default function App() {
             <Route path="founder/businesses" element={<MyBusinesses />} />
             <Route path="founder/businesses/new" element={<CreateBusiness />} />
             <Route path="founder/businesses/:id" element={<BusinessProfile />} />
+            <Route path="founder/applications" element={<FounderApplications />} />
             <Route path="founder/discover-investors" element={<DiscoverInvestors />} />
             <Route path="founder/discover-professionals" element={<DiscoverProfessionals />} />
             <Route path="founder/connections" element={<Connections />} />
@@ -222,6 +231,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </Suspense>
+      </PhotoViewerProvider>
       </ToastProvider>
     </AuthProvider>
     </BrowserRouter>

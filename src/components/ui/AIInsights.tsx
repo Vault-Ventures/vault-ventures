@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 // -- AIBadge -------------------------------------------------------------------
 
@@ -39,14 +40,21 @@ export function MatchScoreRing({ score, size = 'md' }: { score: number; size?: '
 
 // -- MatchScoreChip ------------------------------------------------------------
 
-export function MatchScoreChip({ score, contextLabel, onClick }: { score: number; contextLabel?: string; onClick?: () => void }) {
+export function MatchScoreChip({ score, contextLabel, onClick }: { score: number; contextLabel?: string; onClick?: (e?: React.MouseEvent) => void }) {
   const color = score >= 75 ? 'var(--color-trust-gold)' : score >= 50 ? 'var(--color-info)' : 'var(--color-text-tertiary)';
   const bg = score >= 75 ? 'rgba(198,122,78,0.10)' : score >= 50 ? 'rgba(201,162,75,0.10)' : 'rgba(94,109,143,0.12)';
   const border = score >= 75 ? 'rgba(198,122,78,0.28)' : score >= 50 ? 'rgba(201,162,75,0.28)' : 'rgba(94,109,143,0.28)';
   const Tag = onClick ? 'button' : 'span';
   return (
     <Tag
-      {...(onClick ? { onClick, type: 'button' as const } : {})}
+      {...(onClick ? {
+        onClick: (e: React.MouseEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onClick(e);
+        },
+        type: 'button' as const
+      } : {})}
       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10.5px] font-semibold transition-opacity ${onClick ? 'hover:opacity-80 cursor-pointer' : ''}`}
       style={{ background: bg, border: `1px solid ${border}`, color }}>
       <span>{score}% match</span>
@@ -255,10 +263,12 @@ function GapFactorRow({ factor, description, severity }: GapFactor) {
 export function MatchExplanationDrawer({
   data,
   cta,
+  secondaryCta,
   onClose,
 }: {
   data: MatchDetail;
   cta?: { label: string; href?: string; action?: () => void };
+  secondaryCta?: { label: string; href?: string; action?: () => void };
   onClose: () => void;
 }) {
   const { score } = data;
@@ -374,6 +384,21 @@ export function MatchExplanationDrawer({
                 onClick={() => { cta.action?.(); onClose(); }}
                 className="w-full h-9 px-4 rounded-md text-[13px] font-semibold text-[color:var(--vv-on-copper)] bg-[#C67A4E] hover:bg-[#d4895f] transition-colors">
                 {cta.label}
+              </button>
+            )
+          )}
+          {secondaryCta && (
+            secondaryCta.href ? (
+              <Link to={secondaryCta.href} onClick={onClose}>
+                <button className="w-full h-9 px-4 rounded-md text-[12.5px] font-medium text-[color:var(--vv-text)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] hover:border-[#C67A4E] transition-colors">
+                  {secondaryCta.label}
+                </button>
+              </Link>
+            ) : (
+              <button
+                onClick={() => { secondaryCta.action?.(); onClose(); }}
+                className="w-full h-9 px-4 rounded-md text-[12.5px] font-medium text-[color:var(--vv-text)] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] hover:border-[#C67A4E] transition-colors">
+                {secondaryCta.label}
               </button>
             )
           )}

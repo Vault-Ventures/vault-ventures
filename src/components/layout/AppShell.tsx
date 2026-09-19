@@ -13,6 +13,7 @@ import { VerificationBadge } from '../ui/Badge';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../hooks/useNotifications';
 import { resolveMediaUrl } from '../../services/api';
+import { usePhotoViewer } from '../../context/PhotoViewerContext';
 
 type NormalRole = 'founder' | 'investor' | 'professional';
 type Role = NormalRole | 'admin';
@@ -28,6 +29,7 @@ const navItems: Record<Role, NavItem[]> = {
   founder: [
     { label: 'Dashboard', to: '/app/founder/dashboard', icon: IconDashboard, shortLabel: 'Home' },
     { label: 'My Businesses', to: '/app/founder/businesses', icon: IconBriefcase, shortLabel: 'Businesses' },
+    { label: 'Applications', to: '/app/founder/applications', icon: IconClipboard, shortLabel: 'Applications' },
     { label: 'Discover Investors', to: '/app/founder/discover-investors', icon: IconCompass, shortLabel: 'Discover' },
     { label: 'Discover Professionals', to: '/app/founder/discover-professionals', icon: IconUsers },
     { label: 'Connections', to: '/app/founder/connections', icon: IconLink },
@@ -117,16 +119,43 @@ function AccountMenu({ role, onManageRoles, onClose, onLogout }: {
     return () => document.removeEventListener('mousedown', handler);
   }, [onClose]);
 
+  const { openPhoto } = usePhotoViewer();
   const displayName = user?.name || (isAdmin ? 'Admin Console' : 'User');
   const displayEmail = user?.email || (isAdmin ? 'admin@vault.io' : '');
   const verificationTier = user?.verification_tier ?? 0;
+  const resolvedAvatar = user?.avatar_url ? resolveMediaUrl(user.avatar_url) : null;
 
   return (
     <div ref={ref}
       className="absolute right-0 top-full mt-1 w-56 vv-glass-elevated rounded-[10px] z-50 overflow-hidden py-1">
-      <div className="px-3 py-2.5 border-b border-[#1c2a3e]">
-        <p className="text-[12.5px] font-semibold text-[color:var(--vv-text)]">{displayName}</p>
-        {displayEmail && <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] font-mono">{displayEmail}</p>}
+      <div className="px-3 py-2.5 border-b border-[#1c2a3e] flex items-center gap-2.5">
+        {resolvedAvatar ? (
+          <button
+            type="button"
+            onClick={() => {
+              openPhoto({
+                src: resolvedAvatar,
+                alt: displayName,
+                title: `${displayName} - Profile Photo`,
+              });
+              onClose();
+            }}
+            title="View enlarged profile photo"
+            aria-label="View enlarged profile photo"
+            className="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-[color:var(--vv-border)] hover:opacity-80 transition-opacity cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C67A4E]"
+          >
+            <img src={resolvedAvatar} alt={displayName} className="w-full h-full object-cover" />
+          </button>
+        ) : (
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
+            style={{ background: 'rgba(198,122,78,0.18)', color: '#C67A4E', border: '1px solid rgba(198,122,78,0.35)' }}>
+            {user?.name?.charAt(0)?.toUpperCase() || (isAdmin ? 'A' : 'U')}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="text-[12.5px] font-semibold text-[color:var(--vv-text)] truncate">{displayName}</p>
+          {displayEmail && <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] font-mono truncate">{displayEmail}</p>}
+        </div>
       </div>
       <button onClick={() => { navigate(isAdmin ? '/app/admin/dashboard' : '/app/profile'); onClose(); }}
         className="w-full text-left px-3 py-2 text-[12px] text-[color:var(--vv-text-secondary)] hover:text-[color:var(--vv-text)] hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)] transition-colors">
@@ -206,9 +235,7 @@ function MobileNav({ role, items }: { role: Role; items: NavItem[] }) {
   );
 }
 
-// ─── Main shell ───────────────────────────────────────────────────────────────
-
-export function AppShell() {
+export default function AppShell() {
   const { session, setActiveRole, updateNormalRoles, logout, user } = useAuth();
   const role: Role = session.isAdmin ? 'admin' : session.activeRole;
   const setRole = (nextRole: Role) => {
@@ -389,10 +416,19 @@ export function AppShell() {
           <div className="px-3 py-3">
             <Link to="/app/profile"
               className="flex items-center gap-2.5 hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)] rounded-md px-1.5 py-1.5 transition-colors -mx-1.5">
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold flex-shrink-0"
-                style={{ background: activeColor + '18', color: activeColor, border: `1px solid ${activeColor}40` }}>
-                {user?.name?.charAt(0)?.toUpperCase() || (isAdmin ? 'A' : 'U')}
-              </div>
+              {user?.avatar_url && resolveMediaUrl(user.avatar_url) ? (
+                <img
+                  src={resolveMediaUrl(user.avatar_url)!}
+                  alt=""
+                  className="w-7 h-7 rounded-full object-cover shrink-0 border border-[color:var(--vv-border)]"
+                  onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                />
+              ) : (
+                <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold flex-shrink-0"
+                  style={{ background: activeColor + '18', color: activeColor, border: `1px solid ${activeColor}40` }}>
+                  {user?.name?.charAt(0)?.toUpperCase() || (isAdmin ? 'A' : 'U')}
+                </div>
+              )}
               <div className="min-w-0">
                 <p className="text-[12px] font-medium text-[color:var(--vv-text)] truncate leading-none">{user?.name || (isAdmin ? 'Admin Console' : 'User')}</p>
                 <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-0.5">{workspaceLabel}</p>
@@ -627,3 +663,5 @@ export function AppShell() {
     </RoleContext.Provider>
   );
 }
+
+export { AppShell };

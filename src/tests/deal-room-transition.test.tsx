@@ -21,6 +21,7 @@ beforeEach(() => {
   vi.spyOn(api.deals, 'getNegotiation').mockResolvedValue({ active_proposal: null, proposals: [] } as any);
   vi.spyOn(api.deals, 'getAgreement').mockResolvedValue(null);
   vi.spyOn(api.deals.milestones, 'list').mockResolvedValue({ milestones: [], summary: null } as any);
+  vi.spyOn(api.deals.messages, 'list').mockResolvedValue({ messages: [] });
 });
 
 function mountDeal() {
@@ -62,6 +63,7 @@ it('sends professional when Professional is selected, without inferring Investor
 });
 
 it('preserves the Founder transition payload', async () => {
+  context.role = 'founder';
   const post = vi.spyOn(api, 'post').mockResolvedValue({ stage: 'agreement' });
   await submitDealTransition(81, 'agreement', 'founder');
   expect(post).toHaveBeenCalledWith('/api/me/deals/81/transition', { target_state: 'agreement' });

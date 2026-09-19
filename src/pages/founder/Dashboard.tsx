@@ -3,9 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Badge, VerificationBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { ScoreChip } from '../../components/ui/ScoreComponents';
-import { IconPlus, IconArrowRight, IconZap, IconActivity } from '../../components/layout/Icons';
+import { IconPlus, IconArrowRight, IconZap, IconActivity, IconClipboard } from '../../components/layout/Icons';
 import { useAuth } from '../../context/AuthContext';
-import { api, ReputationSummaryData, DealFeedbackItem } from '../../services/api';
+import { api, ReputationSummaryData, DealFeedbackItem, FounderApplicationItem } from '../../services/api';
 
 // --- Data Types ---------------------------------------------------------------
 
@@ -113,6 +113,7 @@ export default function FounderDashboard() {
   const [businesses, setBusinesses] = useState<DashboardBusiness[]>([]);
   const [reputation, setReputation] = useState<ReputationSummaryData | null>(null);
   const [recommendations, setRecommendations] = useState<RecommendedInvestor[]>([]);
+  const [incomingApps, setIncomingApps] = useState<FounderApplicationItem[]>([]);
 
   const tier = (user?.verification_tier as 0 | 1 | 2) ?? 0;
 
@@ -156,6 +157,14 @@ export default function FounderDashboard() {
         }
       } else {
         setRecommendations([]);
+      }
+
+      // Fetch incoming talent applications
+      try {
+        const apps = await api.applications.founder.list();
+        setIncomingApps(apps || []);
+      } catch {
+        setIncomingApps([]);
       }
     } catch (err: any) {
       setError(err?.message || 'Failed to load dashboard data. Please try again.');
@@ -315,6 +324,53 @@ export default function FounderDashboard() {
               </>
             )}
           </div>
+
+          {/* Applications Inbox Card */}
+          {incomingApps.length > 0 && (
+            <div className="bg-[#121A2B] border border-[#C67A4E]/30 rounded-[10px] overflow-hidden shadow-sm">
+              <SectionHeader
+                title="Incoming Talent Applications"
+                action={
+                  <Link to="/app/founder/applications">
+                    <Button variant="ghost" size="sm" iconRight={<IconArrowRight s={11} />}>
+                      View All ({incomingApps.length})
+                    </Button>
+                  </Link>
+                }
+              />
+              <div className="p-4 space-y-3">
+                {incomingApps.slice(0, 3).map((app) => (
+                  <div
+                    key={app.id}
+                    onClick={() => navigate('/app/founder/applications')}
+                    className="p-3 rounded-[8px] bg-[color:color-mix(in_srgb,var(--vv-raised)_70%,transparent)] border border-[color:var(--vv-border)] flex items-center justify-between gap-3 hover:border-[color:var(--vv-border-hover)] cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-[#1F2E4D] border border-[#2B3F6C] flex items-center justify-center font-bold text-[11px] text-[#8AA2D6] shrink-0">
+                        {app.professional.initials || 'PR'}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-[13px] font-semibold text-[color:var(--vv-text)] truncate">
+                            {app.professional.name}
+                          </p>
+                          <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                            {app.status === 'submitted' ? 'New' : app.status}
+                          </span>
+                        </div>
+                        <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] truncate">
+                          Applied for {app.role_title} • {app.business_name}
+                        </p>
+                      </div>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); navigate(`/app/profile/${app.professional.id}`); }}>
+                      Profile
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Deal Rooms Overview */}
           <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[10px] overflow-hidden">

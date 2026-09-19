@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 
 class Business extends Model
 {
@@ -74,6 +75,11 @@ class Business extends Model
         return $this->hasMany(FinancialReport::class)->orderBy('reporting_period_start', 'desc');
     }
 
+    public function applications(): HasMany
+    {
+        return $this->hasMany(BusinessApplication::class);
+    }
+
     protected function casts(): array
     {
         return [
@@ -88,6 +94,11 @@ class Business extends Model
     public function founderProfile(): BelongsTo
     {
         return $this->belongsTo(FounderProfile::class);
+    }
+
+    public function founderUser(): HasOneThrough
+    {
+        return $this->hasOneThrough(User::class, FounderProfile::class, 'id', 'id', 'founder_profile_id', 'user_id');
     }
 
     public function approvedByUser(): BelongsTo

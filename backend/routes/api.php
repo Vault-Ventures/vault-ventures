@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdminBusinessController;
 use App\Http\Controllers\AdminFinancialReportController;
 use App\Http\Controllers\AdminReputationController;
+use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AdminVerificationRequestController;
 use App\Http\Controllers\Auth\ChangePasswordController;
 use App\Http\Controllers\Auth\PasswordController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\Auth\PhoneVerificationController;
 use App\Http\Controllers\Auth\SessionController;
 use App\Http\Controllers\Auth\VerificationController;
 use App\Http\Controllers\BusinessAnalysisController;
+use App\Http\Controllers\BusinessApplicationController;
 use App\Http\Controllers\BusinessConnectionController;
 use App\Http\Controllers\BusinessController;
 use App\Http\Controllers\BusinessDisclosureController;
@@ -20,6 +22,7 @@ use App\Http\Controllers\BusinessRequirementController;
 use App\Http\Controllers\BusinessSubmissionController;
 use App\Http\Controllers\DealController;
 use App\Http\Controllers\DealFeedbackController;
+use App\Http\Controllers\DealMessageController;
 use App\Http\Controllers\DealMilestoneController;
 use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\InvestorPreferenceController;
@@ -101,6 +104,7 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
         ->whereNumber('business');
     Route::get('/businesses/{business}/connection', [BusinessConnectionController::class, 'status'])
         ->whereNumber('business');
+    Route::get('/deals', [DealController::class, 'index']);
     Route::get('/deals/{deal}', [DealController::class, 'show'])
         ->whereNumber('deal');
     Route::get('/deals/{deal}/history', [DealController::class, 'history'])
@@ -114,6 +118,8 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
     Route::get('/deals/{deal}/funding-summary', [DealMilestoneController::class, 'fundingSummary'])
         ->whereNumber('deal');
     Route::get('/deals/{deal}/feedback', [DealFeedbackController::class, 'show'])
+        ->whereNumber('deal');
+    Route::get('/deals/{deal}/messages', [DealMessageController::class, 'index'])
         ->whereNumber('deal');
     Route::get('/deals/{deal}/financial-reports', [FinancialReportController::class, 'index'])
         ->whereNumber('deal');
@@ -140,6 +146,12 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
         Route::post('/businesses/{business}/express-interest', [BusinessDisclosureController::class, 'expressInterest'])
             ->whereNumber('business');
         Route::post('/businesses/{business}/interests', [BusinessConnectionController::class, 'expressInterest'])
+            ->whereNumber('business');
+        Route::post('/businesses/{business}/withdraw-interest', [BusinessConnectionController::class, 'withdrawInterest'])
+            ->whereNumber('business');
+        Route::post('/businesses/{business}/cancel-interest', [BusinessConnectionController::class, 'withdrawInterest'])
+            ->whereNumber('business');
+        Route::delete('/businesses/{business}/interests', [BusinessConnectionController::class, 'withdrawInterest'])
             ->whereNumber('business');
         Route::post('/businesses/{business}/reciprocal-interest', [BusinessConnectionController::class, 'expressReciprocalInterest'])
             ->whereNumber('business');
@@ -175,6 +187,8 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
             ->whereNumber('deal');
         Route::post('/deals/{deal}/feedback', [DealFeedbackController::class, 'store'])
             ->whereNumber('deal');
+        Route::post('/deals/{deal}/messages', [DealMessageController::class, 'store'])
+            ->whereNumber('deal');
         Route::post('/deals/{deal}/financial-reports', [FinancialReportController::class, 'store'])
             ->whereNumber('deal');
         Route::post('/financial-reports/{report}/evidence', [FinancialReportController::class, 'uploadEvidence'])
@@ -203,6 +217,12 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
     // Notification preferences
     Route::get('/notification-preferences', [NotificationPreferenceController::class, 'show']);
 
+    // Application queries (GET)
+    Route::get('/businesses/{business}/application-status', [BusinessApplicationController::class, 'statusForBusiness'])->whereNumber('business');
+    Route::get('/professional/applications', [BusinessApplicationController::class, 'listProfessionalApplications']);
+    Route::get('/founder/applications', [BusinessApplicationController::class, 'listFounderApplications']);
+    Route::get('/founder/applications/{id}', [BusinessApplicationController::class, 'showFounderApplication'])->whereNumber('id');
+
     Route::middleware(RequireSpaSession::class)->group(function () {
         Route::patch('/profile', [ProfileController::class, 'update']);
         Route::post('/avatar', [UserPhotoController::class, 'uploadAvatar']);
@@ -225,12 +245,24 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
 
         // Notification preferences update
         Route::patch('/notification-preferences', [NotificationPreferenceController::class, 'update']);
+
+        // Professional Application mutations
+        Route::post('/businesses/{business}/apply', [BusinessApplicationController::class, 'apply'])->whereNumber('business');
+        Route::post('/professional/applications/{id}/withdraw', [BusinessApplicationController::class, 'withdraw'])->whereNumber('id');
+
+        // Founder Application mutations
+        Route::post('/founder/applications/{id}/review', [BusinessApplicationController::class, 'markUnderReview'])->whereNumber('id');
+        Route::post('/founder/applications/{id}/accept', [BusinessApplicationController::class, 'accept'])->whereNumber('id');
+        Route::post('/founder/applications/{id}/reject', [BusinessApplicationController::class, 'reject'])->whereNumber('id');
     });
 });
 
+Route::middleware('auth:sanctum')->get('/users/{user}/profile', [ProfileController::class, 'showUser'])->whereNumber('user');
 Route::middleware('auth:sanctum')->get('/users/{user}/reputation', [ReputationController::class, 'showUser'])->whereNumber('user');
 
 Route::prefix('admin')->middleware(['auth:sanctum', 'admin'])->group(function () {
+    Route::get('/users', [AdminUserController::class, 'index']);
+    Route::get('/users/{user}', [AdminUserController::class, 'show'])->whereNumber('user');
     Route::get('/verification-requests', [AdminVerificationRequestController::class, 'index']);
     Route::get('/verification-requests/{verification_request}', [AdminVerificationRequestController::class, 'show'])->whereNumber('verification_request');
     Route::get('/reputation/users/{user}', [AdminReputationController::class, 'showUser'])->whereNumber('user');
@@ -244,6 +276,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'admin'])->group(function ()
     Route::get('/businesses', [AdminBusinessController::class, 'index']);
     Route::get('/businesses/{business}', [AdminBusinessController::class, 'show'])->whereNumber('business');
     Route::middleware(RequireSpaSession::class)->group(function () {
+        Route::post('/users/{user}/suspend', [AdminUserController::class, 'suspend'])->whereNumber('user');
+        Route::post('/users/{user}/restore', [AdminUserController::class, 'restore'])->whereNumber('user');
         Route::post('/businesses/{business}/approve', [AdminBusinessController::class, 'approve'])->whereNumber('business');
         Route::post('/businesses/{business}/reject', [AdminBusinessController::class, 'reject'])->whereNumber('business');
         Route::post('/verification-requests/{verification_request}/approve', [AdminVerificationRequestController::class, 'approve'])->whereNumber('verification_request');

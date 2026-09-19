@@ -54,6 +54,8 @@ class RoleProfileTest extends TestCase
                     'experience' => [],
                     'portfolio' => [],
                     'preferences' => [],
+                    'verification_tier' => 0,
+                    'verification_tier_label' => 'Email & Phone Verified',
                 ],
                 'roles' => [],
                 'profiles' => ['founder' => null, 'investor' => null, 'professional' => null],

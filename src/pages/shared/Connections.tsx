@@ -23,7 +23,9 @@ interface Connection {
   id: string;
   connectionId: number | null;
   businessId: number;
+  counterpartUserId: number;
   canReciprocate: boolean;
+  canWithdraw?: boolean;
   participantRole?: string;
   counterpartName: string;
   counterpartInitials: string;
@@ -110,9 +112,95 @@ function MiniLifecycle({ status }: { status: ConnectionStatus }) {
   );
 }
 
+function WithdrawInterestModal({
+  conn,
+  onClose,
+  onSuccess,
+}: {
+  conn: Connection;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleConfirm() {
+    setWithdrawing(true);
+    setError(null);
+    try {
+      await api.connections.withdrawInterest(conn.businessId, conn.participantRole);
+      onSuccess();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to withdraw interest. Please try again.');
+      setWithdrawing(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="withdraw-dialog-title"
+    >
+      <div
+        className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[14px] p-6 max-w-md w-full shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150"
+      >
+        <div className="flex items-start gap-3.5">
+          <div
+            className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: 'rgba(239,68,68,0.12)', border: '1.5px solid rgba(239,68,68,0.25)', color: '#EF4444' }}
+          >
+            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+          </div>
+          <div className="min-w-0">
+            <h3 id="withdraw-dialog-title" className="font-display text-[16px] font-semibold text-[color:var(--vv-text)]">
+              Withdraw Interest
+            </h3>
+            <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mt-1 leading-relaxed">
+              Are you sure you want to withdraw your interest in <strong className="text-[color:var(--vv-text)]">{conn.businessName}</strong>?
+              The founder will no longer see this pending interest.
+            </p>
+          </div>
+        </div>
+
+        {error && (
+          <div className="px-3.5 py-2.5 rounded-[8px] text-[11.5px] text-red-400 bg-red-950/30 border border-red-900/40">
+            {error}
+          </div>
+        )}
+
+        <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#1c2a3e]">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            disabled={withdrawing}
+          >
+            Keep Interest
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleConfirm}
+            disabled={withdrawing}
+            className="!bg-[#DC2626] hover:!bg-[#EF4444] text-white border-transparent"
+          >
+            {withdrawing ? 'Withdrawing…' : 'Withdraw Interest'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ConnectionCard({ conn, onChanged }: { conn: Connection; onChanged: () => void }) {
   const navigate = useNavigate();
   const [opening, setOpening] = useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
   const cfg = STATUS_CFG[conn.status];
   const isActionable = ['mutual_interest', 'deal_room', 'nda_signed', 'negotiating', 'agreement', 'active', 'completed'].includes(conn.status);
@@ -151,14 +239,25 @@ function ConnectionCard({ conn, onChanged }: { conn: Connection; onChanged: () =
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             {/* Avatar */}
-            <div
-              className="w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-bold text-[color:var(--vv-text)] shrink-0"
+            <button
+              type="button"
+              onClick={() => navigate(`/app/profile/${conn.counterpartUserId}`)}
+              className="w-10 h-10 rounded-full flex items-center justify-center text-[12px] font-bold text-[color:var(--vv-text)] shrink-0 transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C67A4E]"
               style={{ background: 'rgba(198,122,78,0.12)', border: '1.5px solid rgba(198,122,78,0.25)' }}
+              title={`View ${conn.counterpartName}'s profile`}
+              aria-label={`View ${conn.counterpartName}'s profile`}
             >
               {conn.counterpartInitials}
-            </div>
+            </button>
             <div className="min-w-0">
-              <p className="text-[13.5px] font-semibold text-[color:var(--vv-text)] truncate">{conn.counterpartName}</p>
+              <button
+                type="button"
+                onClick={() => navigate(`/app/profile/${conn.counterpartUserId}`)}
+                className="text-left font-semibold text-[13.5px] text-[color:var(--vv-text)] hover:text-[#C67A4E] hover:underline transition-colors truncate block max-w-full"
+                title={`View ${conn.counterpartName}'s profile`}
+              >
+                {conn.counterpartName}
+              </button>
               <p className="text-[11px] text-[color:var(--vv-text-tertiary)] truncate">{conn.counterpartRole}</p>
             </div>
           </div>
@@ -208,7 +307,15 @@ function ConnectionCard({ conn, onChanged }: { conn: Connection; onChanged: () =
           <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-1">Updated {conn.updatedAt}</p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => navigate(`/app/profile/${conn.counterpartUserId}`)}
+            aria-label={`View profile for ${conn.counterpartName}`}
+          >
+            View Profile
+          </Button>
           {isActionable && (
             <Button size="sm" variant={conn.dealId ? 'primary' : 'secondary'} onClick={handlePrimaryAction} disabled={opening}>
               {opening ? 'Opening…' :
@@ -219,17 +326,49 @@ function ConnectionCard({ conn, onChanged }: { conn: Connection; onChanged: () =
             setOpening(true);
             setOpenError(null);
             try {
-              await api.post(`/api/me/businesses/${conn.businessId}/reciprocal-interest`, { role: conn.participantRole });
+              if (conn.counterpartRole !== 'founder') {
+                await api.post(`/api/me/businesses/${conn.businessId}/reciprocal-interest`, {
+                  counterparty_user_id: conn.counterpartUserId,
+                  role: conn.counterpartRole,
+                });
+              } else {
+                await api.post(`/api/me/businesses/${conn.businessId}/reciprocal-interest`, {
+                  role: conn.participantRole,
+                });
+              }
               onChanged();
             } catch (err: any) { setOpenError(err.message || 'Unable to reciprocate interest.'); }
             finally { setOpening(false); }
           }}>Reciprocate interest</Button>}
-          {isWaiting && !conn.canReciprocate && (
+          {conn.canWithdraw && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="!text-red-400 hover:!text-red-300 hover:!bg-red-950/30"
+              onClick={() => setShowWithdrawModal(true)}
+              disabled={opening}
+            >
+              Withdraw Interest
+            </Button>
+          )}
+          {isWaiting && !conn.canReciprocate && !conn.canWithdraw && (
             <span className="text-[11px] text-[color:var(--vv-text-tertiary)] italic">Awaiting response…</span>
           )}
 
         </div>
       </div>
+
+      {showWithdrawModal && (
+        <WithdrawInterestModal
+          conn={conn}
+          onClose={() => setShowWithdrawModal(false)}
+          onSuccess={() => {
+            setShowWithdrawModal(false);
+            onChanged();
+          }}
+        />
+      )}
+
     </div>
   );
 }
@@ -349,11 +488,19 @@ export default function Connections() {
       };
       setConnections(result.items.map((item: ConnectionItem): Connection => {
         const counterpart = role === 'founder' ? item.counterparty : item.founder;
+        const canReciprocate = role === 'founder'
+          ? item.has_counterparty_interest && !item.has_founder_interest && !item.is_connected
+          : item.has_founder_interest && !item.has_counterparty_interest && !item.is_connected;
+        const canWithdraw = (role === 'investor' || role === 'professional')
+          && item.has_counterparty_interest && !item.has_founder_interest && !item.is_connected;
+
         return {
           id: `${item.business.id}-${item.counterparty.id}-${item.counterparty_role}`,
           connectionId: item.connection_id,
           businessId: item.business.id,
-          canReciprocate: role !== 'founder' && item.has_founder_interest && !item.has_counterparty_interest && !item.is_connected,
+          counterpartUserId: counterpart.id,
+          canReciprocate,
+          canWithdraw,
           participantRole: role === 'founder' ? undefined : item.counterparty_role,
           counterpartName: counterpart.name,
           counterpartInitials: counterpart.name.split(' ').map(n => n[0]).join('').slice(0, 2),

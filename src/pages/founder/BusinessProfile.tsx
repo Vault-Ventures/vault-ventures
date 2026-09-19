@@ -15,6 +15,7 @@ import {
 import type { MatchFactor, ImprovementItemData, MatchDetail } from '../../components/ui/AIInsights';
 import { useRole } from '../../components/layout/AppShell';
 import { api, resolveMediaUrl } from '../../services/api';
+import { usePhotoViewer } from '../../context/PhotoViewerContext';
 
 // -- Currency helper ------------------------------------------------
 function fmtBDT(n: number): string {
@@ -173,6 +174,7 @@ export default function BusinessProfile() {
   const location = useLocation();
   const { role } = useRole();
   const [searchParams] = useSearchParams();
+  const { openPhoto } = usePhotoViewer();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -187,6 +189,11 @@ export default function BusinessProfile() {
   const [showInterestSent, setShowInterestSent] = useState(false);
   const [expressingInterest, setExpressingInterest] = useState(false);
   const [showApplied, setShowApplied] = useState(false);
+  const [applicationStatus, setApplicationStatus] = useState<string>('none');
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [applyRoleTitle, setApplyRoleTitle] = useState('Professional Advisor');
+  const [applyProposalNote, setApplyProposalNote] = useState('');
+  const [submittingApplication, setSubmittingApplication] = useState(false);
   const [matchDrawer, setMatchDrawer] = useState<{ detail: MatchDetail; cta: string } | null>(null);
   const [showNDAModal, setShowNDAModal] = useState(false);
   const [showFounderConfirm, setShowFounderConfirm] = useState(false);
@@ -285,6 +292,18 @@ export default function BusinessProfile() {
               }
             } catch (e) {}
           }
+
+          if (viewAs === 'professional') {
+            try {
+              const appStatusRes = await api.applications.getStatus(businessId);
+              if (appStatusRes && isMounted) {
+                setApplicationStatus(appStatusRes.status || 'none');
+                if (appStatusRes.has_applied) {
+                  setShowApplied(true);
+                }
+              }
+            } catch (e) {}
+          }
         }
       } catch (err: any) {
         if (isMounted) {
@@ -367,13 +386,40 @@ export default function BusinessProfile() {
       try {
         await api.businesses.expressInterest(bizData.id);
         setShowInterestSent(true);
-      } catch (err) {
-        setShowInterestSent(true);
+        setDisclosureStage(2);
+        setBizData((prev: any) => ({
+          ...prev,
+          disclosure: {
+            ...prev?.disclosure,
+            stage: 2,
+            has_expressed_interest: true,
+            interest_expressed_at: new Date().toISOString(),
+          },
+        }));
+      } catch (err: any) {
+        alert(err?.message || 'Failed to express interest.');
       } finally {
         setExpressingInterest(false);
       }
-    } else {
-      setShowInterestSent(true);
+    }
+  };
+
+  const handleApply = async () => {
+    if (!bizData?.id) return;
+    setSubmittingApplication(true);
+    try {
+      await api.applications.apply(bizData.id, {
+        role_title: applyRoleTitle,
+        note: applyProposalNote,
+      });
+      setApplicationStatus('submitted');
+      setShowApplied(true);
+      setShowApplyModal(false);
+      alert('Application proposal submitted successfully to the founder!');
+    } catch (err: any) {
+      alert(err?.message || 'Failed to submit application.');
+    } finally {
+      setSubmittingApplication(false);
     }
   };
 
@@ -553,12 +599,28 @@ export default function BusinessProfile() {
       {/* -- Business Header --------------------------------------- */}
       <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[14px] overflow-hidden mb-5">
         {/* Cover banner */}
-        <div className="h-32 sm:h-44 relative overflow-hidden bg-gradient-to-r from-[#182338] via-[#121A2B] to-[#182338]">
+        <div
+          role={resolvedCover ? 'button' : undefined}
+          tabIndex={resolvedCover ? 0 : undefined}
+          aria-label={resolvedCover ? `View ${currentBusiness.name} cover photo` : undefined}
+          className={`h-32 sm:h-44 relative overflow-hidden bg-gradient-to-r from-[#182338] via-[#121A2B] to-[#182338] ${resolvedCover ? 'cursor-pointer group' : ''}`}
+          onClick={() => {
+            if (resolvedCover) {
+              openPhoto({ src: resolvedCover, alt: `${currentBusiness.name} Cover`, title: `${currentBusiness.name} Cover Photo` });
+            }
+          }}
+          onKeyDown={(e) => {
+            if (resolvedCover && (e.key === 'Enter' || e.key === ' ')) {
+              e.preventDefault();
+              openPhoto({ src: resolvedCover, alt: `${currentBusiness.name} Cover`, title: `${currentBusiness.name} Cover Photo` });
+            }
+          }}
+        >
           {resolvedCover ? (
             <img
               src={resolvedCover}
               alt="Cover"
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover transition-transform group-hover:scale-[1.01]"
             />
           ) : (
             <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, rgba(198,122,78,0.14) 0%, rgba(14,20,28,0.9) 55%, rgba(198,122,78,0.10) 100%)' }}>
@@ -567,7 +629,10 @@ export default function BusinessProfile() {
           )}
 
           {isOwner && (
-            <label className="absolute top-3 right-3 px-2.5 py-1.5 rounded-md bg-black/60 hover:bg-black/80 border border-white/15 text-[11px] text-white backdrop-blur-sm transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm">
+            <label
+              onClick={(e) => e.stopPropagation()}
+              className="absolute top-3 right-3 z-10 px-2.5 py-1.5 rounded-md bg-black/60 hover:bg-black/80 border border-white/15 text-[11px] text-white backdrop-blur-sm transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
               <input
                 type="file"
                 data-testid="business-cover-input"
@@ -587,12 +652,28 @@ export default function BusinessProfile() {
           <div className="flex items-end justify-between gap-4 -mt-10 sm:-mt-12">
             {/* Logo */}
             <div className="relative group flex-shrink-0 z-10">
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border-4 border-[#121A2B] bg-[#182338] shadow-lg flex items-center justify-center overflow-hidden ring-1 ring-[color:var(--vv-border)]">
+              <div
+                role={resolvedLogo && !logoError ? 'button' : undefined}
+                tabIndex={resolvedLogo && !logoError ? 0 : undefined}
+                aria-label={resolvedLogo && !logoError ? `View ${currentBusiness.name} logo` : undefined}
+                className={`w-20 h-20 sm:w-24 sm:h-24 rounded-2xl border-4 border-[#121A2B] bg-[#182338] shadow-lg flex items-center justify-center overflow-hidden ring-1 ring-[color:var(--vv-border)] ${resolvedLogo && !logoError ? 'cursor-pointer' : ''}`}
+                onClick={() => {
+                  if (resolvedLogo && !logoError) {
+                    openPhoto({ src: resolvedLogo, alt: `${currentBusiness.name} Logo`, title: `${currentBusiness.name} Logo` });
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (resolvedLogo && !logoError && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    openPhoto({ src: resolvedLogo, alt: `${currentBusiness.name} Logo`, title: `${currentBusiness.name} Logo` });
+                  }
+                }}
+              >
                 {resolvedLogo && !logoError ? (
                   <img
                     src={resolvedLogo}
                     alt="Logo"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
                     onError={() => setLogoError(true)}
                   />
                 ) : (
@@ -602,7 +683,10 @@ export default function BusinessProfile() {
                 )}
               </div>
               {isOwner && (
-                <label className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 rounded-2xl flex items-center justify-center text-white cursor-pointer transition-opacity backdrop-blur-[2px]">
+                <label
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 rounded-2xl flex items-center justify-center text-white cursor-pointer transition-opacity backdrop-blur-[2px]"
+                >
                   <input
                     type="file"
                     data-testid="business-logo-input"
@@ -622,6 +706,13 @@ export default function BusinessProfile() {
             <div className="flex flex-wrap items-center gap-2 pb-1 justify-end">
               {isOwner && (
                 <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(`/app/founder/applications?business_id=${currentBusiness.id}`)}
+                  >
+                    View Applications
+                  </Button>
                   <Button variant="secondary" size="sm" onClick={() => setEditSection('Basic Information')}>
                     Manage Business
                   </Button>
@@ -646,7 +737,7 @@ export default function BusinessProfile() {
                 </>
               )}
               {viewAs === 'investor' && (
-                showInterestSent ? (
+                (bizData?.disclosure?.has_expressed_interest || showInterestSent) ? (
                   <Button variant="success" size="sm" icon={<IconCheck s={13} />}>Interest Sent</Button>
                 ) : (
                   <Button size="sm" loading={expressingInterest} onClick={handleExpressInterest}>
@@ -655,10 +746,20 @@ export default function BusinessProfile() {
                 )
               )}
               {viewAs === 'professional' && (
-                showApplied ? (
-                  <Button variant="success" size="sm" icon={<IconCheck s={13} />}>Applied</Button>
+                applicationStatus === 'submitted' ? (
+                  <Button variant="success" size="sm" icon={<IconCheck s={13} />} onClick={() => navigate('/app/professional/applications')}>
+                    Application Submitted
+                  </Button>
+                ) : applicationStatus === 'under_review' ? (
+                  <Button variant="secondary" size="sm" onClick={() => navigate('/app/professional/applications')}>
+                    Under Review
+                  </Button>
+                ) : applicationStatus === 'accepted' ? (
+                  <Button variant="success" size="sm" onClick={() => navigate('/app/professional/applications')}>
+                    Application Accepted
+                  </Button>
                 ) : (
-                  <Button size="sm" onClick={() => setShowApplied(true)}>
+                  <Button size="sm" onClick={() => setShowApplyModal(true)}>
                     Apply / Connect <IconArrowRight s={13} />
                   </Button>
                 )
@@ -1105,6 +1206,79 @@ export default function BusinessProfile() {
             setShowNDAModal(false);
           }}
         />
+      )}
+
+      {/* Professional Apply Modal */}
+      {showApplyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[16px] p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-[#C67A4E]">
+                  Opportunity Application
+                </span>
+                <h2 className="font-display text-[18px] font-bold text-[color:var(--vv-text)] mt-0.5">
+                  Apply to {currentBusiness.name}
+                </h2>
+                <p className="text-[12.5px] text-[color:var(--vv-text-secondary)]">
+                  Submit your role proposal and note directly to the founder.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowApplyModal(false)}
+                className="text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)] text-[18px] p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3.5">
+              <div>
+                <label className="block text-[12px] font-medium text-[color:var(--vv-text-secondary)] mb-1">
+                  Proposed Role / Title
+                </label>
+                <input
+                  type="text"
+                  value={applyRoleTitle}
+                  onChange={e => setApplyRoleTitle(e.target.value)}
+                  placeholder="e.g. Growth Marketing Advisor, Fractional CTO"
+                  className="w-full px-3 py-2 rounded-[8px] bg-[#0E1524] border border-[color:var(--vv-border)] text-[12.5px] text-[color:var(--vv-text)] placeholder-[color:var(--vv-text-tertiary)] outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-medium text-[color:var(--vv-text-secondary)] mb-1">
+                  Proposal Pitch / Note for Founder
+                </label>
+                <textarea
+                  value={applyProposalNote}
+                  onChange={e => setApplyProposalNote(e.target.value)}
+                  rows={4}
+                  placeholder="Explain why you are excited to collaborate, relevant experience scaling similar businesses, and proposed involvement..."
+                  className="w-full px-3 py-2 rounded-[8px] bg-[#0E1524] border border-[color:var(--vv-border)] text-[12.5px] text-[color:var(--vv-text)] placeholder-[color:var(--vv-text-tertiary)] outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[color:var(--vv-border)]">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowApplyModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                loading={submittingApplication}
+                onClick={handleApply}
+              >
+                Submit Application
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

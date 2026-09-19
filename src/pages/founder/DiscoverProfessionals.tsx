@@ -5,7 +5,8 @@ import { Button } from '../../components/ui/Button';
 import { IconX } from '../../components/layout/Icons';
 import { MatchScoreChip, MatchExplanationDrawer } from '../../components/ui/AIInsights';
 import type { MatchFactor, MatchDetail } from '../../components/ui/AIInsights';
-import { api, ApiError } from '../../services/api';
+import { api, ApiError, resolveMediaUrl } from '../../services/api';
+import { usePhotoViewer } from '../../context/PhotoViewerContext';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -13,6 +14,7 @@ interface Professional {
   id: string;
   userId: number;
   name: string;
+  avatarUrl?: string | null;
   initials: string;
   color: string;
   title: string;
@@ -186,17 +188,55 @@ function ActiveFilterStrip({ filters, search, onChange, onClearAll }: {
 }
 
 function ProfessionalCard({ professional, onOpenMatch }: { professional: Professional; onOpenMatch: (d: MatchDetail, prof: Professional) => void }) {
+  const { openPhoto } = usePhotoViewer();
+  const [avatarError, setAvatarError] = useState(false);
+  const resolvedAvatar = professional.avatarUrl ? resolveMediaUrl(professional.avatarUrl) : null;
+
   return (
     <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] p-4 hover:border-[color:var(--vv-border-strong)] transition-all">
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-[12px] font-bold flex-shrink-0"
-          style={{ background: `${professional.color}18`, border: `1.5px solid ${professional.color}35`, color: professional.color }}>
-          {professional.initials}
-        </div>
+        {resolvedAvatar && !avatarError ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              openPhoto({
+                src: resolvedAvatar,
+                alt: professional.name,
+                title: `${professional.name} - Profile Photo`,
+              });
+            }}
+            title={`View ${professional.name}'s photo`}
+            aria-label={`View ${professional.name}'s photo`}
+            className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-[12px] font-bold flex-shrink-0 overflow-hidden hover:opacity-90 transition-opacity cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C67A4E]"
+            style={{ background: `${professional.color}18`, border: `1.5px solid ${professional.color}35`, color: professional.color }}
+          >
+            <img
+              src={resolvedAvatar}
+              alt={professional.name}
+              className="w-full h-full object-cover"
+              onError={() => setAvatarError(true)}
+            />
+          </button>
+        ) : (
+          <Link
+            to={`/app/profile/${professional.userId}`}
+            title={`View ${professional.name}'s profile`}
+            className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-[12px] font-bold flex-shrink-0 overflow-hidden hover:opacity-90 transition-opacity"
+            style={{ background: `${professional.color}18`, border: `1.5px solid ${professional.color}35`, color: professional.color }}>
+            {professional.initials}
+          </Link>
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 mb-1">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
-              <p className="text-[13.5px] font-semibold text-[color:var(--vv-text)] leading-none">{professional.name}</p>
+              <Link
+                to={`/app/profile/${professional.userId}`}
+                className="text-[13.5px] font-semibold text-[color:var(--vv-text)] hover:text-[#C67A4E] transition-colors leading-none"
+              >
+                {professional.name}
+              </Link>
               {professional.verificationTier > 0 && <VerificationBadge tier={professional.verificationTier as 0 | 1 | 2} />}
             </div>
             <div className="sm:text-right shrink-0 space-y-1">
@@ -212,8 +252,8 @@ function ProfessionalCard({ professional, onOpenMatch }: { professional: Profess
             {' · '}{professional.location}
           </p>
           <p className="text-[12.5px] text-[color:var(--vv-text-secondary)] leading-snug line-clamp-2 mb-2.5">{professional.bio}</p>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex flex-wrap items-start gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="flex flex-wrap gap-1 items-center">
                 <span className="text-[10px] text-[color:var(--vv-text-tertiary)] mr-0.5">Skills:</span>
                 {professional.skills.slice(0, 4).map(s => (
@@ -233,11 +273,19 @@ function ProfessionalCard({ professional, onOpenMatch }: { professional: Profess
                 ))}
               </div>
             </div>
-            <button
-              onClick={() => onOpenMatch(professional.matchDetail, professional)}
-              className="text-[10.5px] text-[#C67A4E] hover:underline shrink-0 transition-colors">
-              View match analysis
-            </button>
+            <div className="flex items-center gap-3 shrink-0">
+              <Link
+                to={`/app/profile/${professional.userId}`}
+                className="px-2.5 py-1 rounded text-[11px] font-medium bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] text-[color:var(--vv-text-secondary)] hover:text-[color:var(--vv-text)] hover:border-[#C67A4E] transition-all"
+              >
+                View Profile
+              </Link>
+              <button
+                onClick={() => onOpenMatch(professional.matchDetail, professional)}
+                className="text-[10.5px] text-[#C67A4E] hover:underline transition-colors">
+                View match analysis
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -422,6 +470,7 @@ export default function DiscoverProfessionals() {
           id: String(item.id),
           userId: item.user_id,
           name,
+          avatarUrl: item.avatar_url ?? item.profile_photo_url ?? null,
           initials,
           color: getColor(name),
           title: item.skills?.[0] ? `${item.skills[0]} Specialist` : 'Professional Advisor',
@@ -627,6 +676,10 @@ export default function DiscoverProfessionals() {
           cta={{
             label: interestSuccess ? '✓ Interest Expressed' : interestLoading ? 'Expressing…' : 'Apply / Connect',
             action: () => handleExpressInterest(activeProfessional),
+          }}
+          secondaryCta={{
+            label: 'View Professional Profile',
+            href: `/app/profile/${activeProfessional.userId}`,
           }}
           onClose={() => { setActiveProfessional(null); setInterestSuccess(null); }}
         />

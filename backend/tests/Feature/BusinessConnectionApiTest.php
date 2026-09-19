@@ -794,4 +794,79 @@ class BusinessConnectionApiTest extends TestCase
         $this->assertSame(1, $investor->notifications()->count());
     }
 
+    public function test_investor_expresses_interest_first_founder_views_and_reciprocates_to_connect(): void
+    {
+        $founder = $this->createFounder('founder_flow@example.com');
+        $investor = $this->createInvestor('investor_flow@example.com');
+        $business = $this->createBusiness($founder, BusinessStatus::Published);
+
+        // 1. Investor expresses interest in published business profile
+        $expressRes = $this->actingAs($investor)->postJson("/api/me/businesses/{$business->id}/express-interest", [
+            'role' => 'investor',
+        ]);
+        $expressRes->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.has_expressed_interest', true)
+            ->assertJsonPath('data.stage', DisclosureStage::Extended->value);
+
+        // Verify database records
+        $this->assertDatabaseHas('business_disclosure_relationships', [
+            'business_id' => $business->id,
+            'counterparty_user_id' => $investor->id,
+            'counterparty_role' => 'investor',
+            'stage' => DisclosureStage::Extended->value,
+        ]);
+
+        $this->assertDatabaseHas('business_interests', [
+            'business_id' => $business->id,
+            'founder_user_id' => $founder->id,
+            'counterparty_user_id' => $investor->id,
+            'counterparty_role' => 'investor',
+            'expressed_by_user_id' => $investor->id,
+            'status' => 'active',
+        ]);
+
+        // 2. Founder views Connections list and sees incoming investor interest
+        $founderConnRes = $this->actingAs($founder)->getJson('/api/me/connections?role=founder');
+        $founderConnRes->assertOk()
+            ->assertJsonCount(1, 'data.items')
+            ->assertJsonPath('data.items.0.business.id', $business->id)
+            ->assertJsonPath('data.items.0.counterparty.id', $investor->id)
+            ->assertJsonPath('data.items.0.has_founder_interest', false)
+            ->assertJsonPath('data.items.0.has_counterparty_interest', true)
+            ->assertJsonPath('data.items.0.is_mutual', false)
+            ->assertJsonPath('data.items.0.is_connected', false);
+
+        // 3. Founder reciprocates investor's interest
+        $recipRes = $this->actingAs($founder)->postJson("/api/me/businesses/{$business->id}/reciprocal-interest", [
+            'counterparty_user_id' => $investor->id,
+            'role' => 'investor',
+        ]);
+        $recipRes->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.has_founder_interest', true)
+            ->assertJsonPath('data.has_counterparty_interest', true)
+            ->assertJsonPath('data.is_mutual', true)
+            ->assertJsonPath('data.is_connected', true);
+
+        $connectionId = $recipRes->json('data.connection_id');
+        $this->assertNotNull($connectionId);
+
+        // 4. Both parties now see the connected relationship
+        $founderUpdated = $this->actingAs($founder)->getJson('/api/me/connections?role=founder');
+        $founderUpdated->assertOk()
+            ->assertJsonPath('data.items.0.connection_id', $connectionId)
+            ->assertJsonPath('data.items.0.is_connected', true)
+            ->assertJsonPath('data.items.0.is_mutual', true);
+
+        $investorUpdated = $this->actingAs($investor)->getJson('/api/me/connections?role=investor');
+        $investorUpdated->assertOk()
+            ->assertJsonPath('data.items.0.connection_id', $connectionId)
+            ->assertJsonPath('data.items.0.is_connected', true)
+            ->assertJsonPath('data.items.0.is_mutual', true);
+
+        // 5. Open a deal room from connection
+        $dealRes = $this->actingAs($founder)->postJson("/api/me/connections/{$connectionId}/deal");
+        $dealRes->assertCreated()->assertJsonPath('data.connection_id', $connectionId);
+    }
 }

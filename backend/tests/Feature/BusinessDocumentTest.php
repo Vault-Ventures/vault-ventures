@@ -176,7 +176,7 @@ class BusinessDocumentTest extends TestCase
         $timestamp = $this->postJson("/api/me/businesses/$id/submit")->assertOk()->json('data.submitted_at');
         $this->endpoint = "/api/me/businesses/$id/documents";
         $this->upload('pitch_deck');
-        $this->getJson("/api/me/businesses/$id")->assertJsonPath('data.status', 'submitted')
+        $this->getJson("/api/me/businesses/$id")->assertJsonPath('data.status', 'pending_approval')
             ->assertJsonPath('data.submitted_at', $timestamp);
         $this->postJson("/api/me/businesses/$id/submit")->assertOk()->assertJsonPath('data.submitted_at', $timestamp);
     }

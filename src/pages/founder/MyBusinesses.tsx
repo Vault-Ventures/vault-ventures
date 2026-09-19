@@ -4,6 +4,7 @@ import { Badge, VerificationBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { IconPlus, IconArrowRight, IconCheck, IconX } from '../../components/layout/Icons';
 import { api, ApiError, resolveMediaUrl, BusinessRecord } from '../../services/api';
+import { usePhotoViewer } from '../../context/PhotoViewerContext';
 import { useAuth } from '../../context/AuthContext';
 
 // --- BDT ---------------------------------------------------------------------
@@ -163,19 +164,34 @@ function StatusBadge({ status }: { status: Business['status'] }) {
 }
 
 function BusinessLogo({ initials, logoUrl }: { initials: string; logoUrl?: string | null }) {
+  const { openPhoto } = usePhotoViewer();
   const [imgError, setImgError] = useState(false);
   const resolved = resolveMediaUrl(logoUrl);
 
   if (resolved && !imgError) {
     return (
-      <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-[color:var(--vv-border)] bg-[#182338]">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          openPhoto({
+            src: resolved,
+            alt: 'Business Logo',
+            title: 'Business Logo',
+          });
+        }}
+        title="View business logo"
+        aria-label="View business logo"
+        className="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-[color:var(--vv-border)] bg-[#182338] cursor-pointer hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C67A4E]"
+      >
         <img
           src={resolved}
           alt="Logo"
           className="w-full h-full object-cover"
           onError={() => setImgError(true)}
         />
-      </div>
+      </button>
     );
   }
 

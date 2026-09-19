@@ -6,8 +6,11 @@ use App\Enums\BusinessStatus;
 use App\Enums\DisclosureStage;
 use App\Enums\ParticipantRole;
 use App\Models\Business;
+use App\Models\BusinessConnection;
 use App\Models\BusinessDisclosureRelationship;
+use App\Models\BusinessInterest;
 use App\Models\User;
+use App\Notifications\ConnectionEstablishedNotification;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -102,7 +105,9 @@ final class DisclosureService
             throw new HttpException(403, 'Founders cannot express interest in their own business.');
         }
 
-        return DB::transaction(function () use ($business, $user, $resolvedRole) {
+        $founderUser = $business->founderProfile?->user;
+
+        return DB::transaction(function () use ($business, $user, $founderUser, $resolvedRole) {
             $relationship = BusinessDisclosureRelationship::where('business_id', $business->id)
                 ->where('counterparty_user_id', $user->id)
                 ->lockForUpdate()
@@ -123,6 +128,58 @@ final class DisclosureService
                     $relationship->interest_expressed_at = now();
                     $relationship->counterparty_role = $resolvedRole;
                     $relationship->save();
+                }
+            }
+
+            if ($founderUser !== null) {
+                $interest = BusinessInterest::where('business_id', $business->id)
+                    ->where('counterparty_user_id', $user->id)
+                    ->where('counterparty_role', $resolvedRole->value)
+                    ->where('expressed_by_user_id', $user->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($interest === null) {
+                    BusinessInterest::create([
+                        'business_id' => $business->id,
+                        'founder_user_id' => $founderUser->id,
+                        'counterparty_user_id' => $user->id,
+                        'counterparty_role' => $resolvedRole,
+                        'expressed_by_user_id' => $user->id,
+                        'status' => 'active',
+                        'expressed_at' => now(),
+                    ]);
+                } else {
+                    $interest->update([
+                        'status' => 'active',
+                        'expressed_at' => now(),
+                    ]);
+                }
+
+                $founderInterest = BusinessInterest::where('business_id', $business->id)
+                    ->where('counterparty_user_id', $user->id)
+                    ->where('counterparty_role', $resolvedRole->value)
+                    ->where('expressed_by_user_id', $founderUser->id)
+                    ->where('status', 'active')
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($founderInterest !== null) {
+                    $connection = BusinessConnection::firstOrCreate(
+                        [
+                            'business_id' => $business->id,
+                            'counterparty_user_id' => $user->id,
+                            'counterparty_role' => $resolvedRole,
+                        ],
+                        [
+                            'founder_user_id' => $founderUser->id,
+                        ]
+                    );
+
+                    if ($connection->wasRecentlyCreated) {
+                        $founderUser->notify(new ConnectionEstablishedNotification($business, $user, $resolvedRole->value));
+                        $user->notify(new ConnectionEstablishedNotification($business, $founderUser, 'founder'));
+                    }
                 }
             }
 

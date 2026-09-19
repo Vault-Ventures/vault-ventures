@@ -6,6 +6,7 @@ use App\Enums\ParticipantRole;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class BusinessConnection extends Model
 {
@@ -41,5 +42,10 @@ class BusinessConnection extends Model
     public function deals(): HasMany
     {
         return $this->hasMany(Deal::class, 'connection_id');
+    }
+
+    public function deal(): HasOne
+    {
+        return $this->hasOne(Deal::class, 'connection_id');
     }
 }

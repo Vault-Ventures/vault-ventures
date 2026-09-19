@@ -2,7 +2,7 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { api } from '../services/api';
+import { api, resolveMediaUrl } from '../services/api';
 import DiscoverBusinesses from '../pages/shared/DiscoverBusinesses';
 import BusinessProfile from '../pages/founder/BusinessProfile';
 
@@ -21,6 +21,7 @@ const mockBusinesses = [
     funding_amount: 5000000,
     skills: ['Engineering', 'CleanTech'],
     founder_verification_tier: 1,
+    logo_url: '/storage/business-logos/solartech.png',
     match: {
       overall_score: 0.88,
       strongest_alignments: [
@@ -40,6 +41,7 @@ const mockBusinesses = [
     funding_amount: 15000000,
     skills: ['FinTech', 'Machine Learning'],
     founder_verification_tier: 0,
+    logo_url: null,
     match: {
       overall_score: 0.76,
       strongest_alignments: [
@@ -72,6 +74,76 @@ describe('Investor Discover Businesses', () => {
     expect(screen.getByText('৳50,00,000')).toBeTruthy();
     expect(screen.getByText('৳1,50,00,000')).toBeTruthy();
     expect(api.get).toHaveBeenCalledWith('/api/me/recommendations/businesses?role=investor');
+  });
+
+  it('renders uploaded business logo when available and fallback initials when missing', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(mockBusinesses);
+
+    render(
+      <MemoryRouter initialEntries={['/app/investor/discover']}>
+        <Routes>
+          <Route path="/app/investor/discover" element={<DiscoverBusinesses context="investor" />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('SolarTech Innovations Ltd')).toBeTruthy();
+
+    // SolarTech has a logo_url, should render img with resolved URL
+    const logoImg = screen.getByAltText('SolarTech Innovations Ltd logo') as HTMLImageElement;
+    expect(logoImg).toBeTruthy();
+    expect(logoImg.src).toBe(resolveMediaUrl('/storage/business-logos/solartech.png'));
+
+    // FinFlow has no logo_url (null), should render fallback initials "FP"
+    expect(screen.getByText('FP')).toBeTruthy();
+  });
+
+  it('gracefully falls back to initials when logo image fails to load', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(mockBusinesses);
+
+    render(
+      <MemoryRouter initialEntries={['/app/investor/discover']}>
+        <Routes>
+          <Route path="/app/investor/discover" element={<DiscoverBusinesses context="investor" />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('SolarTech Innovations Ltd')).toBeTruthy();
+    const logoImg = screen.getByAltText('SolarTech Innovations Ltd logo');
+
+    // Trigger onError
+    fireEvent.error(logoImg);
+
+    // After image error, should show fallback initials "SI"
+    expect(await screen.findByText('SI')).toBeTruthy();
+    expect(screen.queryByAltText('SolarTech Innovations Ltd logo')).toBeNull();
+  });
+
+  it('renders business logo in grid view and handles layout toggle', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(mockBusinesses);
+
+    render(
+      <MemoryRouter initialEntries={['/app/investor/discover']}>
+        <Routes>
+          <Route path="/app/investor/discover" element={<DiscoverBusinesses context="investor" />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('SolarTech Innovations Ltd')).toBeTruthy();
+
+    // Toggle to grid view
+    const gridBtn = screen.getByLabelText('Grid view');
+    fireEvent.click(gridBtn);
+
+    // In grid view, logo image is still displayed for SolarTech
+    const logoImg = screen.getByAltText('SolarTech Innovations Ltd logo') as HTMLImageElement;
+    expect(logoImg).toBeTruthy();
+    expect(logoImg.src).toBe(resolveMediaUrl('/storage/business-logos/solartech.png'));
+
+    // FinFlow fallback initials "FP" still displayed
+    expect(screen.getByText('FP')).toBeTruthy();
   });
 
   it('filters published businesses by search keyword', async () => {

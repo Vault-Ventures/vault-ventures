@@ -354,7 +354,7 @@ class MatchingRecommendationTest extends TestCase
         $this->assertNotContains($b3->id, $ids, 'Own business must not be recommended to professional');
     }
 
-    public function test_tier_0_candidates_are_excluded_from_recommendation_pools(): void
+    public function test_registered_tier_0_and_tier_1_candidates_are_included_in_recommendation_pools(): void
     {
         $founder = $this->createFounderUser();
         $business = $founder->founderProfile->businesses()->create([
@@ -366,7 +366,7 @@ class MatchingRecommendationTest extends TestCase
             'required_experience_level' => 'Senior',
         ]);
 
-        // 1. Tier 0 Investor vs Tier 1 Investor
+        // 1. Tier 0 Investor and Tier 1 Investor are both discoverable
         $tier0Investor = User::factory()->create(['verification_tier' => VerificationTier::Tier0]);
         $tier0Investor->roles()->firstOrCreate(['role' => ParticipantRole::Investor->value]);
         $p0 = $tier0Investor->investorProfile()->firstOrCreate([]);
@@ -380,9 +380,9 @@ class MatchingRecommendationTest extends TestCase
 
         $investorIds = array_column($res->json('data'), 'id');
         $this->assertContains($tier1Investor->investorProfile->id, $investorIds);
-        $this->assertNotContains($p0->id, $investorIds, 'Tier 0 investor must be excluded from recommendations');
+        $this->assertContains($p0->id, $investorIds, 'Tier 0 registered investor with profile must be included in recommendations');
 
-        // 2. Tier 0 Professional vs Tier 1 Professional
+        // 2. Tier 0 Professional and Tier 1 Professional are both discoverable
         $tier0Prof = User::factory()->create(['verification_tier' => VerificationTier::Tier0]);
         $tier0Prof->roles()->firstOrCreate(['role' => ParticipantRole::Professional->value]);
         $prof0 = $tier0Prof->professionalProfile()->firstOrCreate(['experience_level' => 'Senior', 'location' => 'Dhaka']);
@@ -395,7 +395,7 @@ class MatchingRecommendationTest extends TestCase
 
         $profIds = array_column($res->json('data'), 'id');
         $this->assertContains($tier1Prof->professionalProfile->id, $profIds);
-        $this->assertNotContains($prof0->id, $profIds, 'Tier 0 professional must be excluded from recommendations');
+        $this->assertContains($prof0->id, $profIds, 'Tier 0 registered professional with profile must be included in recommendations');
 
         // 3. Draft, Pending Approval, and Rejected businesses must be excluded
         $draftBiz = $founder->founderProfile->businesses()->create(['name' => 'Draft Business', 'industry' => 'Fintech']);
@@ -439,6 +439,8 @@ class MatchingRecommendationTest extends TestCase
             'industry' => 'Fintech',
             'business_stage' => 'Seed',
             'location' => 'Dhaka',
+            'logo_url' => '/storage/business-logos/green-energy.png',
+            'cover_photo_url' => '/storage/business-covers/green-energy-cover.jpg',
         ]);
         $business->forceFill(['status' => BusinessStatus::Published, 'published_at' => now()])->save();
         $business->requirements()->create([
@@ -459,6 +461,8 @@ class MatchingRecommendationTest extends TestCase
         $found = collect($data)->firstWhere('id', $business->id);
         $this->assertSame('Green Energy Solutions Ltd', $found['name']);
         $this->assertSame(2000000.00, (float) $found['funding_amount']);
+        $this->assertSame('/storage/business-logos/green-energy.png', $found['logo_url']);
+        $this->assertSame('/storage/business-covers/green-energy-cover.jpg', $found['cover_photo_url']);
         $this->assertArrayHasKey('match', $found);
         $this->assertArrayHasKey('overall_score', $found['match']);
     }

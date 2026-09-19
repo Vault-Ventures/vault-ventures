@@ -5,7 +5,8 @@ import { Button } from '../../components/ui/Button';
 import { IconArrowRight, IconX } from '../../components/layout/Icons';
 import { MatchScoreChip, MatchExplanationDrawer } from '../../components/ui/AIInsights';
 import type { MatchFactor, MatchDetail } from '../../components/ui/AIInsights';
-import { api, ApiError } from '../../services/api';
+import { api, ApiError, resolveMediaUrl } from '../../services/api';
+import { usePhotoViewer } from '../../context/PhotoViewerContext';
 
 // ── BDT ───────────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,8 @@ interface Business {
   matchScore: number;
   matchReasons: MatchFactor[];
   matchDetail: MatchDetail;
+  logoUrl?: string | null;
+  coverPhotoUrl?: string | null;
 }
 
 interface Filters {
@@ -226,6 +229,64 @@ function ActiveFilterStrip({ filters, search, onChange, onClearAll }: {
   );
 }
 
+// ── Business Logo ─────────────────────────────────────────────────────────────
+
+function BusinessLogo({
+  name,
+  initials,
+  logoUrl,
+  size = 'md',
+}: {
+  name: string;
+  initials: string;
+  logoUrl?: string | null;
+  size?: 'md' | 'sm';
+}) {
+  const { openPhoto } = usePhotoViewer();
+  const [imgError, setImgError] = useState(false);
+  const resolved = resolveMediaUrl(logoUrl);
+
+  const containerClasses = size === 'md'
+    ? 'w-10 h-10 rounded-lg text-[12px]'
+    : 'w-9 h-9 rounded-lg text-[11px]';
+
+  if (resolved && !imgError) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          openPhoto({
+            src: resolved,
+            alt: `${name} logo`,
+            title: `${name} - Logo`,
+          });
+        }}
+        title={`View ${name} logo`}
+        aria-label={`View ${name} logo`}
+        className={`${containerClasses} overflow-hidden shrink-0 border border-[color:var(--vv-border)] bg-[#182338] flex items-center justify-center cursor-pointer hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C67A4E]`}
+      >
+        <img
+          src={resolved}
+          alt={`${name} logo`}
+          className="w-full h-full object-cover"
+          onError={() => setImgError(true)}
+        />
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className={`${containerClasses} flex items-center justify-center shrink-0 font-bold text-[#C67A4E]`}
+      style={{ background: 'rgba(198,122,78,0.10)', border: '1px solid rgba(198,122,78,0.22)' }}
+    >
+      {initials}
+    </div>
+  );
+}
+
 // ── Business card — list view ─────────────────────────────────────────────────
 
 function BusinessCardList({ business, contextLabel, onOpenMatch }: {
@@ -237,10 +298,12 @@ function BusinessCardList({ business, contextLabel, onOpenMatch }: {
     <Link to={`/app/businesses/${business.id}`}>
       <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] p-4 hover:border-[color:var(--vv-border-strong)] hover:bg-[#131e30] transition-all group cursor-pointer">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 text-[12px] font-bold text-[#C67A4E] flex-shrink-0"
-            style={{ background: 'rgba(198,122,78,0.10)', border: '1px solid rgba(198,122,78,0.22)' }}>
-            {business.initials}
-          </div>
+          <BusinessLogo
+            name={business.name}
+            initials={business.initials}
+            logoUrl={business.logoUrl}
+            size="md"
+          />
           <div className="flex-1 min-w-0">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 mb-1.5">
               <div className="flex items-center gap-2 flex-wrap min-w-0">
@@ -301,10 +364,12 @@ function BusinessCardGrid({ business, contextLabel, onOpenMatch }: {
     <Link to={`/app/businesses/${business.id}`} className="block h-full">
       <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] p-4 hover:border-[color:var(--vv-border-strong)] transition-all group h-full flex flex-col">
         <div className="flex items-start gap-2.5 mb-3">
-          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-[11px] font-bold text-[#C67A4E]"
-            style={{ background: 'rgba(198,122,78,0.10)', border: '1px solid rgba(198,122,78,0.22)' }}>
-            {business.initials}
-          </div>
+          <BusinessLogo
+            name={business.name}
+            initials={business.initials}
+            logoUrl={business.logoUrl}
+            size="sm"
+          />
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-1 mb-0.5">
               <p className="text-[13px] font-semibold text-[color:var(--vv-text)] leading-tight">{business.name}</p>
@@ -499,6 +564,8 @@ export default function DiscoverBusinesses({ context }: { context: 'investor' | 
           matchScore: score,
           matchReasons,
           matchDetail,
+          logoUrl: item.logo_url || null,
+          coverPhotoUrl: item.cover_photo_url || null,
         };
       });
       setBusinesses(mapped);
@@ -522,12 +589,19 @@ export default function DiscoverBusinesses({ context }: { context: 'investor' | 
     setInterestLoading(true);
     setInterestSuccess(null);
     try {
-      await api.post(`/api/me/businesses/${business.id}/express-interest`, {
-        role: context,
-      });
-      setInterestSuccess(`Interest expressed in ${business.name}!`);
+      if (context === 'professional') {
+        await api.applications.apply(business.id, {
+          role_title: 'Professional Advisor',
+        });
+        setInterestSuccess(`Application submitted to ${business.name}!`);
+      } else {
+        await api.post(`/api/me/businesses/${business.id}/express-interest`, {
+          role: context,
+        });
+        setInterestSuccess(`Interest expressed in ${business.name}!`);
+      }
     } catch (err: any) {
-      const msg = err instanceof ApiError ? err.message : 'Failed to express interest.';
+      const msg = err instanceof ApiError ? err.message : (context === 'professional' ? 'Failed to submit application.' : 'Failed to express interest.');
       setErrorMessage(msg);
     } finally {
       setInterestLoading(false);
@@ -638,6 +712,15 @@ export default function DiscoverBusinesses({ context }: { context: 'investor' | 
           {/* Active filter chips */}
           <ActiveFilterStrip filters={filters} search={search} onChange={setFilters} onClearAll={handleClearAll} />
 
+          {interestSuccess && (
+            <div className="p-3 mb-3 rounded-md text-[12px] bg-emerald-950/40 border border-emerald-800/40 text-emerald-300 flex items-center justify-between">
+              <span>{interestSuccess}</span>
+              <button onClick={() => setInterestSuccess(null)} className="text-emerald-300 hover:text-white text-[11px] underline ml-2">
+                Dismiss
+              </button>
+            </div>
+          )}
+
           {errorMessage && (
             <div className="p-3 mb-3 rounded-md text-[12px] bg-red-950/40 border border-red-800/40 text-red-300">
               {errorMessage}
@@ -704,7 +787,11 @@ export default function DiscoverBusinesses({ context }: { context: 'investor' | 
         <MatchExplanationDrawer
           data={activeBusiness.matchDetail}
           cta={{
-            label: interestSuccess ? '✓ Interest Expressed' : interestLoading ? 'Expressing…' : ctaLabel,
+            label: interestSuccess
+              ? (context === 'professional' ? '✓ Application Submitted' : '✓ Interest Expressed')
+              : interestLoading
+              ? (context === 'professional' ? 'Submitting…' : 'Expressing…')
+              : ctaLabel,
             action: () => handleExpressInterest(activeBusiness),
           }}
           onClose={() => { setActiveBusiness(null); setInterestSuccess(null); }}

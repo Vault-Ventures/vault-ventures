@@ -10,7 +10,7 @@ vi.mock('../context/AuthContext', () => ({
 }));
 vi.mock('../components/layout/AppShell', async () => {
   const { Outlet } = await import('react-router-dom');
-  return { AppShell: () => <Outlet /> };
+  return { default: () => <Outlet />, AppShell: () => <Outlet /> };
 });
 vi.mock('../pages/shared/DealRoom', async () => {
   const { useParams } = await import('react-router-dom');

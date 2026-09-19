@@ -161,6 +161,21 @@ export interface DealMilestonesResponseData {
   milestones: DealMilestoneData[];
 }
 
+export interface DealMessageItem {
+  id: number;
+  deal_id: number;
+  sender_user_id: number;
+  sender: {
+    id: number;
+    name: string;
+    email?: string;
+    avatar_url?: string | null;
+  } | null;
+  body: string;
+  created_at: string;
+  updated_at?: string | null;
+}
+
 export interface CreateMilestonePayload {
   sequence_order?: number;
   title: string;
@@ -236,6 +251,53 @@ export interface SubmitDealFeedbackPayload {
   rating: number;
   comment?: string | null;
   role?: string;
+}
+
+export interface DealListItem {
+  id: number;
+  connection_id: number;
+  business_id: number;
+  business?: {
+    id: number;
+    name: string;
+    industry?: string;
+    business_stage?: string;
+    location?: string;
+    logo_url?: string | null;
+  } | null;
+  founder_user_id: number;
+  founder?: {
+    id: number;
+    name: string;
+    email: string;
+    avatar_url?: string | null;
+  } | null;
+  counterparty_user_id: number;
+  counterparty?: {
+    id: number;
+    name: string;
+    email: string;
+    avatar_url?: string | null;
+  } | null;
+  counterparty_role: 'investor' | 'professional' | string;
+  stage: string;
+  stage_label: string;
+  stage_order: number;
+  agreement_status?: string | null;
+  milestones_count?: number;
+  funded_milestones_count?: number;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface DealListResponse {
+  items: DealListItem[];
+  pagination: {
+    current_page: number;
+    last_page: number;
+    total: number;
+    per_page: number;
+  };
 }
 
 export interface ReputationSummaryData {
@@ -326,6 +388,72 @@ export interface AdminFinancialReportsListResponse {
     per_page: number;
     total: number;
   };
+}
+
+export interface BusinessApplicationItem {
+  id: number;
+  business_id: number;
+  business: string;
+  business_logo_url: string | null;
+  business_initials: string;
+  industry: string;
+  opportunity: string;
+  role: string;
+  applied_date: string;
+  last_updated: string;
+  status: 'submitted' | 'under_review' | 'accepted' | 'rejected' | 'withdrawn';
+  timeline: { action: string; ts: string }[];
+  note: string | null;
+  skills: string[];
+  rejection_reason: string | null;
+}
+
+export interface FounderApplicationItem {
+  id: number;
+  business_id: number;
+  business_name: string;
+  business_logo_url: string | null;
+  professional: {
+    id: number;
+    name: string;
+    email: string | null;
+    avatar_url: string | null;
+    initials: string;
+    verification_tier: number;
+    headline: string;
+    bio: string | null;
+    location: string | null;
+    experience_years: number;
+    skills: string[];
+    hourly_rate: number | null;
+  };
+  status: 'submitted' | 'under_review' | 'accepted' | 'rejected' | 'withdrawn';
+  role_title: string;
+  note: string | null;
+  applied_at: string;
+  reviewed_at: string | null;
+  responded_at: string | null;
+  rejection_reason: string | null;
+  timeline: { action: string; ts: string }[];
+}
+
+export interface ApplyPayload {
+  role_title?: string;
+  note?: string;
+  skills?: string[];
+}
+
+export interface ApplicationStatusResponse {
+  has_applied: boolean;
+  status: string;
+  application: {
+    id: number;
+    status: string;
+    role_title: string;
+    applied_at: string;
+    reviewed_at: string | null;
+    responded_at: string | null;
+  } | null;
 }
 
 export interface DealFinancialOverviewData {
@@ -672,6 +800,81 @@ export interface AdminUserReputationData {
   reputation_by_role: Record<string, ReputationSummaryData>;
 }
 
+export interface AdminUserListItem {
+  id: number;
+  name: string;
+  email: string;
+  phone?: string | null;
+  phone_verified_at?: string | null;
+  email_verified_at?: string | null;
+  avatar_url?: string | null;
+  headline?: string | null;
+  location?: string | null;
+  verification_tier: number;
+  is_suspended: boolean;
+  suspended_at?: string | null;
+  suspension_reason?: string | null;
+  suspended_by?: {
+    id: number;
+    name: string;
+    email: string;
+  } | null;
+  roles: string[];
+  is_admin: boolean;
+  created_at: string;
+  updated_at?: string;
+  latest_verification_request?: {
+    id: number;
+    requested_tier: number;
+    status: string;
+    submitted_at?: string;
+  } | null;
+}
+
+export interface AdminUserDetail extends AdminUserListItem {
+  bio?: string | null;
+  cover_photo_url?: string | null;
+  experience?: ExperienceItem[];
+  portfolio?: PortfolioItem[];
+  preferences?: Record<string, any>;
+  profiles?: {
+    founder?: { id: number; bio?: string | null } | null;
+    investor?: { id: number; investment_capacity?: any } | null;
+    professional?: { id: number; skills?: string[]; experience_level?: string | null; location?: string | null; availability?: string | null } | null;
+  };
+  verification_requests?: Array<{
+    id: number;
+    requested_tier: number;
+    status: string;
+    submitted_at?: string;
+    reviewed_at?: string;
+    rejection_reason?: string | null;
+  }>;
+}
+
+export interface AdminUsersFilterParams {
+  search?: string;
+  q?: string;
+  role?: string;
+  verification_tier?: number | string;
+  tier?: number | string;
+  status?: 'active' | 'suspended' | 'all';
+  sort_by?: 'name' | 'email' | 'verification_tier' | 'created_at' | 'suspended_at';
+  sort_order?: 'asc' | 'desc';
+  page?: number;
+  per_page?: number;
+}
+
+export interface AdminUsersListResponse {
+  users: AdminUserListItem[];
+  pagination: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
+
 export interface BusinessRecord {
   id: number;
   name: string;
@@ -751,6 +954,53 @@ export interface BusinessRecord {
   } | null;
 }
 
+export interface DealListItem {
+  id: number;
+  connection_id: number;
+  business_id: number;
+  business: {
+    id: number;
+    name: string;
+    industry?: string;
+    business_stage?: string;
+    location?: string;
+    logo_url?: string | null;
+  } | null;
+  founder_user_id: number;
+  founder: {
+    id: number;
+    name: string;
+    email: string;
+    avatar_url?: string | null;
+  } | null;
+  counterparty_user_id: number;
+  counterparty: {
+    id: number;
+    name: string;
+    email: string;
+    avatar_url?: string | null;
+  } | null;
+  counterparty_role: string;
+  stage: string;
+  stage_label: string;
+  stage_order: number;
+  agreement_status?: string | null;
+  milestones_count: number;
+  funded_milestones_count: number;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface DealListResponse {
+  items: DealListItem[];
+  pagination: {
+    current_page: number;
+    last_page: number;
+    total: number;
+    per_page: number;
+  };
+}
+
 export const api = {
   get: <T = unknown>(url: string, params?: Record<string, any>) => apiClient<T>(url, { params }),
   post: <T = unknown>(url: string, body?: unknown, options?: RequestOptions) => apiClient<T>(url, { ...options, method: 'POST', body: body as any }),
@@ -759,6 +1009,8 @@ export const api = {
   delete: <T = unknown>(url: string, options?: RequestOptions) => apiClient<T>(url, { ...options, method: 'DELETE' }),
 
   deals: {
+    list: (params?: { role?: string; business_id?: number | string; page?: number; per_page?: number }) =>
+      apiClient<DealListResponse>(`/api/me/deals`, { params }),
     get: (dealId: number | string, role?: string) =>
       apiClient<{
         id: number;
@@ -801,6 +1053,12 @@ export const api = {
       submit: (dealId: number | string, payload: SubmitDealFeedbackPayload, role?: string) =>
         apiClient<DealFeedbackItem>(`/api/me/deals/${dealId}/feedback`, { method: 'POST', body: payload, params: role ? { role } : undefined }),
     },
+    messages: {
+      list: (dealId: number | string, role?: string) =>
+        apiClient<{ messages: DealMessageItem[] }>(`/api/me/deals/${dealId}/messages`, { params: role ? { role } : undefined }),
+      send: (dealId: number | string, body: string, role?: string) =>
+        apiClient<DealMessageItem>(`/api/me/deals/${dealId}/messages`, { method: 'POST', body: { body }, params: role ? { role } : undefined }),
+    },
     milestones: {
       list: (dealId: number | string, role?: string) =>
         apiClient<DealMilestonesResponseData>(`/api/me/deals/${dealId}/milestones`, { params: role ? { role } : undefined }),
@@ -826,6 +1084,19 @@ export const api = {
   },
 
   admin: {
+    users: {
+      list: (params?: AdminUsersFilterParams) =>
+        apiClient<AdminUsersListResponse>(`/api/admin/users`, { params }),
+      get: (userId: number | string) =>
+        apiClient<AdminUserDetail>(`/api/admin/users/${userId}`),
+      suspend: (userId: number | string, reason?: string) =>
+        apiClient<AdminUserDetail>(`/api/admin/users/${userId}/suspend`, {
+          method: 'POST',
+          body: { reason, suspension_reason: reason },
+        }),
+      restore: (userId: number | string) =>
+        apiClient<AdminUserDetail>(`/api/admin/users/${userId}/restore`, { method: 'POST' }),
+    },
     verificationRequests: {
       list: (params?: { status?: string }) =>
         apiClient<AdminVerificationRequestData[]>(`/api/admin/verification-requests`, { params }),
@@ -894,6 +1165,11 @@ export const api = {
 
   connections: {
     list: (role: string, page = 1) => apiClient<PaginatedItems<ConnectionItem>>('/api/me/connections', { params: { role, page } }),
+    withdrawInterest: (businessId: number | string, role?: string) =>
+      apiClient<{ success: boolean; message?: string }>(`/api/me/businesses/${businessId}/withdraw-interest`, {
+        method: 'POST',
+        body: role ? { role } : {},
+      }),
   },
   businesses: {
     listPage: async (page = 1): Promise<PaginatedItems<BusinessRecord>> => {
@@ -930,6 +1206,8 @@ export const api = {
       apiClient<any>(`/api/me/businesses/${businessId}/disclosure-status`),
     expressInterest: (businessId: number | string, payload?: any) =>
       apiClient<any>(`/api/me/businesses/${businessId}/express-interest`, { method: 'POST', body: payload || {} }),
+    withdrawInterest: (businessId: number | string, payload?: any) =>
+      apiClient<any>(`/api/me/businesses/${businessId}/withdraw-interest`, { method: 'POST', body: payload || {} }),
     getLatestAnalysis: (businessId: number | string) =>
       apiClient<any>(`/api/me/businesses/${businessId}/business-analyses/latest`),
     getConnectionStatus: (businessId: number | string, counterparty_user_id?: number | string, role?: string) =>
@@ -965,6 +1243,7 @@ export const api = {
 
   profile: {
     get: () => apiClient<UserProfileResponseData>(`/api/me/profile`),
+    getUser: (userId: number | string) => apiClient<UserProfileResponseData>(`/api/users/${userId}/profile`),
     update: (payload: {
       name?: string;
       headline?: string | null;
@@ -1040,6 +1319,54 @@ export const api = {
       new_password: string;
       new_password_confirmation: string;
     }) => apiClient<null>('/api/me/password', { method: 'PUT', body: payload }),
+  },
+
+  applications: {
+    apply: (businessId: number | string, payload?: ApplyPayload) =>
+      apiClient<BusinessApplicationItem>(`/api/me/businesses/${businessId}/apply`, {
+        method: 'POST',
+        body: payload || {},
+      }),
+    getStatus: (businessId: number | string) =>
+      apiClient<ApplicationStatusResponse>(`/api/me/businesses/${businessId}/application-status`),
+    professional: {
+      list: (params?: { status?: string; search?: string }) => {
+        const q = new URLSearchParams();
+        if (params?.status) q.append('status', params.status);
+        if (params?.search) q.append('search', params.search);
+        const qs = q.toString() ? `?${q.toString()}` : '';
+        return apiClient<BusinessApplicationItem[]>(`/api/me/professional/applications${qs}`);
+      },
+      withdraw: (id: number | string) =>
+        apiClient<{ id: number; status: string }>(`/api/me/professional/applications/${id}/withdraw`, {
+          method: 'POST',
+        }),
+    },
+    founder: {
+      list: (params?: { business_id?: number | string; status?: string; search?: string }) => {
+        const q = new URLSearchParams();
+        if (params?.business_id) q.append('business_id', String(params.business_id));
+        if (params?.status) q.append('status', params.status);
+        if (params?.search) q.append('search', params.search);
+        const qs = q.toString() ? `?${q.toString()}` : '';
+        return apiClient<FounderApplicationItem[]>(`/api/me/founder/applications${qs}`);
+      },
+      get: (id: number | string) =>
+        apiClient<FounderApplicationItem>(`/api/me/founder/applications/${id}`),
+      markUnderReview: (id: number | string) =>
+        apiClient<{ id: number; status: string; reviewed_at: string }>(`/api/me/founder/applications/${id}/review`, {
+          method: 'POST',
+        }),
+      accept: (id: number | string) =>
+        apiClient<{ id: number; status: string; responded_at: string }>(`/api/me/founder/applications/${id}/accept`, {
+          method: 'POST',
+        }),
+      reject: (id: number | string, reason?: string) =>
+        apiClient<{ id: number; status: string; responded_at: string; rejection_reason?: string | null }>(
+          `/api/me/founder/applications/${id}/reject`,
+          { method: 'POST', body: { reason } }
+        ),
+    },
   },
 };
 

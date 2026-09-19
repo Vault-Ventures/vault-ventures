@@ -95,12 +95,38 @@ class BusinessConnectionController extends Controller
     }
 
     /**
-     * Express counterparty reciprocal interest for a business.
+     * Express counterparty reciprocal interest for a business (or founder reciprocating counterparty interest).
      */
     public function expressReciprocalInterest(Request $request, string $business, ConnectionService $service): JsonResponse
     {
         $businessModel = Business::findOrFail($business);
         $user = $request->user();
+
+        $isOwner = $businessModel->founderProfile !== null && $businessModel->founderProfile->user_id === $user->id;
+
+        if ($isOwner) {
+            $targetId = $request->input('counterparty_user_id') ?? $request->query('counterparty_user_id') ?? $request->input('user_id');
+            if ($targetId === null || trim((string) $targetId) === '') {
+                throw ValidationException::withMessages([
+                    'counterparty_user_id' => ['Target counterparty user ID is required.'],
+                ]);
+            }
+
+            $counterparty = User::find($targetId);
+            if ($counterparty === null) {
+                throw ValidationException::withMessages([
+                    'counterparty_user_id' => ['Invalid counterparty user specified.'],
+                ]);
+            }
+
+            $roleParam = $request->input('role') ?? $request->query('role') ?? $request->input('counterparty_role');
+            $result = $service->expressFounderInterest($businessModel, $user, $counterparty, is_string($roleParam) ? $roleParam : null);
+
+            return ApiResponse::success(
+                $this->formatConnectionResponse($result),
+                'Reciprocal interest expressed successfully.'
+            );
+        }
 
         $roleParam = $request->input('role') ?? $request->query('role');
         $result = $service->expressReciprocalInterest($businessModel, $user, is_string($roleParam) ? $roleParam : null);
@@ -108,6 +134,27 @@ class BusinessConnectionController extends Controller
         return ApiResponse::success(
             $this->formatConnectionResponse($result),
             'Reciprocal interest expressed successfully.'
+        );
+    }
+
+    /**
+     * Withdraw pending counterparty interest for a business.
+     */
+    public function withdrawInterest(Request $request, string $business, ConnectionService $service): JsonResponse
+    {
+        $businessModel = Business::findOrFail($business);
+        $user = $request->user();
+
+        $roleParam = $request->input('role') ?? $request->query('role');
+        $result = $service->withdrawCounterpartyInterest(
+            $businessModel,
+            $user,
+            is_string($roleParam) ? $roleParam : null
+        );
+
+        return ApiResponse::success(
+            $result,
+            'Interest withdrawn successfully.'
         );
     }
 
@@ -120,7 +167,7 @@ class BusinessConnectionController extends Controller
         $user = $request->user();
 
         $isOwner = $businessModel->founderProfile !== null && $businessModel->founderProfile->user_id === $user->id;
-        if (! $isOwner && $businessModel->status !== BusinessStatus::Submitted) {
+        if (! $isOwner && ! in_array($businessModel->status, [BusinessStatus::Published, BusinessStatus::Submitted], true)) {
             throw (new ModelNotFoundException)->setModel(Business::class, [$business]);
         }
 

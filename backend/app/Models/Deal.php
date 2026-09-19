@@ -82,4 +82,9 @@ class Deal extends Model
     {
         return $this->hasMany(FinancialDiscrepancyReport::class)->orderBy('id', 'desc');
     }
+
+    public function messages(): HasMany
+    {
+        return $this->hasMany(DealMessage::class)->orderBy('created_at', 'asc')->orderBy('id', 'asc');
+    }
 }

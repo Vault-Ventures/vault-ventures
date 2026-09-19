@@ -3,12 +3,14 @@ import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { IconBuilding, IconCheck, IconX, IconSearch, IconShield, IconEye } from '../../components/layout/Icons';
 import { api, ApiError, BusinessRecord, resolveMediaUrl } from '../../services/api';
+import { usePhotoViewer } from '../../context/PhotoViewerContext';
 
 function fmtBDT(n: number): string {
   return 'BDT ' + n.toLocaleString('en-IN');
 }
 
 export default function AdminBusinesses() {
+  const { openPhoto } = usePhotoViewer();
   const [businesses, setBusinesses] = useState<BusinessRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -228,7 +230,22 @@ export default function AdminBusinesses() {
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2.5">
                           {logo ? (
-                            <img src={logo} alt="Logo" className="w-8 h-8 rounded-lg object-cover shrink-0 border border-white/10" />
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openPhoto({
+                                  src: logo,
+                                  alt: `${b.name} logo`,
+                                  title: `${b.name} - Logo`,
+                                });
+                              }}
+                              title={`View ${b.name} logo`}
+                              aria-label={`View ${b.name} logo`}
+                              className="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-white/10 hover:opacity-80 transition-opacity cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C67A4E]"
+                            >
+                              <img src={logo} alt={`${b.name} logo`} className="w-full h-full object-cover" />
+                            </button>
                           ) : (
                             <div className="w-8 h-8 rounded-lg bg-[#182338] border border-white/10 flex items-center justify-center font-bold text-[11px] text-[#C67A4E] shrink-0">
                               {b.name.slice(0, 2).toUpperCase()}

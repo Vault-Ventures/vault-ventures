@@ -28,7 +28,7 @@ class CandidateRecommendationService
         $business->loadMissing(['requirements']);
 
         $query = InvestorProfile::with(['user', 'preferences'])
-            ->whereHas('user', fn ($q) => $q->where('verification_tier', '>=', 1));
+            ->whereHas('user', fn ($q) => $q->where('verification_tier', '>=', 0));
 
         if ($excludeUser) {
             $query->where('user_id', '!=', $excludeUser->id);
@@ -48,6 +48,9 @@ class CandidateRecommendationService
                 'id' => $investor->id,
                 'user_id' => $investor->user_id,
                 'name' => $investor->user?->name,
+                'avatar_url' => $investor->user?->avatar_url,
+                'headline' => $investor->user?->headline,
+                'bio' => $investor->user?->bio,
                 'verification_tier' => $investor->user?->verification_tier instanceof VerificationTier
                     ? $investor->user->verification_tier->value
                     : (int) ($investor->user?->verification_tier ?? 0),
@@ -88,7 +91,7 @@ class CandidateRecommendationService
     /**
      * Recommend top 10 professionals for a given business.
      *
-     * Candidates must be verified (Tier 1+).
+     * Candidates must be enrolled users (Tier 0+).
      *
      * @return array<int, array<string, mixed>>
      */
@@ -97,7 +100,7 @@ class CandidateRecommendationService
         $business->loadMissing(['requirements.skills']);
 
         $query = ProfessionalProfile::with(['user', 'skills'])
-            ->whereHas('user', fn ($q) => $q->where('verification_tier', '>=', 1));
+            ->whereHas('user', fn ($q) => $q->where('verification_tier', '>=', 0));
 
         if ($excludeUser) {
             $query->where('user_id', '!=', $excludeUser->id);
@@ -117,6 +120,9 @@ class CandidateRecommendationService
                 'id' => $prof->id,
                 'user_id' => $prof->user_id,
                 'name' => $prof->user?->name,
+                'avatar_url' => $prof->user?->avatar_url,
+                'headline' => $prof->user?->headline,
+                'bio' => $prof->user?->bio,
                 'verification_tier' => $prof->user?->verification_tier instanceof VerificationTier
                     ? $prof->user->verification_tier->value
                     : (int) ($prof->user?->verification_tier ?? 0),
@@ -191,6 +197,8 @@ class CandidateRecommendationService
                 'risk_level' => $business->risk_level,
                 'expected_involvement' => $business->expected_involvement,
                 'location' => $business->location,
+                'logo_url' => $business->logo_url,
+                'cover_photo_url' => $business->cover_photo_url,
                 'funding_amount' => $business->requirements?->funding_amount,
                 'accepted_investment_types' => $business->requirements?->accepted_investment_types ?? [],
                 'skills' => $business->requirements?->skills?->pluck('name')->values()->all() ?? [],
@@ -265,6 +273,8 @@ class CandidateRecommendationService
                 'risk_level' => $business->risk_level,
                 'expected_involvement' => $business->expected_involvement,
                 'location' => $business->location,
+                'logo_url' => $business->logo_url,
+                'cover_photo_url' => $business->cover_photo_url,
                 'funding_amount' => $business->requirements?->funding_amount,
                 'required_experience_level' => $business->requirements?->required_experience_level,
                 'required_availability' => $business->requirements?->required_availability,

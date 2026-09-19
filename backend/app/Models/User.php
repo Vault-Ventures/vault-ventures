@@ -7,6 +7,7 @@ use App\Enums\VerificationTier;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -37,6 +38,16 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->adminAccess()->exists();
     }
 
+    public function suspendedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'suspended_by_user_id');
+    }
+
+    public function isSuspended(): bool
+    {
+        return ! is_null($this->suspended_at);
+    }
+
     public function founderProfile(): HasOne
     {
         return $this->hasOne(FounderProfile::class);
@@ -50,6 +61,31 @@ class User extends Authenticatable implements MustVerifyEmail
     public function professionalProfile(): HasOne
     {
         return $this->hasOne(ProfessionalProfile::class);
+    }
+
+    public function founderConnections(): HasMany
+    {
+        return $this->hasMany(BusinessConnection::class, 'founder_user_id');
+    }
+
+    public function counterpartyConnections(): HasMany
+    {
+        return $this->hasMany(BusinessConnection::class, 'counterparty_user_id');
+    }
+
+    public function founderDeals(): HasMany
+    {
+        return $this->hasMany(Deal::class, 'founder_user_id');
+    }
+
+    public function counterpartyDeals(): HasMany
+    {
+        return $this->hasMany(Deal::class, 'counterparty_user_id');
+    }
+
+    public function dealMessages(): HasMany
+    {
+        return $this->hasMany(DealMessage::class, 'sender_user_id');
     }
 
     public function phoneVerificationCodes(): HasMany
@@ -122,6 +158,7 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $fillable = [
         'name',
         'email',
+        'phone',
         'password',
         'headline',
         'bio',
@@ -131,6 +168,9 @@ class User extends Authenticatable implements MustVerifyEmail
         'experience',
         'portfolio',
         'preferences',
+        'suspended_at',
+        'suspension_reason',
+        'suspended_by_user_id',
     ];
 
     /**
@@ -153,6 +193,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'phone_verified_at' => 'datetime',
+            'suspended_at' => 'datetime',
             'verification_tier' => VerificationTier::class,
             'password' => 'hashed',
             'experience' => 'array',

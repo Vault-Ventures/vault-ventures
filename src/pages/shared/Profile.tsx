@@ -1,13 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Badge, VerificationBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { useRole } from '../../components/layout/AppShell';
 import { useAuth, NormalRole } from '../../context/AuthContext';
-import { api, ExperienceItem, PortfolioItem, UserProfileResponseData, resolveMediaUrl } from '../../services/api';
+import { api, ExperienceItem, PortfolioItem, UserProfileResponseData, ProfessionalProfileData, resolveMediaUrl } from '../../services/api';
 import { ScoreChip } from '../../components/ui/ScoreComponents';
 import { ManageRolesModal } from '../../components/layout/ManageRolesModal';
 import { useToast } from '../../components/ui/Feedback';
+import { usePhotoViewer } from '../../context/PhotoViewerContext';
 
 const ROLE_COLORS: Record<NormalRole, string> = {
   founder: '#C67A4E',
@@ -169,16 +170,31 @@ function CoverBanner({
   onEdit: () => void;
   isUploading?: boolean;
 }) {
+  const { openPhoto } = usePhotoViewer();
   const resolvedImage = resolveMediaUrl(image);
 
   return (
     <div
-      className="relative overflow-hidden"
+      role={resolvedImage ? 'button' : undefined}
+      tabIndex={resolvedImage ? 0 : undefined}
+      aria-label={resolvedImage ? 'View cover photo' : undefined}
+      className={`relative overflow-hidden ${resolvedImage ? 'cursor-pointer group' : ''}`}
       style={{
         height: 148,
         backgroundImage: resolvedImage ? `url("${resolvedImage}")` : undefined,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
+      }}
+      onClick={() => {
+        if (resolvedImage) {
+          openPhoto({ src: resolvedImage, alt: 'Cover Photo', title: 'Cover Photo' });
+        }
+      }}
+      onKeyDown={(e) => {
+        if (resolvedImage && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          openPhoto({ src: resolvedImage, alt: 'Cover Photo', title: 'Cover Photo' });
+        }
       }}
     >
       {!resolvedImage && <div className="absolute inset-0 bg-gradient-to-br from-[#212324] via-[#1A1C1D] to-[#0B0C0E]" />}
@@ -213,11 +229,14 @@ function CoverBanner({
       {editable && (
         <button
           type="button"
-          onClick={onEdit}
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
           disabled={isUploading}
           aria-label="Edit cover photo"
           title="Edit cover photo"
-          className="absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-md border border-white/30 bg-black/50 px-2.5 py-1.5 text-[11px] font-medium text-white backdrop-blur-sm transition-colors hover:bg-black/70 focus-visible:outline-none"
+          className="absolute right-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-md border border-white/30 bg-black/50 px-2.5 py-1.5 text-[11px] font-medium text-white backdrop-blur-sm transition-colors hover:bg-black/70 focus-visible:outline-none cursor-pointer"
         >
           <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M4 7h3l1.5-2h7L17 7h3v12H4V7Z" />
@@ -246,6 +265,7 @@ function Avatar({
   onEdit: () => void;
   isUploading?: boolean;
 }) {
+  const { openPhoto } = usePhotoViewer();
   const [imgError, setImgError] = useState(false);
   const [prevImage, setPrevImage] = useState(image);
   const resolvedImage = resolveMediaUrl(image);
@@ -255,17 +275,33 @@ function Avatar({
     setImgError(false);
   }
 
+  const hasPhoto = Boolean(resolvedImage && !imgError);
+
   return (
     <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
       <div
+        role={hasPhoto ? 'button' : undefined}
+        tabIndex={hasPhoto ? 0 : undefined}
+        aria-label={hasPhoto ? 'View profile photo' : undefined}
         style={{ width: size, height: size, borderWidth: 4, borderColor: '#121A2B' }}
-        className="rounded-full bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border-solid flex items-center justify-center text-[#C67A4E] font-semibold ring-1 ring-[#35446A] overflow-hidden"
+        className={`rounded-full bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border-solid flex items-center justify-center text-[#C67A4E] font-semibold ring-1 ring-[#35446A] overflow-hidden ${hasPhoto ? 'cursor-pointer group' : ''}`}
+        onClick={() => {
+          if (hasPhoto && resolvedImage) {
+            openPhoto({ src: resolvedImage, alt: 'Profile Photo', title: 'Profile Photo' });
+          }
+        }}
+        onKeyDown={(e) => {
+          if (hasPhoto && resolvedImage && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            openPhoto({ src: resolvedImage, alt: 'Profile Photo', title: 'Profile Photo' });
+          }
+        }}
       >
-        {resolvedImage && !imgError ? (
+        {hasPhoto && resolvedImage ? (
           <img
             src={resolvedImage}
             alt="Profile"
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover transition-transform group-hover:scale-105"
             onError={() => setImgError(true)}
           />
         ) : (
@@ -275,11 +311,14 @@ function Avatar({
       {editable && (
         <button
           type="button"
-          onClick={onEdit}
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
           disabled={isUploading}
           aria-label="Edit profile photo"
           title="Edit profile photo"
-          className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[color:var(--vv-surface)] bg-[color:var(--vv-copper)] text-[color:var(--vv-on-copper)] shadow-md transition-colors hover:bg-[color:var(--vv-copper-warm)] focus-visible:outline-none"
+          className="absolute bottom-0 right-0 z-10 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[color:var(--vv-surface)] bg-[color:var(--vv-copper)] text-[color:var(--vv-on-copper)] shadow-md transition-colors hover:bg-[color:var(--vv-copper-warm)] focus-visible:outline-none cursor-pointer"
         >
           <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M4 7h3l1.5-2h7L17 7h3v12H4V7Z" />
@@ -336,7 +375,7 @@ function DotsMenu({ onEditProfile }: { onEditProfile: () => void }) {
 }
 
 /* bio */
-function Bio({ text, onEdit }: { text: string; onEdit: () => void }) {
+function Bio({ text, onEdit }: { text: string; onEdit?: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const LIMIT = 180;
   const long = text.length > LIMIT;
@@ -345,11 +384,13 @@ function Bio({ text, onEdit }: { text: string; onEdit: () => void }) {
     return (
       <div className="flex items-center justify-between gap-4">
         <p className="text-[13px] text-[color:var(--vv-text-tertiary)] italic">
-          Add a short introduction to help others understand your background.
+          {onEdit ? 'Add a short introduction to help others understand your background.' : 'No biography provided yet.'}
         </p>
-        <button onClick={onEdit} className="text-[12px] text-[#C67A4E] hover:underline shrink-0">
-          Add bio →
-        </button>
+        {onEdit && (
+          <button onClick={onEdit} className="text-[12px] text-[#C67A4E] hover:underline shrink-0">
+            Add bio →
+          </button>
+        )}
       </div>
     );
   }
@@ -420,7 +461,7 @@ function FounderSection({
   goEdit,
 }: {
   business?: { company?: string; industry?: string; stage?: string; experience?: string; skills?: string[]; interests?: string[] } | null;
-  goEdit: () => void;
+  goEdit?: () => void;
 }) {
   const company = business?.company || 'Founder Venture';
   const industry = business?.industry || 'Startup';
@@ -431,7 +472,7 @@ function FounderSection({
 
   return (
     <div className="space-y-3">
-      <SectionCard title="Business" action={<button onClick={goEdit} className="text-[11.5px] text-[#C67A4E] hover:underline">Edit</button>}>
+      <SectionCard title="Business" action={goEdit ? <button onClick={goEdit} className="text-[11.5px] text-[#C67A4E] hover:underline">Edit</button> : undefined}>
         <div className="flex items-start justify-between gap-3 mb-3">
           <div>
             <p className="text-[13px] font-semibold text-[color:var(--vv-text)] mb-0.5">{company}</p>
@@ -443,10 +484,10 @@ function FounderSection({
         </div>
         <InfoRow label="Founder experience" value={experience} />
       </SectionCard>
-      <SectionCard title="Founder Skills" action={<button onClick={goEdit} className="text-[11.5px] text-[#C67A4E] hover:underline">Edit</button>}>
+      <SectionCard title="Founder Skills" action={goEdit ? <button onClick={goEdit} className="text-[11.5px] text-[#C67A4E] hover:underline">Edit</button> : undefined}>
         <TagList items={skills} />
       </SectionCard>
-      <SectionCard title="Interests" action={<button onClick={goEdit} className="text-[11.5px] text-[#C67A4E] hover:underline">Edit</button>}>
+      <SectionCard title="Interests" action={goEdit ? <button onClick={goEdit} className="text-[11.5px] text-[#C67A4E] hover:underline">Edit</button> : undefined}>
         <TagList items={interests} accent />
       </SectionCard>
     </div>
@@ -455,6 +496,7 @@ function FounderSection({
 
 function InvestorSection({
   investorData,
+  bio,
   goEdit,
   onManagePreferences,
 }: {
@@ -469,13 +511,14 @@ function InvestorSection({
     investment_types?: string[];
     location?: string;
   } | null;
-  goEdit: () => void;
+  bio?: string;
+  goEdit?: () => void;
   onManagePreferences?: () => void;
 }) {
-  const thesis = investorData?.thesis || 'Backing high-growth ventures and ambitious founders.';
+  const thesis = investorData?.thesis || bio || 'Backing high-growth ventures and ambitious founders.';
   const type = investorData?.type || 'Angel Investor';
-  const minTicket = investorData?.minimum_investment ? `BDT ${Number(investorData.minimum_investment).toLocaleString()}` : 'BDT 50,000';
-  const maxTicket = investorData?.maximum_investment ? `BDT ${Number(investorData.maximum_investment).toLocaleString()}` : 'BDT 5,000,000';
+  const minTicket = investorData?.minimum_investment ? `৳${Number(investorData.minimum_investment).toLocaleString()}` : '৳50,000';
+  const maxTicket = investorData?.maximum_investment ? `৳${Number(investorData.maximum_investment).toLocaleString()}` : '৳5,000,000';
   const rangeDisplay = `${minTicket} - ${maxTicket}`;
   const involvement = investorData?.involvement || 'Active / Advisory';
   const industries = investorData?.industry ? [investorData.industry] : ['FinTech', 'AI & Data'];
@@ -486,20 +529,24 @@ function InvestorSection({
       <SectionCard
         title="Investment Thesis"
         action={
-          <div className="flex items-center gap-3">
-            {onManagePreferences && (
-              <button
-                type="button"
-                onClick={onManagePreferences}
-                className="text-[11.5px] text-[#C67A4E] hover:underline font-medium"
-              >
-                Manage Investment Preferences →
-              </button>
-            )}
-            <button type="button" onClick={goEdit} className="text-[11.5px] text-[color:var(--vv-text-tertiary)] hover:text-[#C67A4E] transition-colors">
-              Edit
-            </button>
-          </div>
+          goEdit || onManagePreferences ? (
+            <div className="flex items-center gap-3">
+              {onManagePreferences && (
+                <button
+                  type="button"
+                  onClick={onManagePreferences}
+                  className="text-[11.5px] text-[#C67A4E] hover:underline font-medium"
+                >
+                  Manage Investment Preferences →
+                </button>
+              )}
+              {goEdit && (
+                <button type="button" onClick={goEdit} className="text-[11.5px] text-[color:var(--vv-text-tertiary)] hover:text-[#C67A4E] transition-colors">
+                  Edit
+                </button>
+              )}
+            </div>
+          ) : undefined
         }
       >
         <p className="text-[12.5px] text-[color:var(--vv-text-secondary)] leading-relaxed mb-3">{thesis}</p>
@@ -537,37 +584,41 @@ function ProfessionalSection({
   professionalData,
   goEdit,
 }: {
-  professionalData?: {
+  professionalData?: (ProfessionalProfileData & {
     proficiency?: string;
-    availability?: string;
     remote?: string;
     comp?: string;
-    skills?: string[];
     expertise?: string[];
     industries?: string[];
     interests?: string[];
-  } | null;
-  goEdit: () => void;
+  }) | null;
+  goEdit?: () => void;
 }) {
-  const proficiency = professionalData?.proficiency || 'Senior Professional';
+  const proficiency = professionalData?.experience_level || professionalData?.proficiency || 'Senior Professional';
   const availability = professionalData?.availability || 'Part-time / Advisory';
-  const remote = professionalData?.remote || 'Flexible';
-  const comp = professionalData?.comp || 'Equity + Advisory fee';
-  const skills = professionalData?.skills || ['Engineering', 'Product Strategy', 'Technical Advisory'];
-  const expertise = professionalData?.expertise || ['Technical Due Diligence', 'Architecture'];
+  const location = professionalData?.location || professionalData?.remote || 'Flexible';
+  const comp = Array.isArray(professionalData?.compensation_preferences) && professionalData.compensation_preferences.length > 0
+    ? professionalData.compensation_preferences.join(', ')
+    : (professionalData?.comp || 'Equity + Advisory fee');
+  const skills = Array.isArray(professionalData?.skills) && professionalData.skills.length > 0
+    ? professionalData.skills
+    : ['Engineering', 'Product Strategy', 'Technical Advisory'];
+  const expertise = Array.isArray(professionalData?.industry_experience) && professionalData.industry_experience.length > 0
+    ? professionalData.industry_experience
+    : (typeof professionalData?.industry_experience === 'string' ? [professionalData.industry_experience] : (professionalData?.expertise || ['Technical Due Diligence', 'Architecture']));
 
   return (
     <div className="space-y-3">
-      <SectionCard title="Professional Profile" action={<button onClick={goEdit} className="text-[11.5px] text-[#C67A4E] hover:underline">Edit</button>}>
-        <InfoRow label="Proficiency" value={proficiency} />
+      <SectionCard title="Professional Profile" action={goEdit ? <button onClick={goEdit} className="text-[11.5px] text-[#C67A4E] hover:underline">Edit</button> : undefined}>
+        <InfoRow label="Experience level" value={proficiency} />
         <InfoRow label="Availability" value={availability} />
-        <InfoRow label="Work preference" value={remote} />
+        <InfoRow label="Location / Work preference" value={location} />
         <InfoRow label="Compensation" value={comp} />
       </SectionCard>
       <SectionCard title="Professional Skills">
         <TagList items={skills} />
       </SectionCard>
-      <SectionCard title="Areas of Expertise">
+      <SectionCard title="Industry Focus & Expertise">
         <TagList items={expertise} accent />
       </SectionCard>
     </div>
@@ -579,14 +630,14 @@ function ExperienceSection({
   goEdit,
 }: {
   experience?: ExperienceItem[];
-  goEdit: () => void;
+  goEdit?: () => void;
 }) {
   return (
-    <SectionCard title="Experience" action={<button onClick={goEdit} className="text-[11.5px] text-[#C67A4E] hover:underline">Edit</button>}>
+    <SectionCard title="Experience" action={goEdit ? <button onClick={goEdit} className="text-[11.5px] text-[#C67A4E] hover:underline">Edit</button> : undefined}>
       {experience.length === 0 ? (
         <div className="text-center py-4">
           <p className="text-[13px] text-[color:var(--vv-text-tertiary)] mb-2">No experience records added yet.</p>
-          <button onClick={goEdit} className="text-[12px] text-[#C67A4E] hover:underline">Add experience →</button>
+          {goEdit && <button onClick={goEdit} className="text-[12px] text-[#C67A4E] hover:underline">Add experience →</button>}
         </div>
       ) : (
         <div className="space-y-0">
@@ -617,14 +668,14 @@ function PortfolioSection({
   goEdit,
 }: {
   portfolio?: PortfolioItem[];
-  goEdit: () => void;
+  goEdit?: () => void;
 }) {
   return (
-    <SectionCard title="Selected Work / Portfolio" action={<button onClick={goEdit} className="text-[11.5px] text-[#C67A4E] hover:underline">Add</button>}>
+    <SectionCard title="Selected Work / Portfolio" action={goEdit ? <button onClick={goEdit} className="text-[11.5px] text-[#C67A4E] hover:underline">Add</button> : undefined}>
       {portfolio.length === 0 ? (
         <div className="text-center py-4">
           <p className="text-[13px] text-[color:var(--vv-text-tertiary)] mb-2">No portfolio items added yet.</p>
-          <button onClick={goEdit} className="text-[12px] text-[#C67A4E] hover:underline">Add portfolio item →</button>
+          {goEdit && <button onClick={goEdit} className="text-[12px] text-[#C67A4E] hover:underline">Add portfolio item →</button>}
         </div>
       ) : (
         <div className="space-y-4">
@@ -655,6 +706,7 @@ function PortfolioSection({
     </SectionCard>
   );
 }
+
 
 /* section icons for modal nav */
 const NAV_ICONS: Record<ModalSection, React.ReactNode> = {
@@ -1142,7 +1194,15 @@ export default function Profile() {
   const { role } = useRole();
   const { session, isAdmin, user, refreshUser } = useAuth();
   const { toast } = useToast();
+  const { userId } = useParams<{ userId?: string }>();
+  const [searchParams] = useSearchParams();
+  const targetUserId = userId || searchParams.get('userId');
+  const isTargetingOther = Boolean(targetUserId && (!session.user || Number(targetUserId) !== session.user.id));
+  const isOwnProfile = !isTargetingOther && !isAdmin && session.user !== null;
+
   const [profileData, setProfileData] = useState<UserProfileResponseData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [section, setSection] = useState<Section>('Overview');
   const [manageRoles, setManageRoles] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -1157,31 +1217,53 @@ export default function Profile() {
 
   const navigate = useNavigate();
 
-  const loadProfile = () => {
-    api.profile.get()
-      .then((res) => {
-        if (res) {
-          setProfileData(res);
-        }
-      })
-      .catch(() => {
-        // Fallback to auth user
-      });
-  };
+  const loadProfile = useCallback(() => {
+    setLoading(true);
+    setFetchError(null);
+    if (isTargetingOther && targetUserId) {
+      api.profile.getUser(targetUserId)
+        .then((res) => {
+          if (res) {
+            setProfileData(res);
+          }
+        })
+        .catch((err: any) => {
+          setFetchError(err?.message || 'Unable to load profile.');
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    } else {
+      api.profile.get()
+        .then((res) => {
+          if (res) {
+            setProfileData(res);
+          }
+        })
+        .catch(() => {
+          // Fallback to auth user
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [isTargetingOther, targetUserId]);
 
   useEffect(() => {
     loadProfile();
-  }, []);
+  }, [loadProfile]);
 
-  const isOwnProfile = !isAdmin && session.user !== null;
-
-  const displayName = user?.name || profileData?.user.name || 'Member';
-  const displayEmail = user?.email || profileData?.user.email || '';
-  const headline = profileData?.user.headline || user?.headline || 'Vault Ventures Member';
-  const location = profileData?.user.location || user?.location || 'Dhaka, Bangladesh';
-  const bio = profileData?.user.bio || user?.bio || '';
-  const avatarUrl = profileData?.user.avatar_url || user?.avatar_url || null;
-  const coverPhotoUrl = profileData?.user.cover_photo_url || user?.cover_photo_url || null;
+  const displayName = isTargetingOther
+    ? (profileData?.user.name || 'Member')
+    : (user?.name || profileData?.user.name || 'Member');
+  const displayEmail = isTargetingOther
+    ? (profileData?.user.email || '')
+    : (user?.email || profileData?.user.email || '');
+  const headline = profileData?.user.headline || (!isTargetingOther ? user?.headline : '') || 'Vault Ventures Member';
+  const location = profileData?.user.location || (!isTargetingOther ? user?.location : '') || 'Dhaka, Bangladesh';
+  const bio = profileData?.user.bio || (!isTargetingOther ? user?.bio : '') || '';
+  const avatarUrl = profileData?.user.avatar_url || (!isTargetingOther ? user?.avatar_url : null) || null;
+  const coverPhotoUrl = profileData?.user.cover_photo_url || (!isTargetingOther ? user?.cover_photo_url : null) || null;
   const experience = Array.isArray(profileData?.user.experience) ? profileData.user.experience : [];
   const portfolio = Array.isArray(profileData?.user.portfolio) ? profileData.user.portfolio : [];
 
@@ -1193,11 +1275,13 @@ export default function Profile() {
     .slice(0, 2)
     .toUpperCase() || 'U';
 
-  const displayRoles: NormalRole[] = session.roles.length > 0
-    ? session.roles
-    : (profileData?.roles && profileData.roles.length > 0 ? profileData.roles : ['founder']);
+  const displayRoles: NormalRole[] = (profileData?.roles && profileData.roles.length > 0)
+    ? profileData.roles
+    : (!isTargetingOther && session.roles.length > 0 ? session.roles : ['founder']);
 
-  const currentTier = (user?.verification_tier === 1 || user?.verification_tier === 2) ? user.verification_tier : 0;
+  const currentTier = typeof profileData?.user.verification_tier === 'number'
+    ? profileData.user.verification_tier
+    : (!isTargetingOther && (user?.verification_tier === 1 || user?.verification_tier === 2) ? user.verification_tier : 0);
 
   // Completion calculation
   const completionItems = [
@@ -1267,16 +1351,20 @@ export default function Profile() {
     }
   };
 
+  const availableSections: Section[] = isOwnProfile ? (SECTIONS as unknown as Section[]) : ['Overview', 'Verification'];
+
   return (
     <div className="max-w-[960px] mx-auto pb-10">
-      <EditProfileModal
-        open={editOpen}
-        onClose={() => setEditOpen(false)}
-        initialSection={editSection}
-        profileData={profileData}
-        onSaved={loadProfile}
-      />
-      {manageRoles && (
+      {isOwnProfile && (
+        <EditProfileModal
+          open={editOpen}
+          onClose={() => setEditOpen(false)}
+          initialSection={editSection}
+          profileData={profileData}
+          onSaved={loadProfile}
+        />
+      )}
+      {isOwnProfile && manageRoles && (
         <ManageRolesModal
           onClose={() => setManageRoles(false)}
           onEditProfile={() => {
@@ -1307,6 +1395,19 @@ export default function Profile() {
         <span className="text-[12px] text-[color:var(--vv-text-secondary)]">Profile</span>
       </div>
 
+      {fetchError && (
+        <div className="mx-5 mb-6 p-5 bg-[#F04438]/10 border border-[#F04438]/30 rounded-[10px] text-left">
+          <h2 className="text-[14px] font-semibold text-[#F04438] mb-1">Access Restricted</h2>
+          <p className="text-[12.5px] text-[color:var(--vv-text-secondary)]">{fetchError}</p>
+          <button
+            onClick={() => navigate(-1)}
+            className="mt-3 px-3 py-1.5 text-[12px] bg-[#121A2B] border border-[color:var(--vv-border)] rounded-md text-[color:var(--vv-text)] hover:bg-[color:var(--vv-raised)]"
+          >
+            Go Back
+          </button>
+        </div>
+      )}
+
       {photoError && (
         <div className="mx-5 mb-3 px-4 py-2 bg-[#F04438]/10 border border-[#F04438]/30 text-[#F04438] text-[12px] rounded-lg flex items-center justify-between">
           <span>{photoError}</span>
@@ -1332,12 +1433,16 @@ export default function Profile() {
               onEdit={() => triggerPhotoUpload('avatar')}
               isUploading={isUploadingPhoto && uploadKind === 'avatar'}
             />
-            <div className="flex items-center gap-2 pt-14 flex-wrap justify-end">
-              <Button variant="ghost" size="sm" onClick={() => setManageRoles(true)}>
-                Manage Roles
-              </Button>
-              <DotsMenu onEditProfile={() => openEdit('Basic Information')} />
-            </div>
+            {isOwnProfile ? (
+              <div className="flex items-center gap-2 pt-14 flex-wrap justify-end">
+                <Button variant="ghost" size="sm" onClick={() => setManageRoles(true)}>
+                  Manage Roles
+                </Button>
+                <DotsMenu onEditProfile={() => openEdit('Basic Information')} />
+              </div>
+            ) : (
+              <div className="pt-14" />
+            )}
           </div>
 
           <div className="mt-3">
@@ -1366,32 +1471,34 @@ export default function Profile() {
               <span className="text-[#35446A] text-[10px]">•</span>
               <Meta icon={<IconCal />}>Member</Meta>
             </div>
-            <div className="flex items-center gap-2.5 mt-3">
-              <div className="w-24 h-1 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{ width: `${completionPct}%`, backgroundColor: completionPct >= 70 ? '#22C55E' : '#F59E0B' }}
-                />
+            {isOwnProfile && (
+              <div className="flex items-center gap-2.5 mt-3">
+                <div className="w-24 h-1 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{ width: `${completionPct}%`, backgroundColor: completionPct >= 70 ? '#22C55E' : '#F59E0B' }}
+                  />
+                </div>
+                <span className="text-[11px] font-mono tabular-nums" style={{ color: completionPct >= 70 ? '#22C55E' : '#F59E0B' }}>
+                  {completionPct}% complete
+                </span>
+                {completionPct < 100 && (
+                  <button
+                    onClick={() => openEdit('Basic Information')}
+                    className="text-[11px] text-[color:var(--vv-text-tertiary)] hover:text-[#C67A4E] transition-colors"
+                  >
+                    Complete profile →
+                  </button>
+                )}
               </div>
-              <span className="text-[11px] font-mono tabular-nums" style={{ color: completionPct >= 70 ? '#22C55E' : '#F59E0B' }}>
-                {completionPct}% complete
-              </span>
-              {completionPct < 100 && (
-                <button
-                  onClick={() => openEdit('Basic Information')}
-                  className="text-[11px] text-[color:var(--vv-text-tertiary)] hover:text-[#C67A4E] transition-colors"
-                >
-                  Complete profile →
-                </button>
-              )}
-            </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="mx-5 flex border-b border-[color:var(--vv-border)] mb-4 overflow-x-auto [&::-webkit-scrollbar]:hidden">
-        {SECTIONS.map((s) => (
+        {availableSections.map((s) => (
           <button
             key={s}
             onClick={() => setSection(s)}
@@ -1408,17 +1515,21 @@ export default function Profile() {
 
       <div className="px-5">
         {section === 'Overview' && (() => {
-          const activeNormal = (['founder', 'investor', 'professional'] as NormalRole[]).includes(role as NormalRole)
-            ? (role as NormalRole)
-            : (displayRoles[0] || 'founder');
-          const roleOrder = [activeNormal, ...displayRoles.filter((r) => r !== activeNormal)];
+          const activeNormal = isTargetingOther
+            ? displayRoles[0]
+            : (['founder', 'investor', 'professional'] as NormalRole[]).includes(role as NormalRole)
+              ? (role as NormalRole)
+              : (displayRoles[0] || 'founder');
+          const roleOrder = isTargetingOther
+            ? displayRoles
+            : [activeNormal, ...displayRoles.filter((r) => r !== activeNormal)];
 
           const RoleSection = ({ r }: { r: NormalRole }) => {
             if (r === 'founder') {
               return (
                 <FounderSection
                   business={profileData?.profiles?.founder ? { company: headline.split('·')[0]?.trim() || 'Founder Venture', industry: 'FinTech', stage: 'Early Stage' } : null}
-                  goEdit={() => openEdit('Founder Information')}
+                  goEdit={isOwnProfile ? () => openEdit('Founder Information') : undefined}
                 />
               );
             }
@@ -1426,15 +1537,16 @@ export default function Profile() {
               return (
                 <InvestorSection
                   investorData={profileData?.profiles?.investor?.preferences || null}
-                  goEdit={() => openEdit('Investor Information')}
-                  onManagePreferences={() => navigate('/app/investor/preferences')}
+                  bio={bio}
+                  goEdit={isOwnProfile ? () => openEdit('Investor Information') : undefined}
+                  onManagePreferences={isOwnProfile ? () => navigate('/app/investor/preferences') : undefined}
                 />
               );
             }
             return (
               <ProfessionalSection
                 professionalData={profileData?.profiles?.professional || null}
-                goEdit={() => openEdit('Professional Information')}
+                goEdit={isOwnProfile ? () => openEdit('Professional Information') : undefined}
               />
             );
           };
@@ -1450,9 +1562,9 @@ export default function Profile() {
               <div className="lg:col-span-2 space-y-6">
                 <SectionCard
                   title="About"
-                  action={<button onClick={() => openEdit('Basic Information')} className="text-[11.5px] text-[#C67A4E] hover:underline">Edit</button>}
+                  action={isOwnProfile ? <button onClick={() => openEdit('Basic Information')} className="text-[11.5px] text-[#C67A4E] hover:underline">Edit</button> : undefined}
                 >
-                  <Bio text={bio} onEdit={() => openEdit('Basic Information')} />
+                  <Bio text={bio} onEdit={isOwnProfile ? () => openEdit('Basic Information') : undefined} />
                 </SectionCard>
 
                 {roleOrder.map((r) => (
@@ -1462,52 +1574,56 @@ export default function Profile() {
                       <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: ROLE_COLORS[r] }}>
                         {ROLE_LABELS[r]}
                       </p>
-                      {r === activeNormal && <span className="text-[10px] text-[color:var(--vv-text-tertiary)] font-medium">• active workspace</span>}
+                      {isOwnProfile && r === activeNormal && <span className="text-[10px] text-[color:var(--vv-text-tertiary)] font-medium">• active workspace</span>}
                       <div className="flex-1 h-px bg-[#1c2a3e]" />
-                      <button onClick={() => openEdit(editSectionFor[r])} className="text-[11px] text-[color:var(--vv-text-tertiary)] hover:text-[#C67A4E] transition-colors">
-                        Edit
-                      </button>
+                      {isOwnProfile && (
+                        <button onClick={() => openEdit(editSectionFor[r])} className="text-[11px] text-[color:var(--vv-text-tertiary)] hover:text-[#C67A4E] transition-colors">
+                          Edit
+                        </button>
+                      )}
                     </div>
                     <RoleSection r={r} />
                   </div>
                 ))}
 
-                <ExperienceSection experience={experience} goEdit={() => openEdit('Experience')} />
-                <PortfolioSection portfolio={portfolio} goEdit={() => openEdit('Experience')} />
+                <ExperienceSection experience={experience} goEdit={isOwnProfile ? () => openEdit('Experience') : undefined} />
+                <PortfolioSection portfolio={portfolio} goEdit={isOwnProfile ? () => openEdit('Experience') : undefined} />
               </div>
 
               {/* Right Rail */}
               <div className="space-y-3">
-                <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[10px] overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-[#1c2a3e]">
-                    <p className="text-[10px] font-semibold text-[color:var(--vv-text-tertiary)] uppercase tracking-widest">Profile Completion</p>
-                    <span className="font-mono text-[12px] font-semibold tabular-nums" style={{ color: completionPct >= 70 ? '#22C55E' : '#F59E0B' }}>
-                      {completionPct}%
-                    </span>
-                  </div>
-                  <div className="px-4 pt-3 pb-2">
-                    <div className="h-1 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] rounded-full overflow-hidden mb-3">
-                      <div className="h-full rounded-full" style={{ width: `${completionPct}%`, backgroundColor: completionPct >= 70 ? '#22C55E' : '#F59E0B' }} />
+                {isOwnProfile && (
+                  <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[10px] overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-[#1c2a3e]">
+                      <p className="text-[10px] font-semibold text-[color:var(--vv-text-tertiary)] uppercase tracking-widest">Profile Completion</p>
+                      <span className="font-mono text-[12px] font-semibold tabular-nums" style={{ color: completionPct >= 70 ? '#22C55E' : '#F59E0B' }}>
+                        {completionPct}%
+                      </span>
                     </div>
-                    <div className="space-y-1.5 pb-2">
-                      {completionItems.map((item, i) => (
-                        <div key={i} className="flex items-center gap-2.5">
-                          <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${item.done ? 'bg-[#22C55E]/20 border-[#22C55E]/40' : 'border-[color:var(--vv-border-strong)]'}`}>
-                            {item.done && <svg width="7" height="7" fill="none" stroke="#22C55E" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7" /></svg>}
+                    <div className="px-4 pt-3 pb-2">
+                      <div className="h-1 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] rounded-full overflow-hidden mb-3">
+                        <div className="h-full rounded-full" style={{ width: `${completionPct}%`, backgroundColor: completionPct >= 70 ? '#22C55E' : '#F59E0B' }} />
+                      </div>
+                      <div className="space-y-1.5 pb-2">
+                        {completionItems.map((item, i) => (
+                          <div key={i} className="flex items-center gap-2.5">
+                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ${item.done ? 'bg-[#22C55E]/20 border-[#22C55E]/40' : 'border-[color:var(--vv-border-strong)]'}`}>
+                              {item.done && <svg width="7" height="7" fill="none" stroke="#22C55E" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7" /></svg>}
+                            </div>
+                            <span className={`text-[11.5px] leading-tight ${item.done ? 'text-[color:var(--vv-text-tertiary)] line-through' : 'text-[color:var(--vv-text-secondary)]'}`}>
+                              {item.label}
+                            </span>
                           </div>
-                          <span className={`text-[11.5px] leading-tight ${item.done ? 'text-[color:var(--vv-text-tertiary)] line-through' : 'text-[color:var(--vv-text-secondary)]'}`}>
-                            {item.label}
-                          </span>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
+                      {completionPct < 100 && (
+                        <button onClick={() => openEdit('Basic Information')} className="w-full text-center text-[11.5px] text-[#C67A4E] hover:underline py-1.5">
+                          Complete Profile →
+                        </button>
+                      )}
                     </div>
-                    {completionPct < 100 && (
-                      <button onClick={() => openEdit('Basic Information')} className="w-full text-center text-[11.5px] text-[#C67A4E] hover:underline py-1.5">
-                        Complete Profile →
-                      </button>
-                    )}
                   </div>
-                </div>
+                )}
 
                 <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[10px] overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-[#1c2a3e]">
@@ -1518,12 +1634,14 @@ export default function Profile() {
                       <div key={r} className="flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full" style={{ background: ROLE_COLORS[r] }} />
                         <span className="text-[12px] text-[color:var(--vv-text-secondary)] font-medium">{ROLE_LABELS[r]}</span>
-                        {r === activeNormal && <span className="text-[10px] text-[color:var(--vv-text-tertiary)]">• active</span>}
+                        {isOwnProfile && r === activeNormal && <span className="text-[10px] text-[color:var(--vv-text-tertiary)]">• active</span>}
                       </div>
                     ))}
-                    <button onClick={() => setManageRoles(true)} className="text-[11.5px] text-[#C67A4E] hover:underline pt-1 block">
-                      Manage roles →
-                    </button>
+                    {isOwnProfile && (
+                      <button onClick={() => setManageRoles(true)} className="text-[11.5px] text-[#C67A4E] hover:underline pt-1 block">
+                        Manage roles →
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1556,8 +1674,8 @@ export default function Profile() {
                   </div>
                   <p className="text-[12.5px] text-[color:var(--vv-text-secondary)] leading-relaxed">
                     {currentTier === 0 && 'Complete identity verification to unlock full platform access, investor discovery, and deal room participation.'}
-                    {currentTier === 1 && 'Your identity has been confirmed. Apply for Tier 2 to verify your professional track record and unlock priority matching.'}
-                    {currentTier >= 2 && 'Your identity and professional background are verified. You have full access to all platform features.'}
+                    {currentTier === 1 && 'Identity has been confirmed.'}
+                    {currentTier >= 2 && 'Identity and professional background are verified with full platform access.'}
                   </p>
                 </div>
               </div>
@@ -1565,7 +1683,7 @@ export default function Profile() {
           </div>
         )}
 
-        {section === 'Preferences' && (
+        {section === 'Preferences' && isOwnProfile && (
           <div className="space-y-4 max-w-2xl">
             {(displayRoles.includes('investor') || role === 'investor') && (
               <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[10px] p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">

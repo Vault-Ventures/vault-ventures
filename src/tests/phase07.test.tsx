@@ -36,6 +36,7 @@ beforeEach(() => {
     return { status: 'active' } as any;
   });
   vi.spyOn(api.businesses, 'get').mockResolvedValue({ id: 42, name: 'NovaTech AI Ltd' } as any);
+  vi.spyOn(api.deals.messages, 'list').mockResolvedValue({ messages: [] });
 });
 
 function mountDealRoom(dealId = '81') {
@@ -88,7 +89,7 @@ describe('Phase 07: Deal Room & Negotiation Workflows', () => {
 
     mountDealRoom('81');
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Negotiation Terms' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Negotiation/i }));
     expect(await screen.findByText(/15,000/i)).toBeTruthy();
     expect(screen.getByText(/10%/i)).toBeTruthy();
   });
@@ -253,7 +254,7 @@ describe('Phase 07: Deal Room & Negotiation Workflows', () => {
 
     mountDealRoom('81');
 
-    expect((await screen.findAllByText('Deal Completed')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/Deal Completed/i)).length).toBeGreaterThan(0);
     expect(screen.getByText('Leave Feedback')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Leave Feedback/i })).toBeTruthy();
   });

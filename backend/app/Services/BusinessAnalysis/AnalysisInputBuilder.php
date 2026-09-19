@@ -18,7 +18,7 @@ final class AnalysisInputBuilder
             $basis = $readiness->snapshot($business, $input, $requirements->funding_amount);
             $assessment = $business->readinessAssessments()->where('source_fingerprint', $readiness->fingerprint($basis))->lockForUpdate()->first();
             $reasons = [];
-            if ($business->status->value !== 'submitted') {
+            if (! in_array($business->status->value, ['submitted', 'pending_approval', 'approved', 'published'], true)) {
                 $reasons[] = 'BUSINESS_NOT_SUBMITTED';
             }
             if ($assessment === null) {

@@ -5,7 +5,8 @@ import { Button } from '../../components/ui/Button';
 import { IconX } from '../../components/layout/Icons';
 import { MatchScoreChip, MatchExplanationDrawer } from '../../components/ui/AIInsights';
 import type { MatchFactor, MatchDetail } from '../../components/ui/AIInsights';
-import { api, ApiError } from '../../services/api';
+import { api, ApiError, resolveMediaUrl } from '../../services/api';
+import { usePhotoViewer } from '../../context/PhotoViewerContext';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -14,6 +15,7 @@ interface Investor {
   userId: number;
   name: string;
   initials: string;
+  avatarUrl?: string | null;
   color: string;
   title: string;
   company: string;
@@ -27,6 +29,10 @@ interface Investor {
   matchScore: number;
   matchReasons: MatchFactor[];
   matchDetail: MatchDetail;
+  minimumInvestment?: number | null;
+  maximumInvestment?: number | null;
+  availableInvestment?: number | null;
+  ticketDisplay?: string | null;
 }
 
 interface Filters {
@@ -74,8 +80,8 @@ function applyFilters(items: Investor[], filters: Filters, search: string): Inve
   return items.filter(inv => {
     if (q && ![inv.name, inv.title, inv.company, inv.bio, ...inv.investmentFocus]
       .some(t => t.toLowerCase().includes(q))) return false;
-    if (filters.industries.length > 0 && !filters.industries.some(i => inv.investmentFocus.includes(i))) return false;
-    if (filters.stages.length > 0 && !filters.stages.some(s => inv.preferredStages.includes(s))) return false;
+    if (filters.industries.length > 0 && !filters.industries.some(i => inv.investmentFocus.some(f => f.toLowerCase() === i.toLowerCase()))) return false;
+    if (filters.stages.length > 0 && !filters.stages.some(s => inv.preferredStages.some(ps => ps.toLowerCase() === s.toLowerCase()))) return false;
     if (filters.location.trim() && !inv.location.toLowerCase().includes(filters.location.toLowerCase())) return false;
     return true;
   });
@@ -184,17 +190,55 @@ function ActiveFilterStrip({ filters, search, onChange, onClearAll }: {
 }
 
 function InvestorCard({ investor, onOpenMatch }: { investor: Investor; onOpenMatch: (d: MatchDetail, inv: Investor) => void }) {
+  const { openPhoto } = usePhotoViewer();
+  const [avatarError, setAvatarError] = useState(false);
+  const resolvedAvatar = investor.avatarUrl ? resolveMediaUrl(investor.avatarUrl) : null;
+
   return (
     <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] p-4 hover:border-[color:var(--vv-border-strong)] transition-all">
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-[12px] font-bold flex-shrink-0"
-          style={{ background: `${investor.color}18`, border: `1.5px solid ${investor.color}35`, color: investor.color }}>
-          {investor.initials}
-        </div>
+        {resolvedAvatar && !avatarError ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              openPhoto({
+                src: resolvedAvatar,
+                alt: investor.name,
+                title: `${investor.name} - Profile Photo`,
+              });
+            }}
+            title={`View ${investor.name}'s photo`}
+            aria-label={`View ${investor.name}'s photo`}
+            className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-[12px] font-bold flex-shrink-0 overflow-hidden hover:opacity-90 transition-opacity cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C67A4E]"
+            style={{ background: `${investor.color}18`, border: `1.5px solid ${investor.color}35`, color: investor.color }}
+          >
+            <img
+              src={resolvedAvatar}
+              alt={investor.name}
+              className="w-full h-full object-cover"
+              onError={() => setAvatarError(true)}
+            />
+          </button>
+        ) : (
+          <Link
+            to={`/app/profile/${investor.userId}`}
+            title={`View ${investor.name}'s profile`}
+            className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-[12px] font-bold flex-shrink-0 overflow-hidden hover:opacity-90 transition-opacity"
+            style={{ background: `${investor.color}18`, border: `1.5px solid ${investor.color}35`, color: investor.color }}>
+            {investor.initials}
+          </Link>
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1.5 mb-1">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
-              <p className="text-[13.5px] font-semibold text-[color:var(--vv-text)] leading-none">{investor.name}</p>
+              <Link
+                to={`/app/profile/${investor.userId}`}
+                className="text-[13.5px] font-semibold text-[color:var(--vv-text)] hover:text-[#C67A4E] transition-colors leading-none"
+              >
+                {investor.name}
+              </Link>
               {investor.verificationTier > 0 && <VerificationBadge tier={investor.verificationTier as 0 | 1 | 2} />}
             </div>
             <div className="sm:text-right shrink-0 space-y-1">
@@ -210,6 +254,12 @@ function InvestorCard({ investor, onOpenMatch }: { investor: Investor; onOpenMat
             {investor.company !== 'Independent' && ` · ${investor.company}`}
             {' · '}{investor.location}{' · '}Active since {investor.activeSince}
           </p>
+          {investor.ticketDisplay && (
+            <p className="text-[11.5px] text-[#C9A24B] font-mono mb-2">
+              <span className="text-[10px] text-[color:var(--vv-text-tertiary)] font-sans mr-1">Investment Ticket:</span>
+              {investor.ticketDisplay}
+            </p>
+          )}
           <p className="text-[12.5px] text-[color:var(--vv-text-secondary)] leading-snug line-clamp-2 mb-2.5">{investor.bio}</p>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-3">
@@ -229,11 +279,19 @@ function InvestorCard({ investor, onOpenMatch }: { investor: Investor; onOpenMat
                 ))}
               </div>
             </div>
-            <button
-              onClick={() => onOpenMatch(investor.matchDetail, investor)}
-              className="text-[10.5px] text-[#C67A4E] hover:underline shrink-0 transition-colors">
-              View match analysis
-            </button>
+            <div className="flex items-center gap-3 shrink-0">
+              <Link
+                to={`/app/profile/${investor.userId}`}
+                className="px-2.5 py-1 rounded text-[11px] font-medium bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] text-[color:var(--vv-text-secondary)] hover:text-[color:var(--vv-text)] hover:border-[#C67A4E] transition-all"
+              >
+                View Profile
+              </Link>
+              <button
+                onClick={() => onOpenMatch(investor.matchDetail, investor)}
+                className="text-[10.5px] text-[#C67A4E] hover:underline transition-colors">
+                View match analysis
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -407,19 +465,31 @@ export default function DiscoverInvestors() {
           whyThisMatch: alignments.map((a: any) => a.explanation).filter(Boolean),
         };
 
-        const tierVal = typeof item.verification_tier === 'number' ? item.verification_tier : 1;
-        const clampedTier = (tierVal >= 0 && tierVal <= 2 ? tierVal : 1) as 0 | 1 | 2;
+        const tierVal = typeof item.verification_tier === 'number' ? item.verification_tier : 0;
+        const clampedTier = (tierVal >= 0 && tierVal <= 2 ? tierVal : 0) as 0 | 1 | 2;
+
+        let ticketDisplay: string | null = null;
+        if (item.minimum_investment && item.maximum_investment) {
+          ticketDisplay = `৳${Number(item.minimum_investment).toLocaleString()} – ৳${Number(item.maximum_investment).toLocaleString()}`;
+        } else if (item.available_investment) {
+          ticketDisplay = `Up to ৳${Number(item.available_investment).toLocaleString()}`;
+        } else if (item.maximum_investment) {
+          ticketDisplay = `Up to ৳${Number(item.maximum_investment).toLocaleString()}`;
+        }
+
+        const bio = item.bio || matchObj.summary_explanation || `Experienced investor active in ${item.industry || 'multiple sectors'}.`;
 
         return {
           id: String(item.id),
           userId: item.user_id,
           name,
           initials,
+          avatarUrl: item.avatar_url || null,
           color: getColor(name),
           title: item.involvement ? `${item.involvement} Investor` : 'Angel Investor',
           company: item.investment_types?.length ? item.investment_types.join(', ') : 'Independent',
           location: item.location || 'Dhaka',
-          bio: matchObj.summary_explanation || `Experienced investor active in ${item.industry || 'multiple sectors'}.`,
+          bio,
           investmentFocus: item.industry ? [item.industry] : ['FinTech', 'HealthTech'],
           preferredStages: item.business_stage ? [item.business_stage] : ['Pre-Seed', 'Seed'],
           portfolioCount: Math.max(3, Math.round(score / 10)),
@@ -428,6 +498,10 @@ export default function DiscoverInvestors() {
           matchScore: score,
           matchReasons,
           matchDetail,
+          minimumInvestment: item.minimum_investment ? Number(item.minimum_investment) : null,
+          maximumInvestment: item.maximum_investment ? Number(item.maximum_investment) : null,
+          availableInvestment: item.available_investment ? Number(item.available_investment) : null,
+          ticketDisplay,
         };
       });
       setInvestors(mapped);
@@ -621,6 +695,10 @@ export default function DiscoverInvestors() {
           cta={{
             label: interestSuccess ? '✓ Interest Expressed' : interestLoading ? 'Expressing…' : 'Express Interest',
             action: () => handleExpressInterest(activeInvestor),
+          }}
+          secondaryCta={{
+            label: 'View Investor Profile',
+            href: `/app/profile/${activeInvestor.userId}`,
           }}
           onClose={() => { setActiveInvestor(null); setInterestSuccess(null); }}
         />
