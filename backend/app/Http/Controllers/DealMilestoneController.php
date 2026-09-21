@@ -112,6 +112,33 @@ class DealMilestoneController extends Controller
     }
 
     /**
+     * Delete an unactivated milestone (Founder only).
+     */
+    public function destroy(
+        Request $request,
+        string $deal,
+        string $milestone,
+        DealMilestoneService $service
+    ): JsonResponse {
+        $dealModel = Deal::findOrFail($deal);
+        $milestoneModel = DealMilestone::findOrFail($milestone);
+        $user = $request->user();
+        $roleParam = $request->input('role') ?? $request->query('role');
+
+        $result = $service->deleteMilestone(
+            $dealModel,
+            $milestoneModel,
+            $user,
+            is_string($roleParam) ? $roleParam : null
+        );
+
+        return ApiResponse::success(
+            $result,
+            'Milestone deleted successfully.'
+        );
+    }
+
+    /**
      * Update milestone progress percentage (Founder only).
      */
     public function progress(

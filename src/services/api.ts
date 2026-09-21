@@ -430,6 +430,7 @@ export async function ensureCsrf(): Promise<void> {
 }
 
 interface RequestOptions extends Omit<RequestInit, 'body'> {
+  responseType?: 'blob';
   body?: unknown;
   params?: Record<string, string | number | boolean | undefined | null>;
 }
@@ -442,7 +443,7 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
  * - Structured error handling
  */
 export async function apiClient<T = unknown>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-  const { params, headers: customHeaders, method = 'GET', body, ...rest } = options;
+  const { params, headers: customHeaders, method = 'GET', body, responseType, ...rest } = options;
 
   const isStateChanging = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase());
   if (isStateChanging) {
@@ -494,6 +495,8 @@ export async function apiClient<T = unknown>(endpoint: string, options: RequestO
   } catch (err: unknown) {
     throw new ApiError(0, 'Unable to connect to server. Please ensure the backend is running.', 'NETWORK_ERROR');
   }
+
+  if (response.ok && responseType === 'blob') return await response.blob() as T;
 
   // Parse JSON response
   let data: any = null;
@@ -625,15 +628,15 @@ export interface ReadinessInputData {
 
 export interface AdminVerificationEvidenceData {
   id: number;
-  evidence_type: string;
-  evidence_type_label: string;
+  verification_request_id: number;
   original_filename: string;
   mime_type: string;
-  file_size: number;
-  uploaded_at: string;
+  file_size_bytes: number;
+  created_at: string | null;
 }
 
 export interface AdminVerificationRequestData {
+  participant_message?: string | null;
   id: number;
   user_id: number;
   user?: {
@@ -670,6 +673,37 @@ export interface AdminUserReputationData {
     roles: string[];
   };
   reputation_by_role: Record<string, ReputationSummaryData>;
+}
+
+export interface AdminUserData {
+  id: number;
+  name: string;
+  email: string;
+  phone?: string | null;
+  is_admin: boolean;
+  roles: string[];
+  verification_tier: number;
+  verification_tier_label: string;
+  status: 'active' | 'suspended';
+  status_label: string;
+  is_suspended: boolean;
+  suspended_at?: string | null;
+  suspension_reason?: string | null;
+  email_verified: boolean;
+  email_verified_at?: string | null;
+  phone_verified: boolean;
+  phone_verified_at?: string | null;
+  created_at: string;
+}
+
+export interface AdminUsersListResponse {
+  users: AdminUserData[];
+  pagination: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
 }
 
 export interface BusinessRecord {
@@ -751,7 +785,115 @@ export interface BusinessRecord {
   } | null;
 }
 
+export interface DealListItem {
+  id: number;
+  connection_id: number;
+  business_id: number;
+  business?: {
+    id: number;
+    name: string;
+    industry?: string;
+    business_stage?: string;
+    location?: string;
+    logo_url?: string | null;
+  } | null;
+  founder_user_id: number;
+  founder?: {
+    id: number;
+    name: string;
+    email: string;
+    avatar_url?: string | null;
+  } | null;
+  counterparty_user_id: number;
+  counterparty?: {
+    id: number;
+    name: string;
+    email: string;
+    avatar_url?: string | null;
+  } | null;
+  counterparty_role: 'investor' | 'professional' | string;
+  stage: string;
+  stage_label: string;
+  stage_order: number;
+  agreement_status?: string | null;
+  milestones_count?: number;
+  funded_milestones_count?: number;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface DealMessageItem {
+  id: number;
+  deal_id: number;
+  sender_user_id: number;
+  sender: {
+    id: number;
+    name: string;
+    email?: string;
+    avatar_url?: string | null;
+  } | null;
+  body: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface DealListResponse {
+  items: DealListItem[];
+  pagination: {
+    current_page: number;
+    last_page: number;
+    total: number;
+    per_page: number;
+  };
+}
+
+export interface VerificationAccountData {
+  id: number;
+  email: string;
+  email_verified_at: string | null;
+  phone: string | null;
+  phone_verified_at: string | null;
+  verification_tier: 0 | 1 | 2;
+}
+
+export type VerificationRequestStatus = 'pending' | 'under_review' | 'needs_information' | 'approved' | 'rejected' | 'cancelled';
+export interface ParticipantVerificationRequestData {
+  participant_message?: string | null;
+  id: number;
+  user_id: number;
+  requested_tier: number;
+  requested_tier_label: string | null;
+  status: VerificationRequestStatus;
+  submitted_at: string | null;
+  reviewed_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+export interface ParticipantVerificationEvidenceData {
+  id: number;
+  verification_request_id: number;
+  original_filename: string;
+  mime_type: string;
+  file_size_bytes: number;
+  created_at: string | null;
+}
+
 export const api = {
+  verification: {
+    account: () => apiClient<VerificationAccountData>('/api/auth/user'),
+    sendEmail: () => apiClient<null>('/api/auth/email/verification-notification', { method: 'POST' }),
+    sendPhoneCode: (phone: string) => apiClient<{ delivery_channel: 'local_capture' | 'configured_transport' }>('/api/me/phone/send-code', { method: 'POST', body: { phone } }),
+    verifyPhone: (code: string) => apiClient<null>('/api/me/phone/verify-code', { method: 'POST', body: { code } }),
+    latest: () => apiClient<ParticipantVerificationRequestData | null>('/api/me/verification-requests/latest'),
+    get: (id: number) => apiClient<ParticipantVerificationRequestData>(`/api/me/verification-requests/${id}`),
+    create: () => apiClient<ParticipantVerificationRequestData>('/api/me/verification-requests', { method: 'POST', body: { requested_tier: 1 } }),
+    evidence: (id: number) => apiClient<ParticipantVerificationEvidenceData[]>(`/api/me/verification-requests/${id}/evidence`),
+    uploadEvidence: (id: number, file: File) => {
+      const body = new FormData();
+      body.append('file', file);
+      return apiClient<ParticipantVerificationEvidenceData>(`/api/me/verification-requests/${id}/evidence`, { method: 'POST', body });
+    },
+  },
   get: <T = unknown>(url: string, params?: Record<string, any>) => apiClient<T>(url, { params }),
   post: <T = unknown>(url: string, body?: unknown, options?: RequestOptions) => apiClient<T>(url, { ...options, method: 'POST', body: body as any }),
   put: <T = unknown>(url: string, body?: unknown, options?: RequestOptions) => apiClient<T>(url, { ...options, method: 'PUT', body: body as any }),
@@ -759,6 +901,8 @@ export const api = {
   delete: <T = unknown>(url: string, options?: RequestOptions) => apiClient<T>(url, { ...options, method: 'DELETE' }),
 
   deals: {
+    list: (params?: { role?: string; business_id?: number | string; page?: number; per_page?: number }) =>
+      apiClient<DealListResponse>(`/api/me/deals`, { params }),
     get: (dealId: number | string, role?: string) =>
       apiClient<{
         id: number;
@@ -801,6 +945,12 @@ export const api = {
       submit: (dealId: number | string, payload: SubmitDealFeedbackPayload, role?: string) =>
         apiClient<DealFeedbackItem>(`/api/me/deals/${dealId}/feedback`, { method: 'POST', body: payload, params: role ? { role } : undefined }),
     },
+    messages: {
+      list: (dealId: number | string, role?: string) =>
+        apiClient<{ messages: DealMessageItem[] }>(`/api/me/deals/${dealId}/messages`, { params: role ? { role } : undefined }),
+      send: (dealId: number | string, body: string, role?: string) =>
+        apiClient<DealMessageItem>(`/api/me/deals/${dealId}/messages`, { method: 'POST', body: { body }, params: role ? { role } : undefined }),
+    },
     milestones: {
       list: (dealId: number | string, role?: string) =>
         apiClient<DealMilestonesResponseData>(`/api/me/deals/${dealId}/milestones`, { params: role ? { role } : undefined }),
@@ -810,6 +960,8 @@ export const api = {
         apiClient<DealMilestoneData>(`/api/me/deals/${dealId}/milestones`, { method: 'POST', body: payload, params: role ? { role } : undefined }),
       update: (dealId: number | string, milestoneId: number | string, payload: UpdateMilestonePayload, role?: string) =>
         apiClient<DealMilestoneData>(`/api/me/deals/${dealId}/milestones/${milestoneId}`, { method: 'PUT', body: payload, params: role ? { role } : undefined }),
+      delete: (dealId: number | string, milestoneId: number | string, role?: string) =>
+        apiClient<{ deal_id: number; deleted_milestone_id: number; summary: FundingSummaryData }>(`/api/me/deals/${dealId}/milestones/${milestoneId}`, { method: 'DELETE', params: role ? { role } : undefined }),
       updateProgress: (dealId: number | string, milestoneId: number | string, payload: MilestoneProgressPayload, role?: string) =>
         apiClient<DealMilestoneData>(`/api/me/deals/${dealId}/milestones/${milestoneId}/progress`, { method: 'POST', body: payload, params: role ? { role } : undefined }),
       submit: (dealId: number | string, milestoneId: number | string, payload: MilestoneSubmitPayload, role?: string) =>
@@ -826,7 +978,13 @@ export const api = {
   },
 
   admin: {
+    users: {
+      list: (params?: { q?: string; role?: string; verification_tier?: number | string; status?: string; page?: number; per_page?: number }) =>
+        apiClient<AdminUsersListResponse>(`/api/admin/users`, { params }),
+    },
     verificationRequests: {
+      downloadEvidence: (requestId: number, evidenceId: number) =>
+        apiClient<Blob>(`/api/admin/verification-requests/${requestId}/evidence/${evidenceId}/download`, { responseType: 'blob' }),
       list: (params?: { status?: string }) =>
         apiClient<AdminVerificationRequestData[]>(`/api/admin/verification-requests`, { params }),
       get: (id: number | string) =>
@@ -836,15 +994,15 @@ export const api = {
           method: 'POST',
           body: { admin_notes: notes, notes },
         }),
-      reject: (id: number | string, reason?: string, notes?: string) =>
+      reject: (id: number | string, reason?: string, notes?: string, participantMessage?: string) =>
         apiClient<AdminVerificationRequestData>(`/api/admin/verification-requests/${id}/reject`, {
           method: 'POST',
-          body: { rejection_reason: reason, reason, admin_notes: notes, notes },
+          body: { rejection_reason: reason, reason, admin_notes: notes, notes, participant_message: participantMessage },
         }),
-      requestInformation: (id: number | string, notes: string) =>
+      requestInformation: (id: number | string, participantMessage: string, notes?: string) =>
         apiClient<AdminVerificationRequestData>(`/api/admin/verification-requests/${id}/request-information`, {
           method: 'POST',
-          body: { admin_notes: notes, notes },
+          body: { admin_notes: notes, notes, participant_message: participantMessage },
         }),
     },
     reputation: {
@@ -894,6 +1052,11 @@ export const api = {
 
   connections: {
     list: (role: string, page = 1) => apiClient<PaginatedItems<ConnectionItem>>('/api/me/connections', { params: { role, page } }),
+    expressFounderProfessionalInterest: (businessId: number, counterpartyId: number) =>
+      api.post<void>(`/api/me/businesses/${businessId}/interests`, {
+        counterparty_user_id: counterpartyId,
+        role: 'professional',
+      }),
   },
   businesses: {
     listPage: async (page = 1): Promise<PaginatedItems<BusinessRecord>> => {

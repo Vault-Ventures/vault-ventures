@@ -17,6 +17,7 @@ const AdminLogin = lazy(() => import('./pages/auth/AdminLogin'));
 const VerifyEmail = lazy(() => import('./pages/auth/VerifyEmail'));
 const FounderDashboard = lazy(() => import('./pages/founder/Dashboard'));
 const InvestorDashboard = lazy(() => import('./pages/investor/Dashboard'));
+const DealHub = lazy(() => import('./pages/shared/DealHub'));
 const DealRoom = lazy(() => import('./pages/shared/DealRoom'));
 const Profile = lazy(() => import('./pages/shared/Profile'));
 const NDAFlow = lazy(() => import('./pages/shared/NDAFlow'));
@@ -142,9 +143,10 @@ export default function App() {
           <Route path="businesses/:id" element={<BusinessProfile />} />
 
           {/* Shared */}
+          <Route path="deals" element={<DealHub />} />
+          <Route path="deal-room" element={<DealHub />} />
           <Route path="deals/:dealId" element={<DealRoom />} />
           <Route path="deal-room/:dealId" element={<DealRoom />} />
-          <Route path="deal-room" element={<DealRoom />} />
           <Route path="nda/:id" element={<NDAFlow />} />
           <Route path="nda" element={<NDAFlow />} />
           <Route path="negotiation/:id" element={<NegotiationPanel />} />

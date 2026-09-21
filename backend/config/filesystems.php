@@ -30,6 +30,16 @@ return [
 
     'disks' => [
 
+        'development_phone_verification' => [
+            'driver' => 'local',
+            'root' => storage_path('app/development-phone-verification'),
+            'visibility' => 'private',
+            'directory_visibility' => 'private',
+            'serve' => false,
+            'throw' => true,
+            'report' => false,
+        ],
+
         'business_documents' => [
             'driver' => 'local',
             'root' => storage_path('app/business-documents'),

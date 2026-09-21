@@ -32,8 +32,26 @@ final class ConnectionService
                 ? $query->where('founder_user_id', $user->id)
                 : $query->where('counterparty_user_id', $user->id)->where('counterparty_role', $role);
         };
+        $discScope = function () use ($user, $role) {
+            $q = DB::table('business_disclosure_relationships')
+                ->join('businesses', 'businesses.id', '=', 'business_disclosure_relationships.business_id')
+                ->join('founder_profiles', 'founder_profiles.id', '=', 'businesses.founder_profile_id')
+                ->whereNotNull('business_disclosure_relationships.interest_expressed_at')
+                ->select([
+                    'business_disclosure_relationships.business_id',
+                    'founder_profiles.user_id as founder_user_id',
+                    'business_disclosure_relationships.counterparty_user_id',
+                    'business_disclosure_relationships.counterparty_role',
+                ]);
+
+            return $role === 'founder'
+                ? $q->where('founder_profiles.user_id', $user->id)
+                : $q->where('business_disclosure_relationships.counterparty_user_id', $user->id)
+                    ->where('business_disclosure_relationships.counterparty_role', $role);
+        };
         $pairs = $scope(DB::table('business_interests')->select($columns)->where('status', 'active'))
-            ->union($scope(DB::table('business_connections')->select($columns)));
+            ->union($scope(DB::table('business_connections')->select($columns)))
+            ->union($discScope());
         $query = DB::query()->fromSub($pairs, 'pairs')->join('businesses', 'businesses.id', '=', 'pairs.business_id');
         if ($role !== 'founder') {
             $query->whereIn('businesses.status', [BusinessStatus::Published->value, BusinessStatus::Submitted->value]);
@@ -49,6 +67,30 @@ final class ConnectionService
                 ->where('status', 'active')->get();
             $founderInterest = $interests->firstWhere('expressed_by_user_id', $founder->id);
             $counterpartyInterest = $interests->firstWhere('expressed_by_user_id', $counterparty->id);
+
+            if ($counterpartyInterest === null) {
+                $disc = BusinessDisclosureRelationship::where('business_id', $pair->business_id)
+                    ->where('counterparty_user_id', $pair->counterparty_user_id)
+                    ->where('counterparty_role', $pair->counterparty_role)
+                    ->whereNotNull('interest_expressed_at')
+                    ->first();
+                if ($disc !== null) {
+                    $counterpartyInterest = BusinessInterest::firstOrCreate(
+                        [
+                            'business_id' => $pair->business_id,
+                            'counterparty_user_id' => $pair->counterparty_user_id,
+                            'counterparty_role' => $pair->counterparty_role,
+                            'expressed_by_user_id' => $pair->counterparty_user_id,
+                        ],
+                        [
+                            'founder_user_id' => $pair->founder_user_id,
+                            'status' => 'active',
+                            'expressed_at' => $disc->interest_expressed_at ?? now(),
+                        ]
+                    );
+                }
+            }
+
             $connection = BusinessConnection::where('business_id', $pair->business_id)
                 ->where('counterparty_user_id', $pair->counterparty_user_id)->where('counterparty_role', $pair->counterparty_role)->first();
             $deal = $connection?->deals()->latest('id')->first();
@@ -146,6 +188,11 @@ final class ConnectionService
                         'founder_user_id' => $founder->id,
                     ]
                 );
+
+                if ($connection->wasRecentlyCreated) {
+                    $founder->notify(new ConnectionEstablishedNotification($business, $counterparty, $resolvedRole->value));
+                    $counterparty->notify(new ConnectionEstablishedNotification($business, $founder, 'founder'));
+                }
             } else {
                 $connection = BusinessConnection::where('business_id', $business->id)
                     ->where('counterparty_user_id', $counterparty->id)
@@ -161,6 +208,99 @@ final class ConnectionService
                 'founder_interest' => $interest,
                 'counterparty_interest' => $counterpartyInterest,
                 'is_mutual' => $counterpartyInterest !== null,
+                'connection' => $connection,
+            ];
+        }, 3);
+    }
+
+    /**
+     * Counterparty (Investor or Skilled Professional) expresses interest in a business.
+     *
+     * @throws HttpException
+     * @throws ValidationException
+     * @throws ModelNotFoundException
+     */
+    public function expressCounterpartyInterest(
+        Business $business,
+        User $counterparty,
+        ?string $roleParam = null
+    ): array {
+        $this->enforceBusinessAccess($business, $counterparty);
+
+        $isOwner = $business->founderProfile !== null && $business->founderProfile->user_id === $counterparty->id;
+        if ($isOwner) {
+            throw new HttpException(403, 'Founders cannot express counterparty interest in their own business.');
+        }
+
+        $resolvedRole = $this->resolveParticipantRole($counterparty, $roleParam);
+
+        $founderUser = $business->founderProfile?->user;
+        if ($founderUser === null) {
+            throw new HttpException(404, 'Business founder not found.');
+        }
+
+        return DB::transaction(function () use ($business, $founderUser, $counterparty, $resolvedRole) {
+            Business::whereKey($business->id)->lockForUpdate()->firstOrFail();
+
+            $interest = BusinessInterest::where('business_id', $business->id)
+                ->where('counterparty_user_id', $counterparty->id)
+                ->where('counterparty_role', $resolvedRole->value)
+                ->where('expressed_by_user_id', $counterparty->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($interest === null) {
+                $interest = BusinessInterest::create([
+                    'business_id' => $business->id,
+                    'founder_user_id' => $founderUser->id,
+                    'counterparty_user_id' => $counterparty->id,
+                    'counterparty_role' => $resolvedRole,
+                    'expressed_by_user_id' => $counterparty->id,
+                    'status' => 'active',
+                    'expressed_at' => now(),
+                ]);
+            }
+
+            $founderInterest = BusinessInterest::where('business_id', $business->id)
+                ->where('counterparty_user_id', $counterparty->id)
+                ->where('counterparty_role', $resolvedRole->value)
+                ->where('expressed_by_user_id', $founderUser->id)
+                ->where('status', 'active')
+                ->lockForUpdate()
+                ->first();
+
+            $connection = null;
+            if ($founderInterest !== null) {
+                $connection = BusinessConnection::firstOrCreate(
+                    [
+                        'business_id' => $business->id,
+                        'counterparty_user_id' => $counterparty->id,
+                        'counterparty_role' => $resolvedRole,
+                    ],
+                    [
+                        'founder_user_id' => $founderUser->id,
+                    ]
+                );
+
+                if ($connection->wasRecentlyCreated) {
+                    $founderUser->notify(new ConnectionEstablishedNotification($business, $counterparty, $resolvedRole->value));
+                    $counterparty->notify(new ConnectionEstablishedNotification($business, $founderUser, 'founder'));
+                }
+            } else {
+                $connection = BusinessConnection::where('business_id', $business->id)
+                    ->where('counterparty_user_id', $counterparty->id)
+                    ->where('counterparty_role', $resolvedRole->value)
+                    ->first();
+            }
+
+            return [
+                'business_id' => $business->id,
+                'founder_user_id' => $founderUser->id,
+                'counterparty_user_id' => $counterparty->id,
+                'counterparty_role' => $resolvedRole,
+                'founder_interest' => $founderInterest,
+                'counterparty_interest' => $interest,
+                'is_mutual' => $founderInterest !== null,
                 'connection' => $connection,
             ];
         }, 3);
@@ -323,6 +463,29 @@ final class ConnectionService
             ->where('expressed_by_user_id', $counterparty->id)
             ->where('status', 'active')
             ->first();
+
+        if ($counterpartyInterest === null) {
+            $disc = BusinessDisclosureRelationship::where('business_id', $business->id)
+                ->where('counterparty_user_id', $counterparty->id)
+                ->where('counterparty_role', $resolvedRole->value)
+                ->whereNotNull('interest_expressed_at')
+                ->first();
+            if ($disc !== null && $founderUser !== null) {
+                $counterpartyInterest = BusinessInterest::firstOrCreate(
+                    [
+                        'business_id' => $business->id,
+                        'counterparty_user_id' => $counterparty->id,
+                        'counterparty_role' => $resolvedRole->value,
+                        'expressed_by_user_id' => $counterparty->id,
+                    ],
+                    [
+                        'founder_user_id' => $founderUser->id,
+                        'status' => 'active',
+                        'expressed_at' => $disc->interest_expressed_at ?? now(),
+                    ]
+                );
+            }
+        }
 
         $connection = BusinessConnection::where('business_id', $business->id)
             ->where('counterparty_user_id', $counterparty->id)

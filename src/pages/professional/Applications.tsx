@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
-import { api } from '../../services/api';
+import { api, ConnectionItem } from '../../services/api';
 
 // --- Types --------------------------------------------------------------------
 
@@ -9,6 +9,7 @@ type AppStatus = 'submitted' | 'under_review' | 'interview' | 'offer' | 'joined'
 
 interface AppItem {
   id: string;
+  businessId: number | string;
   business: string;
   businessInitials: string;
   industry: string;
@@ -17,6 +18,10 @@ interface AppItem {
   appliedDate: string;
   lastUpdated: string;
   status: AppStatus;
+  isMutual: boolean;
+  isConnected: boolean;
+  dealId?: number;
+  dealStage?: string;
   timeline: { action: string; ts: string }[];
   note: string;
 }
@@ -44,37 +49,56 @@ export default function ProfessionalApplications() {
     async function loadApplications() {
       setLoading(true);
       try {
-        const recs = await api.recommendations.businesses('professional');
-        if (recs && recs.length > 0 && isMounted) {
-          const appList: AppItem[] = [];
-          for (const b of recs.slice(0, 5)) {
-            try {
-              const statusRes = await api.businesses.getConnectionStatus(b.id);
-              if (statusRes && statusRes.status && statusRes.status !== 'none') {
-                appList.push({
-                  id: String(b.id),
-                  business: b.name || 'Startup',
-                  businessInitials: (b.name || 'ST').substring(0, 2).toUpperCase(),
-                  industry: b.industry || 'Technology',
-                  opportunity: b.tagline || 'Advisory Engagement',
-                  role: 'Professional Advisor',
-                  appliedDate: 'Recently',
-                  lastUpdated: 'Recently',
-                  status: (statusRes.status === 'deal_active' ? 'joined' : 'submitted') as AppStatus,
-                  timeline: [{ action: 'Application submitted', ts: 'Recently' }],
-                  note: 'Connection initiated via Vault Ventures Discovery',
-                });
-              }
-            } catch (e) {}
-          }
-          if (isMounted) setApplications(appList);
-        }
+        const res = await api.connections.list('professional');
+        if (!isMounted) return;
+
+        const rawItems: ConnectionItem[] = Array.isArray(res) ? res : res?.items || [];
+        // Strictly filter to professional counterparty role
+        const professionalItems = rawItems.filter(item => !item.counterparty_role || item.counterparty_role === 'professional');
+
+        const appList: AppItem[] = professionalItems.map(item => {
+          const isJoined = Boolean(item.is_connected || item.deal || item.is_mutual);
+          const status: AppStatus = isJoined ? 'joined' : 'submitted';
+          const appliedDate = item.connected_at
+            ? new Date(item.connected_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+            : 'Recently';
+
+          return {
+            id: String(item.connection_id ?? item.business?.id ?? Math.random()),
+            businessId: item.business?.id,
+            business: item.business?.name || 'Venture Opportunity',
+            businessInitials: (item.business?.name || 'VO').substring(0, 2).toUpperCase(),
+            industry: 'Advisory & Growth',
+            opportunity: 'Professional Advisory & Engagement',
+            role: 'Professional Advisor',
+            appliedDate,
+            lastUpdated: appliedDate,
+            status,
+            isMutual: Boolean(item.is_mutual),
+            isConnected: Boolean(item.is_connected),
+            dealId: item.deal?.id,
+            dealStage: item.deal?.stage,
+            timeline: [
+              { action: 'Expressed interest / Applied', ts: appliedDate },
+              ...(item.is_mutual ? [{ action: 'Founder reciprocated interest', ts: appliedDate }] : []),
+              ...(item.is_connected ? [{ action: 'Connection established', ts: appliedDate }] : []),
+            ],
+            note: item.is_connected
+              ? 'Active connection established with founder'
+              : item.is_mutual
+              ? 'Mutual interest confirmed'
+              : 'Application pending founder review',
+          };
+        });
+
+        setApplications(appList);
       } catch (e) {
-        // empty
+        if (isMounted) setApplications([]);
       } finally {
         if (isMounted) setLoading(false);
       }
     }
+
     loadApplications();
     return () => { isMounted = false; };
   }, []);
@@ -159,19 +183,65 @@ export default function ProfessionalApplications() {
       </div>
 
       {/* Content */}
-      {filtered.length > 0 ? (
+      {loading ? (
+        <div className="rounded-[14px] border border-[color:var(--vv-border)] p-12 text-center bg-[#121A2B]">
+          <div className="animate-spin w-6 h-6 border-2 border-[#C67A4E] border-t-transparent rounded-full mx-auto mb-3" />
+          <p className="text-[13px] text-[color:var(--vv-text-secondary)]">Loading applications...</p>
+        </div>
+      ) : filtered.length > 0 ? (
         <div className="space-y-4">
           {filtered.map(item => (
             <div
               key={item.id}
-              className="rounded-[14px] border border-[color:var(--vv-border)] p-5 bg-[#121A2B]"
+              className="rounded-[14px] border border-[color:var(--vv-border)] p-5 bg-[#121A2B] hover:border-[#C67A4E]/30 transition-all"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[14px] font-semibold text-[color:var(--vv-text)]">{item.opportunity}</p>
-                  <p className="text-[12px] text-[color:var(--vv-text-tertiary)]">{item.business} • {item.industry}</p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#182338] border border-[color:var(--vv-border)] flex items-center justify-center text-[13px] font-bold text-[#C67A4E]">
+                    {item.businessInitials}
+                  </div>
+                  <div>
+                    <h2 className="text-[15px] font-semibold text-[color:var(--vv-text)]">{item.business}</h2>
+                    <p className="text-[12px] text-[color:var(--vv-text-tertiary)]">{item.opportunity} &bull; {item.industry}</p>
+                  </div>
                 </div>
-                <span className="text-[11px] text-[color:var(--vv-text-tertiary)]">Applied: {item.appliedDate}</span>
+
+                <div className="flex items-center gap-3 self-end sm:self-center">
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border ${
+                    item.status === 'joined'
+                      ? 'bg-[rgba(34,197,94,0.08)] border-[rgba(34,197,94,0.22)] text-[#22C55E]'
+                      : 'bg-[rgba(198,122,78,0.08)] border-[rgba(198,122,78,0.22)] text-[#C67A4E]'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'joined' ? 'bg-[#22C55E]' : 'bg-[#C67A4E]'}`} />
+                    {item.status === 'joined' ? 'Connected / Joined' : 'Applied'}
+                  </span>
+                  <span className="text-[11px] text-[color:var(--vv-text-tertiary)]">Applied: {item.appliedDate}</span>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-[color:var(--vv-border)] flex items-center justify-between gap-2">
+                <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] italic">
+                  {item.note}
+                </p>
+                <div className="flex items-center gap-2">
+                  {item.businessId && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => navigate(`/app/businesses/${item.businessId}`)}
+                    >
+                      View Business
+                    </Button>
+                  )}
+                  {item.isConnected && (
+                    <Button
+                      size="sm"
+                      onClick={() => navigate(item.dealId ? `/app/deal-room?dealId=${item.dealId}` : '/app/deal-room')}
+                    >
+                      Deal Room
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           ))}

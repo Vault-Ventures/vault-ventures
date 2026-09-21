@@ -155,7 +155,7 @@ final class NdaService
             throw new HttpException(422, 'A valid counterparty must be specified.');
         }
 
-        return DB::transaction(function () use ($business, $counterpartyUser, $isOwner) {
+        return DB::transaction(function () use ($business, $user, $counterpartyUser, $isOwner) {
             $nda = BusinessNda::where('business_id', $business->id)
                 ->where('counterparty_user_id', $counterpartyUser->id)
                 ->lockForUpdate()
@@ -200,9 +200,18 @@ final class NdaService
                 // Advance relationship to Stage 3 (NDA Protected)
                 $relationship->stage = DisclosureStage::Nda;
                 $relationship->save();
-            }
 
-            $nda->save();
+                $nda->save();
+
+                // Automatically transition matching Deal from deal_room_opened -> nda_signed
+                app(\App\Services\Deal\DealService::class)->advanceMatchingDealsOnNdaActivation(
+                    $business->id,
+                    $counterpartyUser->id,
+                    $user->id
+                );
+            } else {
+                $nda->save();
+            }
 
             return $nda;
         });

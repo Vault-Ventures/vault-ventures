@@ -17,6 +17,32 @@ use Illuminate\Http\Request;
 class DealController extends Controller
 {
     /**
+     * List all deals accessible to the authenticated user.
+     */
+    public function index(
+        Request $request,
+        DealService $dealService
+    ): JsonResponse {
+        $roleParam = $request->input('role') ?? $request->query('role');
+        $businessId = $request->input('business_id') ?? $request->query('business_id');
+        $page = $request->input('page') ?? $request->query('page') ?? 1;
+        $perPage = $request->input('per_page') ?? $request->query('per_page') ?? 25;
+
+        $result = $dealService->listForParticipant(
+            $request->user(),
+            is_string($roleParam) ? $roleParam : null,
+            is_numeric($businessId) ? (int) $businessId : null,
+            is_numeric($page) ? max(1, (int) $page) : 1,
+            is_numeric($perPage) ? min(100, max(1, (int) $perPage)) : 25
+        );
+
+        return ApiResponse::success(
+            $result,
+            'Deals retrieved successfully.'
+        );
+    }
+
+    /**
      * Create a Deal from an existing accepted BusinessConnection.
      */
     public function createFromConnection(

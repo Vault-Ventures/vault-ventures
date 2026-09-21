@@ -103,14 +103,15 @@ class BusinessConnectionApiTest extends TestCase
         Business $business,
         User $counterparty,
         ParticipantRole $role = ParticipantRole::Investor,
-        DisclosureStage $stage = DisclosureStage::Extended
+        DisclosureStage $stage = DisclosureStage::Teaser,
+        bool $expressedInterest = false
     ): BusinessDisclosureRelationship {
         return BusinessDisclosureRelationship::create([
             'business_id' => $business->id,
             'counterparty_user_id' => $counterparty->id,
             'counterparty_role' => $role,
             'stage' => $stage,
-            'interest_expressed_at' => now(),
+            'interest_expressed_at' => $expressedInterest ? now() : null,
         ]);
     }
 

@@ -27,6 +27,7 @@ class AdminVerificationRequestResource extends JsonResource
                 'name' => $this->assignedAdmin->name,
                 'email' => $this->assignedAdmin->email,
             ] : null),
+            'participant_message' => $this->participant_message,
             'submitted_at' => $this->submitted_at?->toISOString(),
             'reviewed_at' => $this->reviewed_at?->toISOString(),
             'evidence_count' => $this->relationLoaded('evidence') ? $this->evidence->count() : $this->evidence()->count(),

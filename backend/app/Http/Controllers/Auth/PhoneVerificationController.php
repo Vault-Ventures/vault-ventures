@@ -23,8 +23,8 @@ final class PhoneVerificationController extends Controller
         );
 
         return ApiResponse::success(
-            null,
-            'Verification code sent.'
+            ['delivery_channel' => config('verification.phone_delivery') === 'local_capture' ? 'local_capture' : 'configured_transport'],
+            'Verification code delivery completed.'
         );
     }
 

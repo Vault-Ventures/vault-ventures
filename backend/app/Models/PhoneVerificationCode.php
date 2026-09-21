@@ -14,6 +14,7 @@ class PhoneVerificationCode extends Model
     protected function casts(): array
     {
         return [
+            'delivered_at' => 'datetime',
             'expires_at' => 'datetime',
             'verified_at' => 'datetime',
             'attempts' => 'integer',

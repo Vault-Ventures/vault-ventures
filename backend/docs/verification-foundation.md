@@ -1,5 +1,9 @@
 # Phase 4 Part 1 — Phone Verification, Verification Schema & Evidence Storage
 
+> Updated local delivery, admin document retrieval and participant feedback behavior is documented
+> in [Local Tier 1 verification — Part 2B](local-tier1-verification.md). Historical phase notes below
+> describe the original foundation; Part 2B supersedes the no-delivery and metadata-only limitations.
+
 ## Overview
 
 Phase 4 Part 1 provides the foundation for user identity verification on Vault Ventures:
@@ -192,5 +196,4 @@ The platform defines three verification tiers represented by `App\Enums\Verifica
 4. **No Tier 2 Qualification**: Tier 2 remains strictly deferred and cannot be attained through any new logic.
 5. **No External KYC / Network Provider**: No third-party KYC or external identity verification services are integrated.
 6. **No Git Push**: Git branches/commits remain local.
-
 

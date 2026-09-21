@@ -14,6 +14,7 @@ class RequestInformationVerificationRequestRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'participant_message' => ['nullable', 'string', 'max:2000'],
             'admin_notes' => ['nullable', 'string', 'max:2000'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ];

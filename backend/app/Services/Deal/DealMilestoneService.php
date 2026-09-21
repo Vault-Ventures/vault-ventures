@@ -249,6 +249,68 @@ final class DealMilestoneService
     }
 
     /**
+     * Delete an unactivated milestone (Founder only).
+     * Prevents deletion once milestone funding is active, deal is completed, or milestone is submitted/funded.
+     * Automatically resequences remaining milestones atomically.
+     *
+     * @throws HttpException
+     * @throws ValidationException
+     */
+    public function deleteMilestone(
+        Deal $deal,
+        DealMilestone $milestone,
+        User $user,
+        ?string $roleParam = null
+    ): array {
+        $this->enforceFounderOnly($deal, $user);
+        $this->enforceMilestoneBelongsToDeal($deal, $milestone);
+
+        return DB::transaction(function () use ($deal, $milestone) {
+            $lockedDeal = Deal::where('id', $deal->id)->lockForUpdate()->firstOrFail();
+            $lockedMilestone = DealMilestone::where('id', $milestone->id)->lockForUpdate()->firstOrFail();
+
+            if (in_array($lockedDeal->stage, [DealStage::MilestoneFundingActive, DealStage::Completed], true)) {
+                throw ValidationException::withMessages([
+                    'deal' => ['Milestones cannot be deleted after milestone funding has been activated or the deal is completed.'],
+                ]);
+            }
+
+            if (in_array($lockedMilestone->status, ['submitted', 'funded'], true) || $lockedMilestone->confirmed_at !== null || $lockedMilestone->funded_at !== null) {
+                throw ValidationException::withMessages([
+                    'milestone' => ['Submitted or funded milestones are locked and cannot be deleted.'],
+                ]);
+            }
+
+            $deletedId = $lockedMilestone->id;
+            $lockedMilestone->delete();
+
+            // Resequence remaining milestones to ensure sequence_order is contiguous 1..N
+            $remaining = $lockedDeal->milestones()
+                ->orderBy('sequence_order')
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($remaining as $index => $remMilestone) {
+                $remMilestone->sequence_order = 10000 + $index + 1;
+                $remMilestone->save();
+            }
+            foreach ($remaining as $index => $remMilestone) {
+                $remMilestone->sequence_order = $index + 1;
+                $remMilestone->save();
+            }
+
+            $summary = $this->calculateFundingSummary($lockedDeal);
+
+            return [
+                'deal_id' => $lockedDeal->id,
+                'deleted_milestone_id' => $deletedId,
+                'summary' => $summary,
+            ];
+        });
+    }
+
+    /**
      * Update milestone execution progress (Founder only).
      *
      * @throws HttpException

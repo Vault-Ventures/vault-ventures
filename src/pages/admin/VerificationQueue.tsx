@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Badge, VerificationBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import {
   IconSearch, IconX, IconCheck, IconAlertTriangle, IconShield,
   IconFilter, IconEye, IconFileText,
 } from '../../components/layout/Icons';
-import { api, AdminVerificationRequestData, ApiError } from '../../services/api';
+import { api, AdminVerificationRequestData, AdminVerificationEvidenceData, ApiError } from '../../services/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,11 +59,12 @@ function Skeleton() {
 
 function RequestInfoModal({ req, onSend, onCancel, loading }: {
   req: AdminVerificationRequestData;
-  onSend: (msg: string) => void;
+  onSend: (msg: string, notes: string) => void;
   onCancel: () => void;
   loading: boolean;
 }) {
   const [msg, setMsg] = useState('');
+  const [internalNotes, setInternalNotes] = useState('');
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="request-verification-info-title">
       <div className="absolute inset-0 bg-black/60" onClick={onCancel} />
@@ -73,16 +74,19 @@ function RequestInfoModal({ req, onSend, onCancel, loading }: {
           For <strong className="text-[color:var(--vv-text-secondary)]">{req.user?.name || `User #${req.user_id}`}</strong> — Tier {req.requested_tier} request
         </p>
         <label className="block text-[11px] text-[color:var(--vv-text-tertiary)] uppercase tracking-wider font-semibold mb-1.5">
-          What is needed
+          Message to Participant
         </label>
         <textarea
-          value={msg} onChange={e => setMsg(e.target.value)}
+          aria-label="Message to Participant" maxLength={2000} value={msg} onChange={e => setMsg(e.target.value)}
           rows={4} placeholder="Describe what information or documents are required from the applicant…"
           className="w-full px-3 py-2.5 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] rounded-md text-[12.5px] text-[color:var(--vv-text)] placeholder-[color:var(--vv-text-tertiary)] focus:outline-none focus:border-[#C67A4E] transition-colors resize-none"
         />
+        <label className="block text-xs mt-3">Internal Admin Notes (optional)
+          <textarea aria-label="Internal Admin Notes" maxLength={2000} value={internalNotes} onChange={e => setInternalNotes(e.target.value)} className="w-full bg-transparent border rounded p-2" />
+        </label>
         <div className="flex gap-2 mt-4">
           <Button variant="secondary" size="sm" className="flex-1" onClick={onCancel} disabled={loading}>Cancel</Button>
-          <Button size="sm" className="flex-1" onClick={() => msg.trim() && onSend(msg)} disabled={!msg.trim() || loading}>
+          <Button size="sm" className="flex-1" onClick={() => msg.trim() && onSend(msg, internalNotes)} disabled={!msg.trim() || loading}>
             {loading ? 'Sending...' : 'Send Request'}
           </Button>
         </div>
@@ -95,12 +99,13 @@ function RequestInfoModal({ req, onSend, onCancel, loading }: {
 
 function RejectModal({ req, onReject, onCancel, loading }: {
   req: AdminVerificationRequestData;
-  onReject: (reason: string, notes: string) => void;
+  onReject: (reason: string, notes: string, message: string) => void;
   onCancel: () => void;
   loading: boolean;
 }) {
   const [reason, setReason] = useState('');
   const [notes, setNotes] = useState('');
+  const [participantMessage, setParticipantMessage] = useState('');
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="reject-verification-title">
       <div className="absolute inset-0 bg-black/60" onClick={onCancel} />
@@ -123,15 +128,18 @@ function RejectModal({ req, onReject, onCancel, loading }: {
           {REJECT_REASONS.map(r => <option key={r}>{r}</option>)}
         </select>
         <label className="block text-[11px] text-[color:var(--vv-text-tertiary)] uppercase tracking-wider font-semibold mb-1.5">
-          Additional admin notes (optional)
+          Internal Admin Notes (optional)
         </label>
-        <textarea value={notes} onChange={e => setNotes(e.target.value)}
-          rows={3} placeholder="Additional context for the applicant or audit record…"
+        <textarea aria-label="Internal Admin Notes" maxLength={2000} value={notes} onChange={e => setNotes(e.target.value)}
+          rows={3} placeholder="Private context for the audit record"
           className="w-full px-3 py-2.5 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] rounded-md text-[12.5px] text-[color:var(--vv-text)] placeholder-[color:var(--vv-text-tertiary)] focus:outline-none focus:border-[#C67A4E] transition-colors resize-none mb-4"
         />
+        <label className="block text-xs my-3">Message to Participant (optional)
+          <textarea aria-label="Message to Participant" maxLength={2000} value={participantMessage} onChange={e => setParticipantMessage(e.target.value)} className="w-full bg-transparent border rounded p-2" />
+        </label>
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" className="flex-1" onClick={onCancel} disabled={loading}>Cancel</Button>
-          <Button variant="destructive" size="sm" className="flex-1" onClick={() => reason && onReject(reason, notes)} disabled={!reason || loading}>
+          <Button variant="destructive" size="sm" className="flex-1" onClick={() => reason && onReject(reason, notes, participantMessage)} disabled={!reason || loading}>
             {loading ? 'Rejecting...' : 'Confirm Rejection'}
           </Button>
         </div>
@@ -201,6 +209,48 @@ function ApproveModal({ req, onApprove, onCancel, loading }: {
 
 // ─── Review drawer ────────────────────────────────────────────────────────────
 
+function EvidenceDownload({ requestId, evidence }: { requestId: number; evidence: AdminVerificationEvidenceData }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [url, setUrl] = useState<string | null>(null);
+  const alive = useRef(true);
+  const pending = useRef(false);
+  const objectUrl = useRef<string | null>(null);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; if (objectUrl.current) URL.revokeObjectURL(objectUrl.current); };
+  }, []);
+  useEffect(() => {
+    if (!url) return;
+    const timer = window.setTimeout(() => {
+      URL.revokeObjectURL(url); objectUrl.current = null; setUrl(null);
+    }, 60_000);
+    return () => window.clearTimeout(timer);
+  }, [url]);
+  async function retrieve() {
+    if (pending.current) return;
+    pending.current = true; setBusy(true); setError('');
+    try {
+      const blob = await api.admin.verificationRequests.downloadEvidence(requestId, evidence.id);
+      if (!alive.current) return;
+      if (!['application/pdf', 'image/jpeg', 'image/png'].includes(blob.type)) throw new Error('Unsupported document response.');
+      if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+      const next = URL.createObjectURL(blob); objectUrl.current = next; setUrl(next);
+    } catch (err) {
+      if (alive.current) setError(err instanceof Error ? err.message : 'Unable to retrieve evidence.');
+    } finally {
+      pending.current = false;
+      if (alive.current) setBusy(false);
+    }
+  }
+  return <div className="space-y-1 text-xs">
+    <p>{evidence.created_at ? new Date(evidence.created_at).toLocaleString() : 'Upload time unavailable'}</p>
+    <Button size="sm" variant="secondary" disabled={busy} onClick={retrieve}>{busy ? 'Loading…' : 'View Evidence'}</Button>
+    {url && <a className="block underline" href={url} download={evidence.original_filename}>Download document</a>}
+    {error && <p role="alert" className="text-red-400">{error}</p>}
+  </div>;
+}
+
 function ReviewDrawer({ req, onClose, onApprove, onRequestInfo, onReject }: {
   req: AdminVerificationRequestData;
   onClose: () => void;
@@ -209,7 +259,7 @@ function ReviewDrawer({ req, onClose, onApprove, onRequestInfo, onReject }: {
   onReject: () => void;
 }) {
   const [section, setSection] = useState<'details' | 'evidence'>('details');
-  const isFinal = req.status === 'approved' || req.status === 'rejected';
+  const isFinal = ['approved', 'rejected', 'cancelled'].includes(req.status);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-labelledby="verification-drawer-title">
@@ -306,10 +356,10 @@ function ReviewDrawer({ req, onClose, onApprove, onRequestInfo, onReject }: {
                       <div className="flex-1 min-w-0">
                         <p className="text-[12.5px] font-medium text-[color:var(--vv-text)] truncate">{e.original_filename}</p>
                         <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">
-                          {e.evidence_type_label} • {Math.round(e.file_size / 1024)} KB
+                          {e.mime_type} • {Math.ceil(e.file_size_bytes / 1024)} KiB
                         </p>
                       </div>
-                      <Badge variant="success">Stored Encrypted</Badge>
+                      <EvidenceDownload requestId={req.id} evidence={e} />
                     </div>
                   ))}
                 </div>
@@ -395,11 +445,11 @@ export default function AdminVerificationQueue() {
     }
   };
 
-  const handleReject = async (reason: string, notes: string) => {
+  const handleReject = async (reason: string, notes: string, message: string) => {
     if (!drawer) return;
     try {
       setActionLoading(true);
-      await api.admin.verificationRequests.reject(drawer.id, reason, notes);
+      await api.admin.verificationRequests.reject(drawer.id, reason, notes, message);
       setModal(null);
       setDrawer(null);
       await loadQueue();
@@ -410,11 +460,11 @@ export default function AdminVerificationQueue() {
     }
   };
 
-  const handleRequestInfo = async (notes: string) => {
+  const handleRequestInfo = async (message: string, notes: string) => {
     if (!drawer) return;
     try {
       setActionLoading(true);
-      await api.admin.verificationRequests.requestInformation(drawer.id, notes);
+      await api.admin.verificationRequests.requestInformation(drawer.id, message, notes);
       setModal(null);
       setDrawer(null);
       await loadQueue();

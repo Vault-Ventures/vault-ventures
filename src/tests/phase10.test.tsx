@@ -59,12 +59,11 @@ describe('Phase 10: Admin Enhancements & Compliance', () => {
           evidence: [
             {
               id: 1,
-              evidence_type: 'national_id',
-              evidence_type_label: 'National ID (Smart Card)',
+              verification_request_id: 101,
               original_filename: 'nid_front_back.pdf',
               mime_type: 'application/pdf',
-              file_size: 1048576,
-              uploaded_at: '2026-09-10T09:55:00Z',
+              file_size_bytes: 1048576,
+              created_at: '2026-09-10T09:55:00Z',
             },
           ],
         },
@@ -161,7 +160,7 @@ describe('Phase 10: Admin Enhancements & Compliance', () => {
       fireEvent.click(confirmRejectBtn);
 
       await waitFor(() => {
-        expect(rejectSpy).toHaveBeenCalledWith(101, 'Insufficient evidence', expect.any(String));
+        expect(rejectSpy).toHaveBeenCalledWith(101, 'Insufficient evidence', expect.any(String), '');
       });
 
     });

@@ -9,7 +9,7 @@ export default function VerifyEmail() {
   const { id, hash } = useParams<{ id: string; hash: string }>();
   const location = useLocation();
   const navigate = useNavigate();
-  const { verifyEmail, user, isAuthenticated } = useAuth();
+  const { verifyEmail } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState(false);
@@ -82,10 +82,10 @@ export default function VerifyEmail() {
               </div>
               <h1 className="font-display text-[19px] font-semibold text-[color:var(--vv-text)] mb-1">Email Verified</h1>
               <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mb-6">
-                Your email address has been successfully verified. You now have full access to platform features.
+                Your email address has been verified. Continue with phone and identity verification to unlock protected deal actions.
               </p>
-              <Button className="w-full" onClick={() => navigate(isAuthenticated && user?.roles && user.roles.length > 0 ? `/app/${user.roles[0]}/dashboard` : '/onboarding')}>
-                Continue to Platform
+              <Button className="w-full" onClick={() => navigate('/app/profile?tab=verification')}>
+                Continue to Verification
               </Button>
             </div>
           ) : (

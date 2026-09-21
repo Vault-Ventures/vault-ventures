@@ -24,6 +24,7 @@ class PhoneVerificationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->app->instance(\App\Contracts\PhoneVerificationCodeDeliveryInterface::class, new \Tests\Support\RecordingPhoneCodeDelivery);
         $this->withCredentials();
         $this->withHeaders(['Origin' => 'http://localhost:8443', 'Accept' => 'application/json']);
 
@@ -48,7 +49,7 @@ class PhoneVerificationTest extends TestCase
         $response = $this->postJson('/api/me/phone/send-code', ['phone' => self::PHONE]);
         $response->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('message', 'Verification code sent.')
+            ->assertJsonPath('message', 'Verification code delivery completed.')
             ->assertJsonMissingPath('data.code')
             ->assertJsonMissingPath('data.otp');
 

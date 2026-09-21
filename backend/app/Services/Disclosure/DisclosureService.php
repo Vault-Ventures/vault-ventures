@@ -126,6 +126,13 @@ final class DisclosureService
                 }
             }
 
+            // Synchronize canonical business interest atomically
+            app(\App\Services\Connection\ConnectionService::class)->expressCounterpartyInterest(
+                $business,
+                $user,
+                $resolvedRole->value
+            );
+
             return $relationship;
         });
     }

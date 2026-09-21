@@ -99,7 +99,7 @@ class VerificationRequestService
 
             // Promote user to Tier 1
             $user = User::lockForUpdate()->findOrFail($record->user_id);
-            $user->verification_tier = VerificationTier::Tier1;
+            $user->verification_tier = VerificationTier::from(max($user->verification_tier->value, VerificationTier::Tier1->value));
             $user->save();
 
             // Create audit log
@@ -117,9 +117,9 @@ class VerificationRequestService
         });
     }
 
-    public function rejectTier1Request(VerificationRequest $verificationRequest, User $admin, ?string $rejectionReason = null, ?string $notes = null): VerificationRequest
+    public function rejectTier1Request(VerificationRequest $verificationRequest, User $admin, ?string $rejectionReason = null, ?string $notes = null, ?string $participantMessage = null): VerificationRequest
     {
-        return DB::transaction(function () use ($verificationRequest, $admin, $rejectionReason, $notes) {
+        return DB::transaction(function () use ($verificationRequest, $admin, $rejectionReason, $notes, $participantMessage) {
             /** @var VerificationRequest $record */
             $record = VerificationRequest::lockForUpdate()->findOrFail($verificationRequest->id);
 
@@ -144,6 +144,7 @@ class VerificationRequestService
             $record->reviewed_at = now();
             $record->assigned_admin_id = $admin->id;
             $record->rejection_reason = $rejectionReason ?: $notes;
+            $record->participant_message = $participantMessage;
             if ($notes !== null) {
                 $record->admin_notes = $notes;
             }
@@ -164,9 +165,9 @@ class VerificationRequestService
         });
     }
 
-    public function requestInformationTier1Request(VerificationRequest $verificationRequest, User $admin, ?string $notes = null): VerificationRequest
+    public function requestInformationTier1Request(VerificationRequest $verificationRequest, User $admin, ?string $notes = null, ?string $participantMessage = null): VerificationRequest
     {
-        return DB::transaction(function () use ($verificationRequest, $admin, $notes) {
+        return DB::transaction(function () use ($verificationRequest, $admin, $notes, $participantMessage) {
             /** @var VerificationRequest $record */
             $record = VerificationRequest::lockForUpdate()->findOrFail($verificationRequest->id);
 
@@ -187,6 +188,7 @@ class VerificationRequestService
             }
 
             $previousStatus = $record->status;
+            $record->participant_message = $participantMessage;
             $record->status = VerificationRequestStatus::NeedsInformation;
             $record->reviewed_at = now();
             $record->assigned_admin_id = $admin->id;

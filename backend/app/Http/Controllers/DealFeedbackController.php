@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Responses\ApiResponse;
 use App\Models\Deal;
 use App\Services\Reputation\ReputationService;
 use Illuminate\Http\JsonResponse;
@@ -27,7 +28,10 @@ class DealFeedbackController extends Controller
             $request->query('role')
         );
 
-        return response()->json(['data' => $status]);
+        return ApiResponse::success(
+            $status,
+            'Deal feedback status retrieved successfully.'
+        );
     }
 
     /**
@@ -51,19 +55,16 @@ class DealFeedbackController extends Controller
             $validated['role'] ?? null
         );
 
-        return response()->json([
-            'message' => 'Feedback submitted successfully.',
-            'data' => [
-                'id' => $feedback->id,
-                'deal_id' => $feedback->deal_id,
-                'reviewer_user_id' => $feedback->reviewer_user_id,
-                'reviewer_role' => $feedback->reviewer_role->value,
-                'recipient_user_id' => $feedback->recipient_user_id,
-                'recipient_role' => $feedback->recipient_role->value,
-                'rating' => $feedback->rating,
-                'comment' => $feedback->comment,
-                'submitted_at' => $feedback->created_at?->toISOString(),
-            ],
-        ], 201);
+        return ApiResponse::success([
+            'id' => $feedback->id,
+            'deal_id' => $feedback->deal_id,
+            'reviewer_user_id' => $feedback->reviewer_user_id,
+            'reviewer_role' => $feedback->reviewer_role->value,
+            'recipient_user_id' => $feedback->recipient_user_id,
+            'recipient_role' => $feedback->recipient_role->value,
+            'rating' => $feedback->rating,
+            'comment' => $feedback->comment,
+            'submitted_at' => $feedback->created_at?->toISOString(),
+        ], 'Feedback submitted successfully.', 201);
     }
 }

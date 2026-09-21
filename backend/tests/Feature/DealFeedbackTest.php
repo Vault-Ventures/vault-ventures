@@ -45,6 +45,16 @@ class DealFeedbackTest extends TestCase
         return $user;
     }
 
+    private function createProfessional(string $email = 'professional@example.com'): User
+    {
+        $user = User::factory()->create(['email' => $email, 'verification_tier' => VerificationTier::Tier1]);
+        $user->roles()->firstOrCreate(['role' => ParticipantRole::Professional->value]);
+        $user->professionalProfile()->firstOrCreate([]);
+        $user->unsetRelations();
+
+        return $user;
+    }
+
     private function createBusiness(User $founder, string $name = 'NovaTech AI Ltd'): Business
     {
         $business = new Business;
@@ -198,7 +208,18 @@ class DealFeedbackTest extends TestCase
         // Check status before submission
         $statusRes = $this->actingAs($founder)
             ->getJson("/api/me/deals/{$deal->id}/feedback")
-            ->assertOk();
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.deal_stage', 'completed')
+            ->assertJsonStructure(['success', 'message', 'data' => [
+                'deal_id',
+                'deal_stage',
+                'can_submit_feedback',
+                'has_submitted_feedback',
+                'founder_feedback_submitted',
+                'counterparty_feedback_submitted',
+                'reviews',
+            ]]);
 
         $this->assertTrue($statusRes->json('data.can_submit_feedback'));
         $this->assertFalse($statusRes->json('data.has_submitted_feedback'));
@@ -213,6 +234,7 @@ class DealFeedbackTest extends TestCase
             ]);
 
         $founderPost->assertStatus(201)
+            ->assertJsonPath('success', true)
             ->assertJsonPath('data.reviewer_user_id', $founder->id)
             ->assertJsonPath('data.reviewer_role', 'founder')
             ->assertJsonPath('data.recipient_user_id', $investor->id)
@@ -236,6 +258,7 @@ class DealFeedbackTest extends TestCase
             ]);
 
         $investorPost->assertStatus(201)
+            ->assertJsonPath('success', true)
             ->assertJsonPath('data.reviewer_user_id', $investor->id)
             ->assertJsonPath('data.reviewer_role', 'investor')
             ->assertJsonPath('data.recipient_user_id', $founder->id)
@@ -245,7 +268,8 @@ class DealFeedbackTest extends TestCase
         // Verify final deal feedback status
         $finalStatus = $this->actingAs($investor)
             ->getJson("/api/me/deals/{$deal->id}/feedback")
-            ->assertOk();
+            ->assertOk()
+            ->assertJsonPath('success', true);
 
         $this->assertFalse($finalStatus->json('data.can_submit_feedback'));
         $this->assertTrue($finalStatus->json('data.has_submitted_feedback'));
@@ -312,5 +336,92 @@ class DealFeedbackTest extends TestCase
             ->assertStatus(201);
 
         $this->assertSame(2, DealFeedback::count());
+    }
+
+    public function test_founder_and_professional_counterparty_bilateral_feedback_on_completed_deal(): void
+    {
+        $founder = $this->createFounder('founder_pro@example.com');
+        $professional = $this->createProfessional('pro_deal@example.com');
+
+        $business = $this->createBusiness($founder, 'Pro Health Ltd');
+        $connection = BusinessConnection::create([
+            'business_id' => $business->id,
+            'founder_user_id' => $founder->id,
+            'counterparty_user_id' => $professional->id,
+            'counterparty_role' => ParticipantRole::Professional,
+            'status' => 'accepted',
+        ]);
+
+        $deal = Deal::create([
+            'connection_id' => $connection->id,
+            'business_id' => $business->id,
+            'founder_user_id' => $founder->id,
+            'counterparty_user_id' => $professional->id,
+            'counterparty_role' => ParticipantRole::Professional,
+            'stage' => DealStage::Completed,
+        ]);
+
+        // 1. Founder reviews Professional
+        $founderPost = $this->actingAs($founder)
+            ->postJson("/api/me/deals/{$deal->id}/feedback", [
+                'rating' => 5,
+                'comment' => 'Outstanding advisory and engineering expertise.',
+            ]);
+
+        $founderPost->assertStatus(201)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.reviewer_user_id', $founder->id)
+            ->assertJsonPath('data.reviewer_role', 'founder')
+            ->assertJsonPath('data.recipient_user_id', $professional->id)
+            ->assertJsonPath('data.recipient_role', 'professional')
+            ->assertJsonPath('data.rating', 5);
+
+        // Duplicate Founder submission rejected
+        $this->actingAs($founder)
+            ->postJson("/api/me/deals/{$deal->id}/feedback", [
+                'rating' => 4,
+                'comment' => 'Duplicate attempt',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['feedback'], 'error.details');
+
+        // 2. Professional reviews Founder
+        $proPost = $this->actingAs($professional)
+            ->postJson("/api/me/deals/{$deal->id}/feedback?role=professional", [
+                'rating' => 5,
+                'comment' => 'Great founder to advise, very receptive to feedback.',
+            ]);
+
+        $proPost->assertStatus(201)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.reviewer_user_id', $professional->id)
+            ->assertJsonPath('data.reviewer_role', 'professional')
+            ->assertJsonPath('data.recipient_user_id', $founder->id)
+            ->assertJsonPath('data.recipient_role', 'founder')
+            ->assertJsonPath('data.rating', 5);
+
+        // Duplicate Professional submission rejected
+        $this->actingAs($professional)
+            ->postJson("/api/me/deals/{$deal->id}/feedback?role=professional", [
+                'rating' => 3,
+                'comment' => 'Another review',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['feedback'], 'error.details');
+
+        // Verify status and coexistence
+        $finalStatus = $this->actingAs($professional)
+            ->getJson("/api/me/deals/{$deal->id}/feedback?role=professional")
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertFalse($finalStatus->json('data.can_submit_feedback'));
+        $this->assertTrue($finalStatus->json('data.has_submitted_feedback'));
+        $this->assertTrue($finalStatus->json('data.founder_feedback_submitted'));
+        $this->assertTrue($finalStatus->json('data.counterparty_feedback_submitted'));
+        $this->assertCount(2, $finalStatus->json('data.reviews'));
+
+        // Deal stage remains completed
+        $this->assertSame(DealStage::Completed, $deal->fresh()->stage);
     }
 }

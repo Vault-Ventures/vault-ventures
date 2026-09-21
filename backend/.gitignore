@@ -5,6 +5,7 @@
 /public/storage
 /storage/*.key
 /storage/pail
+/storage/app/development-phone-verification/
 /vendor
 .env
 .env.*

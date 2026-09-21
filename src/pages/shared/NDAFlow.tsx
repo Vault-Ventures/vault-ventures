@@ -201,7 +201,7 @@ export default function NDAFlow() {
         params.role = role;
       }
 
-      const res = await api.get<BusinessNdaData>(`/api/me/businesses/${routeBusinessId}/nda`, { params });
+      const res = await api.get<BusinessNdaData>(`/api/me/businesses/${routeBusinessId}/nda`, params);
       setNdaData(res);
 
       if (res.status === 'active') {
@@ -217,6 +217,7 @@ export default function NDAFlow() {
       } else {
         setStep('overview');
       }
+      return res;
     } catch (err: any) {
       if (err?.status === 403 && err?.message?.toLowerCase().includes('tier 1')) {
         setTierError(err.message);
@@ -266,6 +267,13 @@ export default function NDAFlow() {
         setStep('waiting');
       }
     } catch (err: any) {
+      if (err?.status === 409) {
+        const persisted = await fetchNda();
+        if (persisted?.status !== 'pending' && persisted?.status !== 'active') {
+          setActionError('The NDA request conflicted, and an existing pending or active NDA could not be confirmed. Refresh the page to check its status.');
+        }
+        return;
+      }
       if (err?.status === 403 && err?.message?.toLowerCase().includes('tier 1')) {
         setTierError(err.message);
       } else {
@@ -351,7 +359,7 @@ export default function NDAFlow() {
           </p>
           <div className="flex gap-3 justify-center">
             <Button variant="secondary" onClick={() => navigate(returnTo)}>Back</Button>
-            <Button onClick={() => navigate('/app/profile')}>Go to Verification</Button>
+            <Button onClick={() => navigate('/app/profile?tab=verification')}>Go to Verification</Button>
           </div>
         </div>
       </div>

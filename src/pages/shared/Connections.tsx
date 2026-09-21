@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useRole } from '../../components/layout/AppShell';
 import { Button } from '../../components/ui/Button';
@@ -24,6 +24,9 @@ interface Connection {
   connectionId: number | null;
   businessId: number;
   canReciprocate: boolean;
+  canFounderExpressInterest: boolean;
+  counterpartyId: number;
+  counterpartyRole: ConnectionItem['counterparty_role'];
   participantRole?: string;
   counterpartName: string;
   counterpartInitials: string;
@@ -110,13 +113,38 @@ function MiniLifecycle({ status }: { status: ConnectionStatus }) {
   );
 }
 
-function ConnectionCard({ conn, onChanged }: { conn: Connection; onChanged: () => void }) {
+function ConnectionCard({ conn, onChanged }: { conn: Connection; onChanged: (founderInterestSubmitted?: boolean) => void }) {
   const navigate = useNavigate();
   const [opening, setOpening] = useState(false);
   const [openError, setOpenError] = useState<string | null>(null);
+  const founderSubmission = useRef(false);
+  const previousConnection = useRef(conn);
+  useEffect(() => {
+    if (previousConnection.current !== conn && founderSubmission.current) {
+      founderSubmission.current = false;
+      setOpening(false);
+    }
+    previousConnection.current = conn;
+  }, [conn]);
   const cfg = STATUS_CFG[conn.status];
   const isActionable = ['mutual_interest', 'deal_room', 'nda_signed', 'negotiating', 'agreement', 'active', 'completed'].includes(conn.status);
   const isWaiting = conn.status === 'interest_sent';
+
+  async function handleFounderInterest() {
+    if (!conn.canFounderExpressInterest || conn.counterpartyRole !== 'professional' || founderSubmission.current) return;
+    founderSubmission.current = true;
+    setOpening(true);
+    setOpenError(null);
+    try {
+      await api.connections.expressFounderProfessionalInterest(conn.businessId, conn.counterpartyId);
+      onChanged(true);
+      // Keep submission locked until the authoritative list refreshes this card.
+    } catch (err: any) {
+      setOpenError(err?.message || 'Unable to express interest. Please try again.');
+      founderSubmission.current = false;
+      setOpening(false);
+    }
+  }
 
   async function handlePrimaryAction() {
     if (conn.dealId) {
@@ -205,10 +233,16 @@ function ConnectionCard({ conn, onChanged }: { conn: Connection; onChanged: () =
       <div className="px-5 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex-1 min-w-0">
           {conn.note && <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] leading-relaxed">{conn.note}</p>}
+          {conn.canFounderExpressInterest && <p className="text-[11.5px] text-[color:var(--vv-text-secondary)]">This professional has expressed interest. Express your interest to connect.</p>}
           <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-1">Updated {conn.updatedAt}</p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          {conn.canFounderExpressInterest && (
+            <Button size="sm" disabled={opening} onClick={handleFounderInterest}>
+              {opening ? 'Expressing Interest...' : 'Express Interest'}
+            </Button>
+          )}
           {isActionable && (
             <Button size="sm" variant={conn.dealId ? 'primary' : 'secondary'} onClick={handlePrimaryAction} disabled={opening}>
               {opening ? 'Opening…' :
@@ -224,7 +258,7 @@ function ConnectionCard({ conn, onChanged }: { conn: Connection; onChanged: () =
             } catch (err: any) { setOpenError(err.message || 'Unable to reciprocate interest.'); }
             finally { setOpening(false); }
           }}>Reciprocate interest</Button>}
-          {isWaiting && !conn.canReciprocate && (
+          {isWaiting && !conn.canReciprocate && !conn.canFounderExpressInterest && (
             <span className="text-[11px] text-[color:var(--vv-text-tertiary)] italic">Awaiting response…</span>
           )}
 
@@ -328,6 +362,7 @@ export default function Connections() {
   const location = useLocation();
   const role = location.pathname.match(/^\/app\/(founder|investor|professional)\/connections/)?.[1] ?? activeRole;
   const [revision, setRevision] = useState(0);
+  const founderRefreshPending = useRef(false);
   const [filter, setFilter] = useState<Filter>('all');
   const [connections, setConnections] = useState<Connection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -353,6 +388,11 @@ export default function Connections() {
           id: `${item.business.id}-${item.counterparty.id}-${item.counterparty_role}`,
           connectionId: item.connection_id,
           businessId: item.business.id,
+          counterpartyId: item.counterparty.id,
+          counterpartyRole: item.counterparty_role,
+          canFounderExpressInterest: role === 'founder' && item.counterparty_role === 'professional'
+            && item.has_counterparty_interest === true && item.has_founder_interest === false
+            && item.is_mutual === false && item.is_connected === false && !item.deal,
           canReciprocate: role !== 'founder' && item.has_founder_interest && !item.has_counterparty_interest && !item.is_connected,
           participantRole: role === 'founder' ? undefined : item.counterparty_role,
           counterpartName: counterpart.name,
@@ -366,7 +406,10 @@ export default function Connections() {
         };
       }));
       setLastPage(result.pagination.last_page);
-    }).catch(err => { if (mounted) setError(err.message || 'Unable to load connections.'); })
+      founderRefreshPending.current = false;
+    }).catch(err => { if (mounted) setError(founderRefreshPending.current
+      ? `Interest was submitted, but connections could not be refreshed. Refresh the page to confirm the current status. ${err.message || ''}`
+      : err.message || 'Unable to load connections.'); })
       .finally(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; };
   }, [role, page, revision]);
@@ -458,7 +501,10 @@ export default function Connections() {
       ) : (
         <div className="space-y-3">
           {filtered.map(conn => (
-            <ConnectionCard key={conn.id} conn={conn} onChanged={() => setRevision(r => r + 1)} />
+            <ConnectionCard key={conn.id} conn={conn} onChanged={(founderInterestSubmitted) => {
+              founderRefreshPending.current = founderInterestSubmitted === true;
+              setRevision(r => r + 1);
+            }} />
           ))}
         </div>
       )}

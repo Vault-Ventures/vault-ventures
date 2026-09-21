@@ -1303,4 +1303,194 @@ class DealMilestoneTest extends TestCase
         $this->assertDatabaseHas('deal_milestones', ['id' => $milestone->id, 'title' => 'Unchanged date']);
     }
 
+    public function test_founder_can_delete_milestone_with_atomic_resequencing_and_summary_recalculation(): void
+    {
+        $founder = $this->createFounder();
+        $investor = $this->createInvestor();
+        $business = $this->createBusiness($founder);
+        $connection = $this->createConnection($business, $founder, $investor);
+        $deal = $this->createDeal($connection, DealStage::Agreement);
+        $agreement = $this->setupAgreement($deal, 100000.00);
+
+        $m1 = DealMilestone::create([
+            'deal_id' => $deal->id,
+            'sequence_order' => 1,
+            'title' => 'Milestone 1',
+            'target_amount' => 30000.00,
+            'status' => 'pending',
+        ]);
+        $m2 = DealMilestone::create([
+            'deal_id' => $deal->id,
+            'sequence_order' => 2,
+            'title' => 'Milestone 2',
+            'target_amount' => 20000.00,
+            'status' => 'pending',
+        ]);
+        $m3 = DealMilestone::create([
+            'deal_id' => $deal->id,
+            'sequence_order' => 3,
+            'title' => 'Milestone 3',
+            'target_amount' => 50000.00,
+            'status' => 'pending',
+        ]);
+
+        // Verify initial state
+        $this->assertEquals(3, $deal->milestones()->count());
+        $initialSummary = app(\App\Services\Deal\DealMilestoneService::class)->calculateFundingSummary($deal);
+        $this->assertEquals(100000.00, $initialSummary['total_allocated_bdt']);
+
+        // 1. Founder deletes Milestone 2
+        $resp = $this->actingAs($founder)->deleteJson("/api/me/deals/{$deal->id}/milestones/{$m2->id}");
+        $resp->assertOk()
+            ->assertJsonPath('data.deal_id', $deal->id)
+            ->assertJsonPath('data.deleted_milestone_id', $m2->id)
+            ->assertJsonPath('data.summary.total_committed_bdt', 100000)
+            ->assertJsonPath('data.summary.total_allocated_bdt', 80000)
+            ->assertJsonPath('data.summary.remaining_locked_bdt', 100000);
+
+        // 2. Milestone 2 is removed from DB
+        $this->assertDatabaseMissing('deal_milestones', ['id' => $m2->id]);
+
+        // 3. Remaining milestones are resequenced to 1 and 2 without gaps
+        $remaining = $deal->milestones()->orderBy('sequence_order')->get();
+        $this->assertCount(2, $remaining);
+        $this->assertEquals($m1->id, $remaining[0]->id);
+        $this->assertEquals(1, $remaining[0]->sequence_order);
+        $this->assertEquals($m3->id, $remaining[1]->id);
+        $this->assertEquals(2, $remaining[1]->sequence_order);
+
+        // 4. Agreement snapshot is untouched
+        $agreement->refresh();
+        $this->assertEquals(100000.00, $agreement->terms_snapshot['amount']);
+
+        // 5. Lifecycle stage is still agreement
+        $deal->refresh();
+        $this->assertEquals(DealStage::Agreement, $deal->stage);
+    }
+
+    public function test_milestone_deletion_authorization_and_idor_matrix(): void
+    {
+        $founder = $this->createFounder('founder_del@example.com');
+        $investor = $this->createInvestor('investor_del@example.com');
+        $pro = $this->createProfessional('pro_del@example.com');
+        $admin = $this->createAdmin('admin_del@example.com');
+        $unrelated = $this->createFounder('unrelated_del@example.com');
+
+        $business = $this->createBusiness($founder);
+        $connection = $this->createConnection($business, $founder, $investor);
+        $deal = $this->createDeal($connection, DealStage::Agreement);
+        $this->setupAgreement($deal, 50000.00);
+
+        $m1 = DealMilestone::create([
+            'deal_id' => $deal->id,
+            'sequence_order' => 1,
+            'title' => 'Tranche 1',
+            'target_amount' => 50000.00,
+            'status' => 'pending',
+        ]);
+
+        // 1. Investor cannot delete milestone -> 403
+        $this->actingAs($investor)->deleteJson("/api/me/deals/{$deal->id}/milestones/{$m1->id}?role=investor")
+            ->assertForbidden();
+
+        // 2. Professional counterparty cannot delete milestone -> 403
+        $this->actingAs($pro)->deleteJson("/api/me/deals/{$deal->id}/milestones/{$m1->id}?role=professional")
+            ->assertForbidden();
+
+        // 3. Admin cannot delete milestone -> 403
+        $this->actingAs($admin)->deleteJson("/api/me/deals/{$deal->id}/milestones/{$m1->id}")
+            ->assertForbidden();
+
+        // 4. Unrelated user cannot delete milestone -> 403
+        $this->actingAs($unrelated)->deleteJson("/api/me/deals/{$deal->id}/milestones/{$m1->id}")
+            ->assertForbidden();
+
+        // 5. Cross-deal milestone ID returns 404 (IDOR protection)
+        $businessOther = $this->createBusiness($unrelated);
+        $connOther = $this->createConnection($businessOther, $unrelated, $investor);
+        $dealOther = $this->createDeal($connOther, DealStage::Agreement);
+        $mOther = DealMilestone::create([
+            'deal_id' => $dealOther->id,
+            'sequence_order' => 1,
+            'title' => 'Other Tranche',
+            'target_amount' => 10000.00,
+            'status' => 'pending',
+        ]);
+
+        $this->actingAs($founder)->deleteJson("/api/me/deals/{$deal->id}/milestones/{$mOther->id}")
+            ->assertNotFound();
+
+        // Milestone is still intact
+        $this->assertDatabaseHas('deal_milestones', ['id' => $m1->id]);
+    }
+
+    public function test_cannot_delete_milestone_after_funding_activation_or_if_locked(): void
+    {
+        $founder = $this->createFounder('founder_act@example.com');
+        $investor = $this->createInvestor('investor_act@example.com');
+        $business = $this->createBusiness($founder);
+        $connection1 = $this->createConnection($business, $founder, $investor);
+        $deal1 = $this->createDeal($connection1, DealStage::MilestoneFundingActive);
+        $this->setupAgreement($deal1, 100000.00);
+
+        // Case A: Active milestone in milestone_funding_active stage
+        $mActive = DealMilestone::create([
+            'deal_id' => $deal1->id,
+            'sequence_order' => 1,
+            'title' => 'Active Tranche',
+            'target_amount' => 50000.00,
+            'status' => 'active',
+        ]);
+
+        $res1 = $this->actingAs($founder)->deleteJson("/api/me/deals/{$deal1->id}/milestones/{$mActive->id}");
+        $res1->assertStatus(422);
+        $this->assertNotNull($res1->json('error.details.deal'));
+
+        // Case B: Submitted milestone in agreement stage (locked)
+        $investorB = $this->createInvestor('investor_act_b@example.com');
+        $connection2 = $this->createConnection($business, $founder, $investorB);
+        $dealAgreement = $this->createDeal($connection2, DealStage::Agreement);
+        $mSubmitted = DealMilestone::create([
+            'deal_id' => $dealAgreement->id,
+            'sequence_order' => 1,
+            'title' => 'Submitted Tranche',
+            'target_amount' => 50000.00,
+            'status' => 'submitted',
+        ]);
+
+        $res2 = $this->actingAs($founder)->deleteJson("/api/me/deals/{$dealAgreement->id}/milestones/{$mSubmitted->id}");
+        $res2->assertStatus(422);
+        $this->assertNotNull($res2->json('error.details.milestone'));
+
+        // Case C: Funded milestone (locked)
+        $mFunded = DealMilestone::create([
+            'deal_id' => $dealAgreement->id,
+            'sequence_order' => 2,
+            'title' => 'Funded Tranche',
+            'target_amount' => 50000.00,
+            'status' => 'funded',
+            'confirmed_at' => now(),
+            'funded_at' => now(),
+        ]);
+
+        $res3 = $this->actingAs($founder)->deleteJson("/api/me/deals/{$dealAgreement->id}/milestones/{$mFunded->id}");
+        $res3->assertStatus(422);
+        $this->assertNotNull($res3->json('error.details.milestone'));
+
+        // Case D: Completed deal
+        $investorC = $this->createInvestor('investor_act_c@example.com');
+        $connection3 = $this->createConnection($business, $founder, $investorC);
+        $dealCompleted = $this->createDeal($connection3, DealStage::Completed);
+        $mCompleted = DealMilestone::create([
+            'deal_id' => $dealCompleted->id,
+            'sequence_order' => 1,
+            'title' => 'Completed Deal Tranche',
+            'target_amount' => 50000.00,
+            'status' => 'funded',
+        ]);
+
+        $res4 = $this->actingAs($founder)->deleteJson("/api/me/deals/{$dealCompleted->id}/milestones/{$mCompleted->id}");
+        $res4->assertStatus(422);
+    }
 }
+

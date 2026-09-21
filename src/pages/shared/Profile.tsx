@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import ParticipantVerification from '../../components/verification/ParticipantVerification';
 import { Badge, VerificationBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { useRole } from '../../components/layout/AppShell';
@@ -708,8 +709,29 @@ function EditProfileModal({
   onSaved: () => void;
 }) {
   const navigate = useNavigate();
-  const { refreshUser } = useAuth();
-  const [active, setActive] = useState<ModalSection>(initialSection);
+  const { session, refreshUser } = useAuth();
+
+  const availableSections: ModalSection[] = React.useMemo(() => {
+    const roles = (profileData?.roles && profileData.roles.length > 0)
+      ? profileData.roles
+      : (session?.roles && session.roles.length > 0 ? session.roles : []);
+
+    const hasFounder = roles.includes('founder');
+    const hasProfessional = roles.includes('professional');
+    const hasInvestor = roles.includes('investor');
+
+    const sections: ModalSection[] = ['Basic Information'];
+    if (hasFounder) sections.push('Founder Information');
+    if (hasProfessional) sections.push('Professional Information');
+    if (hasInvestor) sections.push('Investor Information');
+    sections.push('Experience', 'Preferences');
+
+    return sections;
+  }, [profileData?.roles, session?.roles]);
+
+  const [active, setActive] = useState<ModalSection>(() => {
+    return availableSections.includes(initialSection) ? initialSection : 'Basic Information';
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -734,7 +756,10 @@ function EditProfileModal({
   // Initialize state when modal opens
   useEffect(() => {
     if (open) {
-      setActive(initialSection);
+      const validInitial = availableSections.includes(initialSection)
+        ? initialSection
+        : 'Basic Information';
+      setActive(validInitial);
       setError(null);
       setSavedSuccess(false);
 
@@ -758,7 +783,13 @@ function EditProfileModal({
         setInvestorThesis(profileData.user.bio);
       }
     }
-  }, [open, initialSection, profileData]);
+  }, [open, initialSection, profileData, availableSections]);
+
+  useEffect(() => {
+    if (open && !availableSections.includes(active)) {
+      setActive('Basic Information');
+    }
+  }, [availableSections, active, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -858,7 +889,7 @@ function EditProfileModal({
         <div className="flex-1 flex overflow-hidden min-h-0">
           {/* Left nav - desktop */}
           <div className="hidden sm:flex flex-col w-[190px] border-r border-[color:var(--vv-border)] py-2 flex-shrink-0 overflow-y-auto">
-            {MODAL_SECTIONS.map((sec) => {
+            {availableSections.map((sec) => {
               const isActive = active === sec;
               return (
                 <button
@@ -889,7 +920,7 @@ function EditProfileModal({
               </div>
             )}
 
-            {active === 'Founder Information' && (
+            {active === 'Founder Information' && availableSections.includes('Founder Information') && (
               <div className="space-y-4">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-[#C67A4E] mb-3">Founder Information</p>
                 <Input label="Company / Venture Name" placeholder="e.g. NovaTech AI" value={headline.split('·')[0]?.trim() || ''} onChange={(e) => setHeadline(e.target.value)} />
@@ -898,7 +929,7 @@ function EditProfileModal({
               </div>
             )}
 
-            {active === 'Investor Information' && (
+            {active === 'Investor Information' && availableSections.includes('Investor Information') && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-[#C9A24B]">Investor Information</p>
@@ -941,7 +972,7 @@ function EditProfileModal({
               </div>
             )}
 
-            {active === 'Professional Information' && (
+            {active === 'Professional Information' && availableSections.includes('Professional Information') && (
               <div className="space-y-4">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-[#22C55E] mb-3">Professional Information</p>
                 <div className="grid grid-cols-2 gap-3">
@@ -1143,7 +1174,15 @@ export default function Profile() {
   const { session, isAdmin, user, refreshUser } = useAuth();
   const { toast } = useToast();
   const [profileData, setProfileData] = useState<UserProfileResponseData | null>(null);
-  const [section, setSection] = useState<Section>('Overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const section: Section = SECTIONS.find(item => item.toLowerCase() === searchParams.get('tab')) || 'Overview';
+  const setSection = (next: Section) => {
+    setSearchParams(previous => {
+      const params = new URLSearchParams(previous);
+      params.set('tab', next.toLowerCase());
+      return params;
+    });
+  };
   const [manageRoles, setManageRoles] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editSection, setEditSection] = useState<ModalSection>('Basic Information');
@@ -1531,38 +1570,8 @@ export default function Profile() {
           );
         })()}
 
-        {section === 'Verification' && (
-          <div className="max-w-2xl space-y-4">
-            <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[10px] p-5">
-              <div className="flex items-start gap-4">
-                <div
-                  className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={currentTier > 0 ? { background: 'rgba(201,162,75,0.12)', border: '1px solid rgba(201,162,75,0.28)' } : { background: 'rgba(94,109,143,0.12)', border: '1px solid rgba(94,109,143,0.2)' }}
-                >
-                  {currentTier > 0 ? (
-                    <svg width="18" height="18" fill="none" stroke="#C9A24B" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  ) : (
-                    <svg width="18" height="18" fill="none" stroke="#5E6D8F" strokeWidth="1.75" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" /></svg>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <h3 className="text-[14px] font-semibold text-[color:var(--vv-text)]">
-                      {currentTier === 0 && 'Not Verified'}
-                      {currentTier === 1 && 'Identity Verified'}
-                      {currentTier >= 2 && 'Track-record Verified'}
-                    </h3>
-                    <VerificationBadge tier={currentTier} />
-                  </div>
-                  <p className="text-[12.5px] text-[color:var(--vv-text-secondary)] leading-relaxed">
-                    {currentTier === 0 && 'Complete identity verification to unlock full platform access, investor discovery, and deal room participation.'}
-                    {currentTier === 1 && 'Your identity has been confirmed. Apply for Tier 2 to verify your professional track record and unlock priority matching.'}
-                    {currentTier >= 2 && 'Your identity and professional background are verified. You have full access to all platform features.'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+        {section === 'Verification' && user && (
+          <ParticipantVerification key={`${user.id}:${role}`} />
         )}
 
         {section === 'Preferences' && (

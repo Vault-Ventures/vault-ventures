@@ -23,6 +23,7 @@ class VerificationRequestResource extends JsonResource
             'status' => $this->status instanceof VerificationRequestStatus
                 ? $this->status->value
                 : (string) $this->status,
+            'participant_message' => $this->participant_message,
             'submitted_at' => $this->submitted_at?->toISOString(),
             'reviewed_at' => $this->reviewed_at?->toISOString(),
             'created_at' => $this->created_at?->toISOString(),

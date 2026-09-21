@@ -21,6 +21,7 @@ beforeEach(() => {
   vi.spyOn(api.deals, 'getNegotiation').mockResolvedValue({ active_proposal: null, proposals: [] } as any);
   vi.spyOn(api.deals, 'getAgreement').mockResolvedValue(null);
   vi.spyOn(api.deals.milestones, 'list').mockResolvedValue({ milestones: [], summary: null } as any);
+  vi.spyOn(api.deals.messages, 'list').mockResolvedValue({ messages: [] });
 });
 
 function mountDeal() {
@@ -32,26 +33,25 @@ function mountDeal() {
 it.each([
   ['multi-role Investor', ['investor', 'professional']],
   ['single-role Investor', ['investor']],
-])('%s sends the selected role on Accept Terms and refreshes the transitioned Deal', async (_, roles) => {
+])('%s sends the selected role on transition and refreshes the transitioned Deal', async (_, roles) => {
   context.user.roles = roles;
-  let stage = 'negotiation';
+  let stage = 'nda_signed';
   const get = vi.spyOn(api.deals, 'get').mockImplementation(async () => ({
     id: 81, founder_user_id: 1, counterparty_user_id: 2, counterparty_role: 'investor',
-    stage, stage_label: stage === 'agreement' ? 'Agreement' : 'Negotiation', stage_order: stage === 'agreement' ? 6 : 5,
+    stage, stage_label: stage === 'negotiation' ? 'Negotiation' : 'NDA Signed', stage_order: stage === 'negotiation' ? 5 : 4,
   } as any));
   const post = vi.spyOn(api, 'post').mockImplementation(async (url, payload) => {
     expect(url).toBe('/api/me/deals/81/transition');
-    expect(payload).toEqual({ target_state: 'agreement', role: 'investor' });
-    stage = 'agreement';
+    expect(payload).toEqual({ target_state: 'negotiation', role: 'investor' });
+    stage = 'negotiation';
     return { id: 81, stage } as any;
   });
   mountDeal();
-  fireEvent.click(await screen.findByRole('button', { name: 'Negotiation Terms' }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Accept Terms' }));
-  await waitFor(() => expect(post).toHaveBeenCalledWith('/api/me/deals/81/transition', { target_state: 'agreement', role: 'investor' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Proceed to Negotiation' }));
+  await waitFor(() => expect(post).toHaveBeenCalledWith('/api/me/deals/81/transition', { target_state: 'negotiation', role: 'investor' }));
   await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
   expect(get).toHaveBeenLastCalledWith('81', 'investor');
-  expect(stage).toBe('agreement');
+  expect(stage).toBe('negotiation');
 });
 
 it('sends professional when Professional is selected, without inferring Investor from account roles', async () => {
@@ -77,3 +77,44 @@ it.each(['admin', 'professional'])('preserves existing %s workspace action restr
   expect(screen.queryByRole('button', { name: 'Approve Terms' })).toBeNull();
   expect(post).not.toHaveBeenCalled();
 });
+
+it('renders Stage 4 NDA Signed correctly with Proceed to Negotiation button and without Review NDA CTA when Deal is nda_signed', async () => {
+  context.role = 'founder';
+  context.user = { id: 1, roles: ['founder'] };
+  vi.spyOn(api.deals, 'get').mockResolvedValue({
+    id: 81,
+    business_id: 3,
+    founder_user_id: 1,
+    counterparty_user_id: 2,
+    counterparty_role: 'professional',
+    stage: 'nda_signed',
+    stage_label: 'NDA Signed',
+    stage_order: 4,
+  } as any);
+  vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
+    if (url.includes('/nda')) {
+      return {
+        business_id: 3,
+        status: 'active',
+        status_label: 'Signed & Active',
+        stage_3_unlocked: true,
+      } as any;
+    }
+    return [] as any;
+  });
+
+  mountDeal();
+
+  // Next step focus title should reflect Stage 4
+  const title = await screen.findByText('Mutual NDA Signed — Proceed to Negotiation');
+  expect(title).toBeDefined();
+
+  // CTA button should be "Proceed to Negotiation"
+  const ctaBtn = await screen.findByRole('button', { name: 'Proceed to Negotiation' });
+  expect(ctaBtn).toBeDefined();
+
+  // "Review NDA" and "Review & Sign Mutual NDA" should NOT appear in the action card
+  expect(screen.queryByText('Review & Sign Mutual NDA')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Review NDA' })).toBeNull();
+});
+

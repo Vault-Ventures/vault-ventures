@@ -27,6 +27,21 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(AnalysisProvider::class, DisabledAnalysisProvider::class);
         $this->app->bind(OtpGeneratorInterface::class, RandomOtpGenerator::class);
+        $this->app->bind(\App\Contracts\PhoneVerificationCodeDeliveryInterface::class, function () {
+            $this->assertPhoneDeliveryConfiguration();
+            return config('verification.phone_delivery') === 'local_capture'
+                ? new \App\Services\Verification\LocalPhoneCodeDelivery
+                : new \App\Services\Verification\UnavailablePhoneCodeDelivery;
+        });
+    }
+
+    private function assertPhoneDeliveryConfiguration(): void
+    {
+        $driver = config('verification.phone_delivery', 'disabled');
+        if (! in_array($driver, ['disabled', 'local_capture'], true)
+            || ($driver === 'local_capture' && ! $this->app->environment('local'))) {
+            throw new \LogicException('Unsafe or unsupported phone verification delivery configuration.');
+        }
     }
 
     /**
@@ -34,6 +49,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $this->assertPhoneDeliveryConfiguration();
         // This application uses only first-party session cookies, never bearer tokens.
         Sanctum::getAccessTokenFromRequestUsing(fn () => null);
 

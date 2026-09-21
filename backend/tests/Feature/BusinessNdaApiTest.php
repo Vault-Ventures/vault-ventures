@@ -99,6 +99,27 @@ class BusinessNdaApiTest extends TestCase
         $this->postJson("/api/me/businesses/{$business->id}/nda/decline")->assertUnauthorized();
     }
 
+    public function test_founder_first_professional_acceptance_requires_admin_tier_1_approval(): void
+    {
+        $founder = $this->createFounder();
+        $professional = $this->createProfessional('unverified-professional@example.test', VerificationTier::Tier0);
+        // Contact verification is test fixture setup, never live data.
+        $professional->forceFill(['phone' => '+15551234567', 'phone_verified_at' => now()])->save();
+        $business = $this->createBusiness($founder);
+        $this->createRelationship($business, $professional, ParticipantRole::Professional, DisclosureStage::Extended);
+        $this->actingAs($founder)->postJson("/api/me/businesses/{$business->id}/nda/request", [
+            'counterparty_user_id' => $professional->id, 'role' => 'professional',
+        ])->assertOk()->assertJsonPath('data.founder_accepted', true)->assertJsonPath('data.counterparty_accepted', false);
+        $this->actingAs($professional)->postJson("/api/me/businesses/{$business->id}/nda/accept", ['role' => 'professional'])->assertForbidden();
+        $created = $this->postJson('/api/me/verification-requests')->assertCreated();
+        $admin = User::factory()->create();
+        \App\Models\AdminAccess::forceCreate(['user_id' => $admin->id]);
+        $this->actingAs($admin)->postJson('/api/admin/verification-requests/'.$created->json('data.id').'/approve')->assertOk();
+        $this->actingAs($professional->fresh())->postJson("/api/me/businesses/{$business->id}/nda/accept", ['role' => 'professional'])
+            ->assertOk()->assertJsonPath('data.status', 'active')->assertJsonPath('data.founder_accepted', true)
+            ->assertJsonPath('data.counterparty_accepted', true)->assertJsonPath('data.stage_3_unlocked', true);
+    }
+
     public function test_get_nda_when_not_yet_requested_returns_safe_default(): void
     {
         $founder = $this->createFounder();

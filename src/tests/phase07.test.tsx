@@ -1,9 +1,9 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import DealRoom from '../pages/shared/DealRoom';
-import { api, DealAgreementData, NegotiationData, DealMilestoneData } from '../services/api';
+import { api, DealAgreementData, NegotiationData, DealMilestoneData, DealFeedbackStatusData } from '../services/api';
 
 const context = vi.hoisted(() => ({
   role: 'founder',
@@ -36,13 +36,21 @@ beforeEach(() => {
     return { status: 'active' } as any;
   });
   vi.spyOn(api.businesses, 'get').mockResolvedValue({ id: 42, name: 'NovaTech AI Ltd' } as any);
+  vi.spyOn(api.deals.messages, 'list').mockResolvedValue({ messages: [] });
 });
+
+function LocationTracker() {
+  const location = useLocation();
+  return <div data-testid="location-display">{location.pathname + location.search}</div>;
+}
 
 function mountDealRoom(dealId = '81') {
   return render(
     <MemoryRouter initialEntries={[`/app/deals/${dealId}`]}>
+      <LocationTracker />
       <Routes>
         <Route path="/app/deals/:dealId" element={<DealRoom />} />
+        <Route path="/app/feedback" element={<div>Feedback Page</div>} />
       </Routes>
     </MemoryRouter>
   );
@@ -223,7 +231,7 @@ describe('Phase 07: Deal Room & Negotiation Workflows', () => {
     expect(screen.getByText('Beta Launch')).toBeTruthy();
   });
 
-  it('BUG-031: renders completed deal summary and leave feedback CTA', async () => {
+  it('BUG-031: renders completed deal summary and leave feedback CTA navigating with dealId', async () => {
     vi.spyOn(api.deals, 'get').mockResolvedValue({
       id: 81,
       business_id: 42,
@@ -250,11 +258,127 @@ describe('Phase 07: Deal Room & Negotiation Workflows', () => {
       },
       milestones: [],
     } as any);
+    vi.spyOn(api.deals.feedback, 'getStatus').mockResolvedValue({
+      deal_id: 81,
+      deal_stage: 'completed',
+      can_submit_feedback: true,
+      has_submitted_feedback: false,
+      founder_feedback_submitted: false,
+      counterparty_feedback_submitted: false,
+      reviews: [],
+    });
 
     mountDealRoom('81');
 
     expect((await screen.findAllByText('Deal Completed')).length).toBeGreaterThan(0);
-    expect(screen.getByText('Leave Feedback')).toBeTruthy();
-    expect(screen.getByRole('button', { name: /Leave Feedback/i })).toBeTruthy();
+    const ctaButton = await screen.findByRole('button', { name: /Leave Feedback/i });
+    expect(ctaButton).toBeTruthy();
+
+    fireEvent.click(ctaButton);
+    await waitFor(() => {
+      expect(screen.getByTestId('location-display').textContent).toBe('/app/feedback?dealId=81');
+    });
+  });
+
+  it('renders "View Submitted Feedback" CTA when feedback already submitted and routes with dealId', async () => {
+    vi.spyOn(api.deals, 'get').mockResolvedValue({
+      id: 81,
+      business_id: 42,
+      founder_user_id: 1,
+      counterparty_user_id: 2,
+      counterparty_role: 'investor',
+      stage: 'completed',
+      stage_label: 'Completed',
+      stage_order: 8,
+    } as any);
+
+    vi.spyOn(api.deals, 'getNegotiation').mockResolvedValue({ active_proposal: null, proposals: [] } as any);
+    vi.spyOn(api.deals, 'getAgreement').mockResolvedValue(null);
+    vi.spyOn(api.deals.milestones, 'list').mockResolvedValue({
+      deal_id: 81,
+      summary: {
+        total_committed_bdt: 25000,
+        total_allocated_bdt: 25000,
+        total_released_bdt: 25000,
+        total_remaining_bdt: 0,
+        milestone_count: 2,
+        funded_milestone_count: 2,
+        funding_progress_percentage: 100,
+      },
+      milestones: [],
+    } as any);
+    vi.spyOn(api.deals.feedback, 'getStatus').mockResolvedValue({
+      deal_id: 81,
+      deal_stage: 'completed',
+      can_submit_feedback: false,
+      has_submitted_feedback: true,
+      founder_feedback_submitted: true,
+      counterparty_feedback_submitted: false,
+      reviews: [
+        {
+          id: 1,
+          deal_id: 81,
+          reviewer_user_id: 1,
+          reviewer_role: 'founder',
+          recipient_user_id: 2,
+          recipient_role: 'investor',
+          rating: 5,
+          comment: 'Great work',
+          submitted_at: '2026-09-20T10:00:00Z',
+        },
+      ],
+    });
+
+    mountDealRoom('81');
+
+    expect((await screen.findAllByText('Deal Completed')).length).toBeGreaterThan(0);
+    const ctaButton = await screen.findByRole('button', { name: /View Submitted Feedback/i });
+    expect(ctaButton).toBeTruthy();
+
+    fireEvent.click(ctaButton);
+    await waitFor(() => {
+      expect(screen.getByTestId('location-display').textContent).toBe('/app/feedback?dealId=81');
+    });
+  });
+
+  it('renders safe "View Feedback" fallback CTA when feedback status API fails without crashing DealRoom', async () => {
+    vi.spyOn(api.deals, 'get').mockResolvedValue({
+      id: 81,
+      business_id: 42,
+      founder_user_id: 1,
+      counterparty_user_id: 2,
+      counterparty_role: 'investor',
+      stage: 'completed',
+      stage_label: 'Completed',
+      stage_order: 8,
+    } as any);
+
+    vi.spyOn(api.deals, 'getNegotiation').mockResolvedValue({ active_proposal: null, proposals: [] } as any);
+    vi.spyOn(api.deals, 'getAgreement').mockResolvedValue(null);
+    vi.spyOn(api.deals.milestones, 'list').mockResolvedValue({
+      deal_id: 81,
+      summary: {
+        total_committed_bdt: 25000,
+        total_allocated_bdt: 25000,
+        total_released_bdt: 25000,
+        total_remaining_bdt: 0,
+        milestone_count: 2,
+        funded_milestone_count: 2,
+        funding_progress_percentage: 100,
+      },
+      milestones: [],
+    } as any);
+    vi.spyOn(api.deals.feedback, 'getStatus').mockRejectedValue(new Error('Network error'));
+
+    mountDealRoom('81');
+
+    expect((await screen.findAllByText('Deal Completed')).length).toBeGreaterThan(0);
+    const ctaButton = await screen.findByRole('button', { name: /View Feedback/i });
+    expect(ctaButton).toBeTruthy();
+
+    fireEvent.click(ctaButton);
+    await waitFor(() => {
+      expect(screen.getByTestId('location-display').textContent).toBe('/app/feedback?dealId=81');
+    });
   });
 });

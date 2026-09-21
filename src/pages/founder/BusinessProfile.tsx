@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Badge, VerificationBadge } from '../../components/ui/Badge';
@@ -186,7 +186,11 @@ export default function BusinessProfile() {
   const [editSection, setEditSection] = useState<string | null>(null);
   const [showInterestSent, setShowInterestSent] = useState(false);
   const [expressingInterest, setExpressingInterest] = useState(false);
+  const expressingInterestRef = useRef(false);
   const [showApplied, setShowApplied] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const applyingRef = useRef(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [matchDrawer, setMatchDrawer] = useState<{ detail: MatchDetail; cta: string } | null>(null);
   const [showNDAModal, setShowNDAModal] = useState(false);
   const [showFounderConfirm, setShowFounderConfirm] = useState(false);
@@ -256,6 +260,13 @@ export default function BusinessProfile() {
           if (stage !== undefined) {
             setDisclosureStage(stage);
           }
+          if (businessRecord.disclosure?.has_expressed_interest || (stage !== undefined && stage >= 2)) {
+            if (viewAs === 'professional') {
+              setShowApplied(true);
+            } else if (viewAs === 'investor') {
+              setShowInterestSent(true);
+            }
+          }
           if (businessRecord.readiness) {
             setReadinessData(businessRecord.readiness);
           }
@@ -280,8 +291,17 @@ export default function BusinessProfile() {
           if (!isOwner) {
             try {
               const dStatus = await api.businesses.getDisclosureStatus(businessId);
-              if (dStatus && dStatus.current_stage !== undefined && isMounted) {
-                setDisclosureStage(dStatus.current_stage);
+              if (dStatus && isMounted) {
+                if (dStatus.current_stage !== undefined) {
+                  setDisclosureStage(dStatus.current_stage);
+                }
+                if (dStatus.has_expressed_interest || (dStatus.current_stage !== undefined && dStatus.current_stage >= 2)) {
+                  if (viewAs === 'professional') {
+                    setShowApplied(true);
+                  } else if (viewAs === 'investor') {
+                    setShowInterestSent(true);
+                  }
+                }
               }
             } catch (e) {}
           }
@@ -296,7 +316,7 @@ export default function BusinessProfile() {
     }
     loadData();
     return () => { isMounted = false; };
-  }, [id, isOwner, role]);
+  }, [id, isOwner, role, viewAs]);
 
   const handlePublish = async () => {
     setPublishing(true);
@@ -362,18 +382,38 @@ export default function BusinessProfile() {
   };
 
   const handleExpressInterest = async () => {
+    if (expressingInterestRef.current || expressingInterest || showInterestSent) return;
     if (bizData?.id) {
+      expressingInterestRef.current = true;
       setExpressingInterest(true);
+      setActionError(null);
       try {
-        await api.businesses.expressInterest(bizData.id);
+        await api.businesses.expressInterest(bizData.id, { role: 'investor' });
         setShowInterestSent(true);
-      } catch (err) {
-        setShowInterestSent(true);
+      } catch (err: any) {
+        setActionError(err?.message || 'Failed to express interest.');
       } finally {
+        expressingInterestRef.current = false;
         setExpressingInterest(false);
       }
-    } else {
-      setShowInterestSent(true);
+    }
+  };
+
+  const handleApplyConnect = async () => {
+    if (applyingRef.current || applying || showApplied) return;
+    if (bizData?.id) {
+      applyingRef.current = true;
+      setApplying(true);
+      setActionError(null);
+      try {
+        await api.businesses.expressInterest(bizData.id, { role: 'professional' });
+        setShowApplied(true);
+      } catch (err: any) {
+        setActionError(err?.message || 'Failed to apply.');
+      } finally {
+        applyingRef.current = false;
+        setApplying(false);
+      }
     }
   };
 
@@ -483,6 +523,28 @@ export default function BusinessProfile() {
           style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.22)' }}>
           <IconCheck s={14} />
           <span className="text-[12.5px] text-[#F59E0B] font-medium">Business submitted for Admin review. You will be notified once approved.</span>
+        </div>
+      )}
+
+      {/* Action error banner */}
+      {actionError && (
+        <div className="mb-4 px-4 py-3 rounded-[10px] flex items-center justify-between gap-3"
+          style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
+          <div className="flex items-center gap-2.5">
+            <svg width="14" height="14" fill="none" stroke="#EF4444" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span className="text-[12.5px] text-[#EF4444] font-medium">{actionError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="text-[11px] text-[#EF4444] hover:underline"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
@@ -658,8 +720,8 @@ export default function BusinessProfile() {
                 showApplied ? (
                   <Button variant="success" size="sm" icon={<IconCheck s={13} />}>Applied</Button>
                 ) : (
-                  <Button size="sm" onClick={() => setShowApplied(true)}>
-                    Apply / Connect <IconArrowRight s={13} />
+                  <Button size="sm" loading={applying} onClick={handleApplyConnect}>
+                    {applying ? 'Applying...' : 'Apply / Connect'} <IconArrowRight s={13} />
                   </Button>
                 )
               )}

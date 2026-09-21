@@ -319,11 +319,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   /**
    * Verifies signed email verification URL with the backend.
    */
-  const verifyEmail = async (id: string, hash: string, queryString: string): Promise<void> => {
+  const verifyEmail = useCallback(async (id: string, hash: string, queryString: string): Promise<void> => {
     const qs = queryString.startsWith('?') ? queryString : `?${queryString}`;
     await api.get(`/api/auth/email/verify/${id}/${hash}${qs}`);
     await refreshUser();
-  };
+  }, [refreshUser]);
 
   /**
    * Resends email verification notification link.

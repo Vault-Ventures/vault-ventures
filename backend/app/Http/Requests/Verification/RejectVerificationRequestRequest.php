@@ -16,6 +16,7 @@ class RejectVerificationRequestRequest extends FormRequest
     {
         return [
             'rejection_reason' => ['nullable', 'string', 'max:2000'],
+            'participant_message' => ['nullable', 'string', 'max:2000'],
             'admin_notes' => ['nullable', 'string', 'max:2000'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'reason' => ['nullable', 'string', 'max:2000'],
