@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="G:\Vault Ventures\backend\phpunit.xml" tests="25" assertions="341" errors="0" failures="1" skipped="0" time="20.233543">
+    <testsuite name="Feature" tests="25" assertions="341" errors="0" failures="1" skipped="0" time="20.233543">
+      <testsuite name="Tests\Feature\AiPhase6SecurityTest" file="G:\Vault Ventures\backend\tests\Feature\AiPhase6SecurityTest.php" tests="3" assertions="5" errors="0" failures="1" skipped="0" time="12.730370">
+        <testcase name="test_matching_rejects_valid_output_for_the_wrong_candidate_role" file="G:\Vault Ventures\backend\tests\Feature\AiPhase6SecurityTest.php" line="35" class="Tests\Feature\AiPhase6SecurityTest" classname="Tests.Feature.AiPhase6SecurityTest" assertions="1" time="12.424069">
+          <failure type="PHPUnit\Framework\ExpectationFailedException">Tests\Feature\AiPhase6SecurityTest::test_matching_rejects_valid_output_for_the_wrong_candidate_role&#13;
+Expected response status code [502] but received 404.
+Failed asserting that 404 is identical to 502.
+&#13;
+G:\Vault Ventures\backend\vendor\laravel\framework\src\Illuminate\Testing\TestResponseAssert.php:45
+G:\Vault Ventures\backend\vendor\laravel\framework\src\Illuminate\Testing\TestResponse.php:175
+G:\Vault Ventures\backend\tests\Feature\AiPhase6SecurityTest.php:44</failure>
+        </testcase>
+        <testcase name="test_admin_access_revoked_during_generation_prevents_persistence" file="G:\Vault Ventures\backend\tests\Feature\AiPhase6SecurityTest.php" line="48" class="Tests\Feature\AiPhase6SecurityTest" classname="Tests.Feature.AiPhase6SecurityTest" assertions="2" time="0.192746"/>
+        <testcase name="test_deal_role_revoked_during_generation_prevents_persistence" file="G:\Vault Ventures\backend\tests\Feature\AiPhase6SecurityTest.php" line="59" class="Tests\Feature\AiPhase6SecurityTest" classname="Tests.Feature.AiPhase6SecurityTest" assertions="2" time="0.113555"/>
+      </testsuite>
+      <testsuite name="Tests\Feature\BusinessDocumentTest" file="G:\Vault Ventures\backend\tests\Feature\BusinessDocumentTest.php" tests="9" assertions="126" errors="0" failures="0" skipped="0" time="3.488405">
+        <testsuite name="Tests\Feature\BusinessDocumentTest::test_upload_list_and_audited_download_with_encrypted_private_storage" tests="2" assertions="56" errors="0" failures="0" skipped="0" time="1.512794">
+          <testcase name="test_upload_list_and_audited_download_with_encrypted_private_storage with data set #0" file="G:\Vault Ventures\backend\tests\Feature\BusinessDocumentTest.php" line="56" class="Tests\Feature\BusinessDocumentTest" classname="Tests.Feature.BusinessDocumentTest" assertions="28" time="1.236494"/>
+          <testcase name="test_upload_list_and_audited_download_with_encrypted_private_storage with data set #1" file="G:\Vault Ventures\backend\tests\Feature\BusinessDocumentTest.php" line="56" class="Tests\Feature\BusinessDocumentTest" classname="Tests.Feature.BusinessDocumentTest" assertions="28" time="0.276300"/>
+        </testsuite>
+        <testcase name="test_invalid_file_kind_content_extension_and_size_are_rejected" file="G:\Vault Ventures\backend\tests\Feature\BusinessDocumentTest.php" line="83" class="Tests\Feature\BusinessDocumentTest" classname="Tests.Feature.BusinessDocumentTest" assertions="16" time="0.452419"/>
+        <testcase name="test_size_boundary_and_count_limit" file="G:\Vault Ventures\backend\tests\Feature\BusinessDocumentTest.php" line="101" class="Tests\Feature\BusinessDocumentTest" classname="Tests.Feature.BusinessDocumentTest" assertions="17" time="0.447434"/>
+        <testcase name="test_partial_storage_failure_cleans_up_and_does_not_create_metadata" file="G:\Vault Ventures\backend\tests\Feature\BusinessDocumentTest.php" line="113" class="Tests\Feature\BusinessDocumentTest" classname="Tests.Feature.BusinessDocumentTest" assertions="7" time="0.360789"/>
+        <testcase name="test_metadata_failure_cleans_up_the_written_file" file="G:\Vault Ventures\backend\tests\Feature\BusinessDocumentTest.php" line="128" class="Tests\Feature\BusinessDocumentTest" classname="Tests.Feature.BusinessDocumentTest" assertions="5" time="0.110188"/>
+        <testcase name="test_audit_failure_prevents_download" file="G:\Vault Ventures\backend\tests\Feature\BusinessDocumentTest.php" line="141" class="Tests\Feature\BusinessDocumentTest" classname="Tests.Feature.BusinessDocumentTest" assertions="7" time="0.129830"/>
+        <testcase name="test_missing_or_tampered_files_are_not_downloaded" file="G:\Vault Ventures\backend\tests\Feature\BusinessDocumentTest.php" line="155" class="Tests\Feature\BusinessDocumentTest" classname="Tests.Feature.BusinessDocumentTest" assertions="6" time="0.220592"/>
+        <testcase name="test_documents_do_not_change_submission_eligibility_or_status" file="G:\Vault Ventures\backend\tests\Feature\BusinessDocumentTest.php" line="167" class="Tests\Feature\BusinessDocumentTest" classname="Tests.Feature.BusinessDocumentTest" assertions="12" time="0.254359"/>
+      </testsuite>
+      <testsuite name="Tests\Feature\ReadinessAssessmentTest" file="G:\Vault Ventures\backend\tests\Feature\ReadinessAssessmentTest.php" tests="13" assertions="210" errors="0" failures="0" skipped="0" time="4.014768">
+        <testcase name="test_creation_reuse_history_latest_and_no_get_calculation" file="G:\Vault Ventures\backend\tests\Feature\ReadinessAssessmentTest.php" line="61" class="Tests\Feature\ReadinessAssessmentTest" classname="Tests.Feature.ReadinessAssessmentTest" assertions="26" time="0.468440"/>
+        <testcase name="test_eligibility_validation_and_all_payload_fields_rejected" file="G:\Vault Ventures\backend\tests\Feature\ReadinessAssessmentTest.php" line="84" class="Tests\Feature\ReadinessAssessmentTest" classname="Tests.Feature.ReadinessAssessmentTest" assertions="32" time="0.225196"/>
+        <testcase name="test_submission_and_input_triggers_and_irrelevant_changes" file="G:\Vault Ventures\backend\tests\Feature\ReadinessAssessmentTest.php" line="96" class="Tests\Feature\ReadinessAssessmentTest" classname="Tests.Feature.ReadinessAssessmentTest" assertions="14" time="0.293586"/>
+        <testcase name="test_bdt_funding_changes_including_null_zero_and_conflict_preserve_history" file="G:\Vault Ventures\backend\tests\Feature\ReadinessAssessmentTest.php" line="111" class="Tests\Feature\ReadinessAssessmentTest" classname="Tests.Feature.ReadinessAssessmentTest" assertions="24" time="0.516070"/>
+        <testcase name="test_recalculation_failure_preserves_committed_input_and_retry" file="G:\Vault Ventures\backend\tests\Feature\ReadinessAssessmentTest.php" line="136" class="Tests\Feature\ReadinessAssessmentTest" classname="Tests.Feature.ReadinessAssessmentTest" assertions="14" time="0.264164"/>
+        <testcase name="test_funding_and_submission_failures_preserve_source_success" file="G:\Vault Ventures\backend\tests\Feature\ReadinessAssessmentTest.php" line="150" class="Tests\Feature\ReadinessAssessmentTest" classname="Tests.Feature.ReadinessAssessmentTest" assertions="15" time="0.294973"/>
+        <testcase name="test_ownership_admin_boundary_anonymous_and_csrf" file="G:\Vault Ventures\backend\tests\Feature\ReadinessAssessmentTest.php" line="172" class="Tests\Feature\ReadinessAssessmentTest" classname="Tests.Feature.ReadinessAssessmentTest" assertions="19" time="0.320059"/>
+        <testcase name="test_real_sanctum_session_and_immutable_history" file="G:\Vault Ventures\backend\tests\Feature\ReadinessAssessmentTest.php" line="200" class="Tests\Feature\ReadinessAssessmentTest" classname="Tests.Feature.ReadinessAssessmentTest" assertions="13" time="0.499018"/>
+        <testcase name="test_source_rollback_discards_after_commit_recalculation" file="G:\Vault Ventures\backend\tests\Feature\ReadinessAssessmentTest.php" line="230" class="Tests\Feature\ReadinessAssessmentTest" classname="Tests.Feature.ReadinessAssessmentTest" assertions="9" time="0.195344"/>
+        <testcase name="test_schema_and_rubric_changes_invalidate_without_rewriting_history" file="G:\Vault Ventures\backend\tests\Feature\ReadinessAssessmentTest.php" line="242" class="Tests\Feature\ReadinessAssessmentTest" classname="Tests.Feature.ReadinessAssessmentTest" assertions="14" time="0.260102"/>
+        <testcase name="test_database_rejects_duplicate_versions_fingerprints_and_cross_business_inputs" file="G:\Vault Ventures\backend\tests\Feature\ReadinessAssessmentTest.php" line="263" class="Tests\Feature\ReadinessAssessmentTest" classname="Tests.Feature.ReadinessAssessmentTest" assertions="9" time="0.270715"/>
+        <testcase name="test_assessment_writers_lock_business_before_version_and_reuse_lookup" file="G:\Vault Ventures\backend\tests\Feature\ReadinessAssessmentTest.php" line="287" class="Tests\Feature\ReadinessAssessmentTest" classname="Tests.Feature.ReadinessAssessmentTest" assertions="10" time="0.176585"/>
+        <testcase name="test_assessment_insert_failure_preserves_source_and_allows_retry_without_version_gap" file="G:\Vault Ventures\backend\tests\Feature\ReadinessAssessmentTest.php" line="303" class="Tests\Feature\ReadinessAssessmentTest" classname="Tests.Feature.ReadinessAssessmentTest" assertions="11" time="0.230516"/>
+      </testsuite>
+    </testsuite>
+  </testsuite>
+</testsuites>

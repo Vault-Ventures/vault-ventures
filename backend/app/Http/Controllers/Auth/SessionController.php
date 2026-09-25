@@ -45,7 +45,10 @@ final class SessionController extends Controller
 
         $request->session()->regenerate();
 
-        return ApiResponse::success((new UserResource(Auth::guard('web')->user()))->resolve(), 'Login successful.');
+        $user = Auth::guard('web')->user();
+        $user->loadMissing(['roles', 'adminAccess']);
+
+        return ApiResponse::success((new UserResource($user))->resolve(), 'Login successful.');
     }
 
     public function logout(Request $request): JsonResponse
@@ -59,6 +62,9 @@ final class SessionController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        return ApiResponse::success((new UserResource($request->user()))->resolve());
+        $user = $request->user();
+        $user->loadMissing(['roles', 'adminAccess']);
+
+        return ApiResponse::success((new UserResource($user))->resolve());
     }
 }

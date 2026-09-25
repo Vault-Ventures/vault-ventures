@@ -1,0 +1,80 @@
+ M backend/.env.example
+ M backend/app/Http/Resources/BusinessAnalysisResource.php
+ M backend/app/Models/Business.php
+ M backend/app/Models/Deal.php
+ M backend/app/Providers/AppServiceProvider.php
+ M backend/app/Services/BusinessAnalysis/AnalysisContract.php
+ M backend/app/Services/BusinessAnalysis/AnalysisInputBuilder.php
+ M backend/app/Services/BusinessAnalysis/AnalysisProvider.php
+ M backend/app/Services/BusinessAnalysis/BusinessAnalysisService.php
+ M backend/app/Services/BusinessAnalysis/DisabledAnalysisProvider.php
+ M backend/config/business_analysis.php
+ M backend/docs/business-analysis.md
+ M backend/phpunit.xml
+ M backend/routes/api.php
+ M backend/tests/Feature/BusinessAnalysisTest.php
+ M backend/tests/Fixtures/FakeAnalysisProvider.php
+ M src/components/ui/AIInsights.tsx
+ M src/components/ui/MatchExplainDrawer.tsx
+ M src/pages/admin/Dashboard.tsx
+ M src/pages/admin/Settings.tsx
+ M src/pages/founder/BusinessProfile.tsx
+ M src/pages/founder/DiscoverInvestors.tsx
+ M src/pages/founder/DiscoverProfessionals.tsx
+ M src/pages/founder/ReadinessScore.tsx
+ M src/pages/shared/DealRoom.tsx
+ M src/pages/shared/DiscoverBusinesses.tsx
+ M src/services/api.ts
+ M src/tests/api-envelope.test.tsx
+?? backend/app/Http/Controllers/AdminInsightController.php
+?? backend/app/Http/Controllers/DealInsightController.php
+?? backend/app/Http/Controllers/MatchingInsightController.php
+?? backend/app/Http/Controllers/ReadinessInsightController.php
+?? backend/app/Http/Requests/Readiness/CreateReadinessInsightRequest.php
+?? backend/app/Http/Resources/AdminInsightResource.php
+?? backend/app/Http/Resources/DealInsightResource.php
+?? backend/app/Http/Resources/MatchingInsightResource.php
+?? backend/app/Http/Resources/ReadinessInsightResource.php
+?? backend/app/Models/AdminInsight.php
+?? backend/app/Models/DealInsight.php
+?? backend/app/Models/MatchingInsight.php
+?? backend/app/Models/ReadinessInsight.php
+?? backend/app/Policies/ReadinessInsightPolicy.php
+?? backend/app/Services/Admin/
+?? backend/app/Services/BusinessAnalysis/AnalysisInput.php
+?? backend/app/Services/BusinessAnalysis/AnalysisPromptBuilder.php
+?? backend/app/Services/BusinessAnalysis/AnalysisResult.php
+?? backend/app/Services/BusinessAnalysis/GeminiAnalysisProvider.php
+?? backend/app/Services/Deal/DealInsightPromptBuilder.php
+?? backend/app/Services/Deal/DealInsightResult.php
+?? backend/app/Services/Deal/DealInsightService.php
+?? backend/app/Services/Matching/MatchingInsightResult.php
+?? backend/app/Services/Matching/MatchingInsightService.php
+?? backend/app/Services/Readiness/ReadinessInsightService.php
+?? backend/config/ai.php
+?? backend/database/migrations/2026_09_10_000014_create_readiness_insights_table.php
+?? backend/database/migrations/2026_09_22_000001_create_matching_insights_table.php
+?? backend/database/migrations/2026_09_23_000001_create_deal_insights_table.php
+?? backend/database/migrations/2026_09_24_000001_create_admin_insights_table.php
+?? backend/docs/ai-business-analysis.md
+?? backend/docs/ai-foundation.md
+?? backend/docs/ai-readiness-recovery-report.md
+?? backend/tests/Feature/AdminInsightTest.php
+?? backend/tests/Feature/AiFoundationTest.php
+?? backend/tests/Feature/AiPhase5EvaluationTest.php
+?? backend/tests/Feature/BusinessNarrativeAnalysisTest.php
+?? backend/tests/Feature/DealInsightFoundationTest.php
+?? backend/tests/Feature/DealInsightGenerationTest.php
+?? backend/tests/Feature/MatchingInsightEvaluationTest.php
+?? backend/tests/Feature/MatchingInsightFoundationTest.php
+?? backend/tests/Feature/MatchingInsightGenerationTest.php
+?? backend/tests/Feature/ReadinessInsightTest.php
+?? src/components/admin/
+?? src/components/business/
+?? src/components/deals/
+?? src/components/matching/
+?? src/tests/admin-insights.test.tsx
+?? src/tests/business-analysis.test.tsx
+?? src/tests/deal-insights.test.tsx
+?? src/tests/matching-insights.test.tsx
+?? src/tests/readiness-insights.test.tsx

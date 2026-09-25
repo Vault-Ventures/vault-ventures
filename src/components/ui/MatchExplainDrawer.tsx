@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Button } from './Button';
+import MatchingInsightsSection from '../matching/MatchingInsightsSection';
 
 // --- Types --------------------------------------------------------------------
 
@@ -23,11 +24,17 @@ export interface MatchExplainData {
   ctaLabel: string;
   onCta?: () => void;
   viewerRole: MatchRole;
+  businessId?: number | string;
+  role?: string;
+  candidateId?: number | string;
 }
 
 interface Props {
   data: MatchExplainData | null;
   state?: 'loading' | 'error' | 'insufficient' | 'ready';
+  businessId?: number | string;
+  role?: string;
+  candidateId?: number | string;
   onClose: () => void;
 }
 
@@ -218,7 +225,14 @@ function InsufficientState() {
 
 // --- Main Drawer --------------------------------------------------------------
 
-export function MatchExplainDrawer({ data, state = 'ready', onClose }: Props) {
+export function MatchExplainDrawer({
+  data,
+  state = 'ready',
+  businessId,
+  role,
+  candidateId,
+  onClose,
+}: Props) {
   // Lock body scroll while open
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -227,6 +241,10 @@ export function MatchExplainDrawer({ data, state = 'ready', onClose }: Props) {
 
   const topFactors = data ? [...data.factors].sort((a, b) => b.score - a.score).slice(0, 3) : [];
   const gapFactors = data ? [...data.factors].filter(f => f.score < 65).sort((a, b) => a.score - b.score) : [];
+
+  const activeBusinessId = businessId ?? data?.businessId;
+  const activeRole = role ?? data?.role ?? data?.viewerRole;
+  const activeCandidateId = candidateId ?? data?.candidateId;
 
   return (
     <>
@@ -250,14 +268,14 @@ export function MatchExplainDrawer({ data, state = 'ready', onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#1c2a3e] flex-shrink-0">
           <div className="flex items-center gap-2">
-            {/* AI indicator */}
+            {/* Indicator */}
             <div
               className="flex items-center gap-1.5 text-[10.5px] font-semibold px-2 py-0.5 rounded-full border"
               style={{ color: '#A78BFA', borderColor: 'rgba(167,139,250,0.22)', background: 'rgba(167,139,250,0.07)' }}>
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
               </svg>
-              AI
+              Match
             </div>
             <span id="match-analysis-title" className="text-[13px] font-semibold text-[color:var(--vv-text)] font-display">Match Analysis</span>
           </div>
@@ -370,20 +388,12 @@ export function MatchExplainDrawer({ data, state = 'ready', onClose }: Props) {
                 </div>
               )}
 
-              {/* AI transparency notice */}
-              <div
-                className="rounded-lg px-3.5 py-3 flex items-start gap-2.5"
-                style={{ background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.12)' }}>
-                <svg className="flex-shrink-0 mt-0.5" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A78BFA" strokeWidth="2">
-                  <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
-                </svg>
-                <div>
-                  <p className="text-[11px] font-semibold text-[#A78BFA] mb-0.5">AI Match Analysis</p>
-                  <p className="text-[11px] text-[color:var(--vv-text-tertiary)] leading-relaxed">
-                    Generated from available profile, business, and preference data. Match scores are recommendations, not guarantees - review the underlying information before making decisions.
-                  </p>
-                </div>
-              </div>
+              {/* AI-Assisted Match Insights (advisory AI section) */}
+              <MatchingInsightsSection
+                businessId={activeBusinessId}
+                role={activeRole}
+                candidateId={activeCandidateId}
+              />
             </div>
           )}
         </div>

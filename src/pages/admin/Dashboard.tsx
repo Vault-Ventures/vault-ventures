@@ -7,6 +7,7 @@ import {
   IconSearch, IconFileText, IconBuilding, IconStar, IconTrendingUp,
 } from '../../components/layout/Icons';
 import { api, AdminFinancialGovernanceOverviewData, AdminVerificationRequestData, FinancialReportItem } from '../../services/api';
+import { AdminInsightsSection } from '../../components/admin/AdminInsightsSection';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -130,6 +131,9 @@ export default function AdminDashboard() {
           <p className="text-[11px] text-[color:var(--vv-text-tertiary)] mt-1">Bangladesh standard legal tender</p>
         </div>
       </div>
+
+      {/* AI-Assisted Platform Insights Section */}
+      <AdminInsightsSection />
 
       {/* 2-Column Grid: Active Verification Requests & Recent Financial Reports */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

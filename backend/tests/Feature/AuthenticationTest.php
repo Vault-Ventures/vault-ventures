@@ -137,14 +137,60 @@ class AuthenticationTest extends TestCase
     {
         $user = User::factory()->unverified()->create();
         $other = User::factory()->unverified()->create();
-        $this->actingAs($user, 'web');
         $params = ['id' => $user->id, 'hash' => sha1($user->email)];
         $url = URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), $params);
         $this->getJson($url.'&changed=1')->assertForbidden();
         $this->getJson(URL::temporarySignedRoute('verification.verify', now()->subMinute(), $params))->assertForbidden();
-        $this->getJson(URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), ['id' => $other->id, 'hash' => sha1($other->email)]))->assertForbidden();
+        $this->getJson(URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), ['id' => $user->id, 'hash' => sha1($other->email)]))->assertForbidden();
+        $this->getJson(URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), ['id' => 999999, 'hash' => sha1('nonexistent@example.com')]))->assertNotFound();
         $this->assertFalse($user->fresh()->hasVerifiedEmail());
         $this->assertFalse($other->fresh()->hasVerifiedEmail());
+    }
+
+    public function test_logged_out_user_can_verify_email_via_signed_link_and_is_idempotent(): void
+    {
+        $user = User::factory()->unverified()->create();
+        $this->assertNull($user->email_verified_at);
+        $this->assertGuest('web');
+
+        $url = URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), [
+            'id' => $user->id,
+            'hash' => sha1($user->email),
+        ]);
+
+        $response = $this->getJson($url);
+        $response->assertOk()->assertJsonPath('message', 'Email verified.');
+        $this->assertNotNull($user->fresh()->email_verified_at);
+        $this->assertTrue($user->fresh()->hasVerifiedEmail());
+
+        // Idempotent re-verification
+        $this->getJson($url)->assertOk()->assertJsonPath('message', 'Email verified.');
+    }
+
+    public function test_logged_out_browser_navigation_redirects_to_frontend_profile_and_verifies_email(): void
+    {
+        $user = User::factory()->unverified()->create();
+        $this->assertGuest('web');
+
+        $url = URL::temporarySignedRoute('verification.verify', now()->addMinutes(60), [
+            'id' => $user->id,
+            'hash' => sha1($user->email),
+        ]);
+
+        $this->withHeader('Accept', 'text/html')
+            ->get($url)
+            ->assertRedirect('http://localhost:8443/app/profile?tab=verification');
+
+        $this->assertTrue($user->fresh()->hasVerifiedEmail());
+        $this->assertNotNull($user->fresh()->email_verified_at);
+    }
+
+    public function test_unrelated_protected_routes_still_require_authentication(): void
+    {
+        $this->assertGuest('web');
+        $this->getJson('/api/auth/user')->assertUnauthorized();
+        $this->postJson('/api/auth/email/verification-notification')->assertUnauthorized();
+        $this->getJson('/api/me/connections')->assertUnauthorized();
     }
 
     public function test_verification_resend_is_authenticated_and_throttled(): void

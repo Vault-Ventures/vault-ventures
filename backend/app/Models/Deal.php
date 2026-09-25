@@ -87,4 +87,9 @@ class Deal extends Model
     {
         return $this->hasMany(DealMessage::class)->orderBy('created_at', 'asc')->orderBy('id', 'asc');
     }
+
+    public function dealInsights(): HasMany
+    {
+        return $this->hasMany(DealInsight::class)->orderByDesc('version');
+    }
 }

@@ -307,17 +307,28 @@ class BusinessDisclosureController extends Controller
         }
 
         $readinessData = null;
-        if ($stage->value >= DisclosureStage::Nda->value) {
-            $latestAssessment = $business->readinessAssessments()->orderByDesc('version')->first();
-            if ($latestAssessment !== null) {
-                $readinessData = [
-                    'overall_score' => $latestAssessment->overall_score,
-                    'factor_results' => $latestAssessment->factor_results,
-                    'weak_areas' => $latestAssessment->weak_areas,
-                    'suggestions' => $latestAssessment->suggestions,
-                    'evaluated_at' => $latestAssessment->evaluated_at?->toISOString(),
-                ];
+        $latestAssessment = $business->readinessAssessments()->orderByDesc('version')->first();
+        if ($latestAssessment !== null) {
+            $factorResults = [];
+            if (is_array($latestAssessment->factor_results)) {
+                foreach ($latestAssessment->factor_results as $key => $val) {
+                    $factorResults[$key] = [
+                        'name' => $val['name'] ?? null,
+                        'score' => $val['score'] ?? null,
+                        'weight' => $val['weight'] ?? null,
+                        'weighted_contribution' => $val['weighted_contribution'] ?? null,
+                        'is_weak' => $val['is_weak'] ?? null,
+                        'is_incomplete' => $val['is_incomplete'] ?? null,
+                    ];
+                }
             }
+            $readinessData = [
+                'overall_score' => $latestAssessment->overall_score,
+                'factor_results' => $factorResults,
+                'weak_areas' => $latestAssessment->weak_areas,
+                'suggestions' => $latestAssessment->suggestions,
+                'evaluated_at' => $latestAssessment->evaluated_at?->toISOString(),
+            ];
         }
 
         $documentsData = [];

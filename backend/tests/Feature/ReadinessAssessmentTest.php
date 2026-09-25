@@ -151,8 +151,8 @@ class ReadinessAssessmentTest extends TestCase
     {
         $this->input()->assertCreated();
         $this->failure();
-        $this->postJson($this->base.'/submit')->assertOk()->assertJsonPath('data.status', 'submitted');
-        $this->assertSame('submitted', Business::findOrFail($this->businessId)->status->value);
+        $this->postJson($this->base.'/submit')->assertOk()->assertJsonPath('data.status', 'pending_approval');
+        $this->assertSame('pending_approval', Business::findOrFail($this->businessId)->status->value);
         $this->assertDatabaseCount('readiness_assessments', 0);
         Log::shouldHaveReceived('error')->once();
         $this->app->forgetInstance(ReadinessAssessmentService::class);

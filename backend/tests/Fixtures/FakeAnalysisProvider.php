@@ -8,6 +8,35 @@ use LogicException;
 
 final class FakeAnalysisProvider implements AnalysisProvider
 {
+    public function matching(array $snapshot): string
+    {
+        $this->calls++;
+        $this->snapshots[] = $snapshot;
+
+        return ($this->callback)($snapshot);
+    }
+
+    public function deal(array $snapshot): string
+    {
+        $this->calls++;
+        $this->snapshots[] = $snapshot;
+
+        return ($this->callback)($snapshot);
+    }
+
+    public function admin(array $snapshot): string
+    {
+        $this->calls++;
+        $this->snapshots[] = $snapshot;
+
+        return ($this->callback)($snapshot);
+    }
+
+    public function readiness(array $snapshot): \App\Services\BusinessAnalysis\AnalysisResult
+    {
+        return \App\Services\BusinessAnalysis\AnalysisResult::fromJson($this->generate($snapshot));
+    }
+
     public int $calls = 0;
 
     public array $snapshots = [];
@@ -50,5 +79,11 @@ final class FakeAnalysisProvider implements AnalysisProvider
             'review_points' => [],
             'recommended_actions' => array_map(fn ($item) => ['suggestion_id' => $item['id']], array_slice($snapshot['assessment']['suggestions'], 0, 8)),
         ], JSON_THROW_ON_ERROR);
+    }
+
+    public function analyze(\App\Services\BusinessAnalysis\AnalysisInput $input): \App\Services\BusinessAnalysis\AnalysisResult
+    {
+        $this->calls++;
+        return \App\Services\BusinessAnalysis\AnalysisResult::fromJson(($this->callback)($input->business));
     }
 }

@@ -4,7 +4,7 @@ import { IconShield, IconChevronRight, IconFileText } from '../../components/lay
 
 type Section =
   | 'general' | 'roles' | 'verification' | 'businesses'
-  | 'applications' | 'deals' | 'reputation' | 'security';
+  | 'applications' | 'deals' | 'matching' | 'reputation' | 'security';
 
 function SettingRow({
   label, description, value, highImpact,
@@ -57,9 +57,13 @@ function GeneralSection() {
         <SettingRow label="Platform Name" description="The public-facing name of the platform." value="Vault Ventures" />
         <SettingRow label="Platform Description" description="Short description shown in platform metadata." value="Professional equity-free collaboration & investment platform" />
       </Group>
-      <Group title="Locale & Financial Unit">
+      <Group title="Locale & System Standards">
         <SettingRow label="Default Time Zone" description="Used for audit timestamps and platform communications." value="UTC+6 (Asia/Dhaka)" />
-        <SettingRow label="Platform Currency" description="Authoritative currency used for deal milestones, valuations, and payouts." value={<Badge variant="gold">BDT (৳)</Badge>} highImpact />
+      </Group>
+      <Group title="Financial & Monetization Policy">
+        <SettingRow label="Platform Currency" description="Authoritative canonical currency used for deal milestones, valuations, and simulated funding ledgers." value={<Badge variant="gold">BDT (৳)</Badge>} highImpact />
+        <SettingRow label="Funding Ledger Model" description="Capital commitments and milestone allocations operate under a non-custodial simulated model without live payment settlement." value={<Badge variant="neutral">Simulated / Non-Custodial</Badge>} highImpact />
+        <SettingRow label="Platform Commission" description="Platform commission is not currently applied in this prototype. Planned monetization may include a platform commission; automated fee deduction is not currently implemented." value={<Badge variant="neutral">Not Applied (0%)</Badge>} highImpact />
       </Group>
     </>
   );
@@ -180,6 +184,37 @@ function DealsSection() {
   );
 }
 
+function MatchingSection() {
+  return (
+    <>
+      <SectionHeader title="Deterministic Matching Policies" description="Authoritative server-side mathematical factor weights for discovery and recommendations (Non-AI)." />
+      <div className="p-3 bg-[#10B981]/5 border border-[#10B981]/20 rounded-[8px] mb-4">
+        <p className="text-[11px] text-[color:var(--vv-text-secondary)] leading-snug">
+          <strong className="text-[#10B981]">Deterministic Rule-Based Matching:</strong> The Matching Engine computes mathematical factor overlap server-side via <code className="text-[#10B981]">BusinessInvestorMatcher</code> and <code className="text-[#10B981]">BusinessProfessionalMatcher</code>. No LLM or generative AI models are utilized.
+        </p>
+      </div>
+      <Group title="Investor Matching Policy (100% Deterministic Total)">
+        <SettingRow label="Industry Alignment" description="Direct and sector compatibility between business industry and investor preferences." value="25%" highImpact />
+        <SettingRow label="Investment Range Fit" description="Overlap calculation between business capital ask and investor minimum/maximum ticket size." value="25%" highImpact />
+        <SettingRow label="Business Stage Alignment" description="Compatibility between venture growth stage and investor preferred stage." value="15%" highImpact />
+        <SettingRow label="Risk Profile Level" description="Alignment of venture risk classification with investor risk appetite." value="15%" highImpact />
+        <SettingRow label="Geographic Location" description="Geographical proximity and target jurisdiction matching." value="10%" highImpact />
+        <SettingRow label="Involvement Level" description="Active hands-on vs passive advisory alignment." value="10%" highImpact />
+        <SettingRow label="Total Weight" description="Strictly normalized canonical weight sum enforced by BusinessInvestorMatcher." value={<Badge variant="gold">100%</Badge>} highImpact />
+      </Group>
+      <Group title="Professional Matching Policy (100% Deterministic Total)">
+        <SettingRow label="Required Skill Overlap" description="Keyword and domain competency overlap between business requirements and professional skills." value="35%" highImpact />
+        <SettingRow label="Industry Experience" description="Sector background and domain track record match." value="20%" highImpact />
+        <SettingRow label="Experience Level" description="Seniority, years in practice, and execution leadership level." value="15%" highImpact />
+        <SettingRow label="Availability & Engagement" description="Availability schedule matching (hourly, fractional, project-based)." value="15%" highImpact />
+        <SettingRow label="Geographic Location" description="Location and timezone compatibility." value="10%" highImpact />
+        <SettingRow label="Compensation Fit" description="Alignment between offered compensation structure and professional preferences." value="5%" highImpact />
+        <SettingRow label="Total Weight" description="Strictly normalized canonical weight sum enforced by BusinessProfessionalMatcher." value={<Badge variant="gold">100%</Badge>} highImpact />
+      </Group>
+    </>
+  );
+}
+
 function ReputationSection() {
   return (
     <>
@@ -217,6 +252,7 @@ const NAV: { id: Section; label: string }[] = [
   { id: 'businesses', label: 'Businesses' },
   { id: 'applications', label: 'Applications' },
   { id: 'deals', label: 'Deals' },
+  { id: 'matching', label: 'Matching Policy' },
   { id: 'reputation', label: 'Reputation' },
   { id: 'security', label: 'Security' },
 ];
@@ -232,6 +268,7 @@ export default function AdminSettings() {
     businesses: <BusinessesSection />,
     applications: <ApplicationsSection />,
     deals: <DealsSection />,
+    matching: <MatchingSection />,
     reputation: <ReputationSection />,
     security: <SecuritySection />,
   };

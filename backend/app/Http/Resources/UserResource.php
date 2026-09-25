@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\ParticipantRole;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -9,6 +10,15 @@ final class UserResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $rolesRelation = $this->relationLoaded('roles') ? $this->roles : $this->roles()->get();
+        $roles = $rolesRelation->map(function ($r) {
+            return $r->role instanceof ParticipantRole ? $r->role->value : (string) $r->role;
+        })->sort()->values()->all();
+
+        $isAdmin = $this->relationLoaded('adminAccess')
+            ? $this->adminAccess !== null
+            : $this->hasAdminAccess();
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -26,6 +36,8 @@ final class UserResource extends JsonResource
             'preferences' => $this->preferences ?? [],
             'verification_tier' => $this->verification_tier->value,
             'verification_tier_label' => $this->verification_tier->label(),
+            'roles' => $roles,
+            'is_admin' => $isAdmin,
         ];
     }
 }

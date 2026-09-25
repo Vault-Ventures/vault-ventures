@@ -13,12 +13,42 @@ use App\Models\DealMilestone;
 use App\Models\FinancialDiscrepancyReport;
 use App\Models\FinancialReport;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 final class ReputationService
 {
+    /**
+     * Cache TTL for reputation summaries (5 minutes = 300 seconds).
+     */
+    public const CACHE_TTL_SECONDS = 300;
+
+    /**
+     * Generate the cache key for a user and role.
+     */
+    public function getCacheKey(int $userId, ParticipantRole $role): string
+    {
+        return "reputation:user:{$userId}:role:{$role->value}";
+    }
+
+    /**
+     * Invalidate cached reputation for a user across one or all roles.
+     */
+    public function invalidateReputationCache(int|User $user, ?ParticipantRole $role = null): void
+    {
+        $userId = $user instanceof User ? $user->id : $user;
+
+        if ($role !== null) {
+            Cache::forget($this->getCacheKey($userId, $role));
+        } else {
+            foreach (ParticipantRole::cases() as $r) {
+                Cache::forget($this->getCacheKey($userId, $r));
+            }
+        }
+    }
+
     /**
      * Retrieve the structured reputation track record summary for a user in a specific role.
      *
@@ -35,9 +65,23 @@ final class ReputationService
             ]);
         }
 
+        $cacheKey = $this->getCacheKey($user->id, $roleEnum);
+
+        return Cache::remember($cacheKey, self::CACHE_TTL_SECONDS, function () use ($user, $roleEnum) {
+            return $this->computeReputationSummary($user, $roleEnum);
+        });
+    }
+
+    /**
+     * Canonical reputation computation with optimized query batching.
+     *
+     * @return array<string, mixed>
+     */
+    public function computeReputationSummary(User $user, ParticipantRole $roleEnum): array
+    {
         $tierValue = $user->verification_tier?->value ?? (int) $user->verification_tier;
 
-        // Deals query scoped to role
+        // 1. Deals query scoped to role
         $completedDealsQuery = Deal::where('stage', DealStage::Completed);
         if ($roleEnum === ParticipantRole::Founder) {
             $completedDealsQuery->where('founder_user_id', $user->id);
@@ -46,44 +90,57 @@ final class ReputationService
                 ->where('counterparty_role', $roleEnum);
         }
 
-        $completedDealsCount = (clone $completedDealsQuery)->count();
-        $completedDealIds = (clone $completedDealsQuery)->pluck('id');
+        $completedDealIds = $completedDealsQuery->pluck('id')->all();
+        $completedDealsCount = count($completedDealIds);
 
-        // Funded milestones and simulated BDT on completed/active deals
-        $fundedMilestonesQuery = DealMilestone::whereIn('deal_id', $completedDealIds)
-            ->where('status', 'funded');
+        // 2. Funded milestones and simulated BDT on completed deals
+        $completedMilestonesCount = 0;
+        $totalReleasedBdt = 0.0;
 
-        $completedMilestonesCount = (clone $fundedMilestonesQuery)->count();
-        $totalReleasedBdt = (float) (clone $fundedMilestonesQuery)->sum('target_amount');
+        if ($completedDealsCount > 0) {
+            $milestoneStats = DealMilestone::whereIn('deal_id', $completedDealIds)
+                ->where('status', 'funded')
+                ->selectRaw('COUNT(*) as count, COALESCE(SUM(target_amount), 0) as total')
+                ->first();
 
-        // Feedback query
-        $feedbackQuery = DealFeedback::where('recipient_user_id', $user->id)
-            ->where('recipient_role', $roleEnum);
+            $completedMilestonesCount = (int) ($milestoneStats?->count ?? 0);
+            $totalReleasedBdt = (float) ($milestoneStats?->total ?? 0.0);
+        }
 
-        $ratingsCount = (clone $feedbackQuery)->count();
-        $avgRating = $ratingsCount > 0 ? (float) (clone $feedbackQuery)->avg('rating') : null;
+        // 3. Feedback aggregations & recent reviews
+        $feedbackStats = DealFeedback::where('recipient_user_id', $user->id)
+            ->where('recipient_role', $roleEnum->value)
+            ->selectRaw('COUNT(*) as count, AVG(rating) as avg_rating')
+            ->first();
 
-        $recentReviews = (clone $feedbackQuery)
-            ->with(['reviewer', 'deal.business'])
-            ->latest()
-            ->take(10)
-            ->get()
-            ->map(function (DealFeedback $fb) {
-                return [
-                    'id' => $fb->id,
-                    'deal_id' => $fb->deal_id,
-                    'reviewer_name' => $fb->reviewer?->name ?? 'Verified Counterparty',
-                    'reviewer_role' => $fb->reviewer_role->value,
-                    'business_name' => $fb->deal?->business?->name,
-                    'rating' => $fb->rating,
-                    'comment' => $fb->comment,
-                    'submitted_at' => $fb->created_at?->toISOString(),
-                ];
-            })
-            ->values()
-            ->all();
+        $ratingsCount = (int) ($feedbackStats?->count ?? 0);
+        $avgRating = $ratingsCount > 0 ? (float) $feedbackStats?->avg_rating : null;
 
-        // Profile evidence per role
+        $recentReviews = [];
+        if ($ratingsCount > 0) {
+            $recentReviews = DealFeedback::where('recipient_user_id', $user->id)
+                ->where('recipient_role', $roleEnum->value)
+                ->with(['reviewer', 'deal.business'])
+                ->latest()
+                ->take(10)
+                ->get()
+                ->map(function (DealFeedback $fb) {
+                    return [
+                        'id' => $fb->id,
+                        'deal_id' => $fb->deal_id,
+                        'reviewer_name' => $fb->reviewer?->name ?? 'Verified Counterparty',
+                        'reviewer_role' => $fb->reviewer_role->value,
+                        'business_name' => $fb->deal?->business?->name,
+                        'rating' => $fb->rating,
+                        'comment' => $fb->comment,
+                        'submitted_at' => $fb->created_at?->toISOString(),
+                    ];
+                })
+                ->values()
+                ->all();
+        }
+
+        // 4. Profile evidence per role
         $profileEvidence = $this->resolveProfileEvidence($user, $roleEnum);
 
         $summary = [
@@ -107,15 +164,26 @@ final class ReputationService
             'profile_evidence' => $profileEvidence,
         ];
 
+        // 5. Founder financial transparency
         if ($roleEnum === ParticipantRole::Founder) {
-            $founderReportQuery = FinancialReport::where('submitted_by_user_id', $user->id);
-            $submittedCount = (clone $founderReportQuery)->count();
-            $verifiedCount = (clone $founderReportQuery)->where('status', FinancialVerificationStatus::Verified)->count();
-            $evidenceBackedCount = (clone $founderReportQuery)->has('evidences')->count();
+            $reportStats = FinancialReport::where('submitted_by_user_id', $user->id)
+                ->selectRaw('
+                    COUNT(*) as total_count,
+                    COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) as verified_count,
+                    COALESCE(SUM(CASE WHEN EXISTS (SELECT 1 FROM financial_report_evidence WHERE financial_report_evidence.financial_report_id = financial_reports.id) THEN 1 ELSE 0 END), 0) as evidence_count
+                ', [FinancialVerificationStatus::Verified->value])
+                ->first();
 
-            $activeDiscrepanciesCount = FinancialDiscrepancyReport::whereHas('financialReport', function ($q) use ($user) {
-                $q->where('submitted_by_user_id', $user->id);
-            })->where('status', FinancialDiscrepancyStatus::UnderReview)->count();
+            $submittedCount = (int) ($reportStats?->total_count ?? 0);
+            $verifiedCount = (int) ($reportStats?->verified_count ?? 0);
+            $evidenceBackedCount = (int) ($reportStats?->evidence_count ?? 0);
+
+            $activeDiscrepanciesCount = 0;
+            if ($submittedCount > 0) {
+                $activeDiscrepanciesCount = FinancialDiscrepancyReport::whereHas('financialReport', function ($q) use ($user) {
+                    $q->where('submitted_by_user_id', $user->id);
+                })->where('status', FinancialDiscrepancyStatus::UnderReview)->count();
+            }
 
             $summary['financial_transparency'] = [
                 'submitted_reports_count' => $submittedCount,
@@ -177,7 +245,7 @@ final class ReputationService
             ]);
         }
 
-        return DB::transaction(function () use ($deal, $reviewer, $reviewerRole, $recipientUserId, $recipientRole, $rating, $comment) {
+        $feedback = DB::transaction(function () use ($deal, $reviewer, $reviewerRole, $recipientUserId, $recipientRole, $rating, $comment) {
             return DealFeedback::create([
                 'deal_id' => $deal->id,
                 'reviewer_user_id' => $reviewer->id,
@@ -188,6 +256,12 @@ final class ReputationService
                 'comment' => $comment ? trim($comment) : null,
             ]);
         });
+
+        // Invalidate reputation cache for both parties
+        $this->invalidateReputationCache($recipientUserId, $recipientRole);
+        $this->invalidateReputationCache($reviewer->id, $reviewerRole);
+
+        return $feedback;
     }
 
     /**
@@ -292,3 +366,4 @@ final class ReputationService
         app(\App\Services\Deal\DealAccessService::class)->participant($deal, $user, $roleParam);
     }
 }
+

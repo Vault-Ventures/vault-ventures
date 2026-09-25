@@ -20,7 +20,8 @@ final class AnalysisContract
 
     public static function versions(): array
     {
-        return ['input_contract_version' => self::INPUT_VERSION, 'output_contract_version' => self::OUTPUT_VERSION, 'instruction_version' => self::INSTRUCTION_VERSION, 'renderer_version' => self::RENDERER_VERSION];
+        $narrative = config('business_analysis.output_version', '2') === '2';
+        return ['input_contract_version' => self::INPUT_VERSION, 'output_contract_version' => $narrative ? '2' : self::OUTPUT_VERSION, 'instruction_version' => $narrative ? '2' : self::INSTRUCTION_VERSION, 'renderer_version' => $narrative ? '2' : self::RENDERER_VERSION];
     }
 
     public static function fingerprint(array $snapshot): string

@@ -1,9 +1,11 @@
+import ReadinessInsightsPanel from '../../components/business/ReadinessInsightsPanel';
+import ReadinessInputModal from '../../components/business/ReadinessInputModal';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { IconArrowRight, IconAlertTriangle, IconTrendingUp } from '../../components/layout/Icons';
-import { api, ReadinessAssessmentData, ApiError } from '../../services/api';
+import { api, ReadinessAssessmentData, ReadinessInputData, ApiError } from '../../services/api';
 
 export default function ReadinessScore() {
   const navigate = useNavigate();
@@ -16,11 +18,13 @@ export default function ReadinessScore() {
   const [lastPage, setLastPage] = useState(1);
   const [business, setBusiness] = useState<any | null>(null);
   const [assessment, setAssessment] = useState<ReadinessAssessmentData | null>(null);
+  const [latestInputs, setLatestInputs] = useState<ReadinessInputData | null>(null);
   const [history, setHistory] = useState<ReadinessAssessmentData[]>([]);
   const [loading, setLoading] = useState(true);
   const [recalculating, setRecalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedFactor, setExpandedFactor] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -30,6 +34,7 @@ export default function ReadinessScore() {
         setError(null);
         setBusiness(null);
         setAssessment(null);
+        setLatestInputs(null);
         setHistory([]);
         if (!selectedId) {
           const result = await api.businesses.listPage(page);
@@ -45,15 +50,17 @@ export default function ReadinessScore() {
 
         if (mounted) setBusiness(primaryBiz);
 
-        // Load latest assessment and assessment history
-        const [latestAss, allAss] = await Promise.all([
+        // Load latest assessment, inputs, and assessment history
+        const [latestAss, allAss, inputs] = await Promise.all([
           api.readiness.getLatestAssessment(primaryBiz.id).catch((err) => { if (err instanceof ApiError && err.status === 404) return null; throw err; }),
-          api.readiness.listAssessments(primaryBiz.id),
+          api.readiness.listAssessments(primaryBiz.id).catch(() => []),
+          api.readiness.getLatestInputs(primaryBiz.id).catch(() => null),
         ]);
 
         if (mounted) {
           setAssessment(latestAss);
           setHistory(Array.isArray(allAss) ? allAss : []);
+          setLatestInputs(inputs);
         }
       } catch (err: any) {
         if (mounted) {
@@ -71,6 +78,24 @@ export default function ReadinessScore() {
       mounted = false;
     };
   }, [selectedId, page]);
+
+  async function refreshAssessment() {
+    if (!business) return;
+    try {
+      const [latestAss, allAss, inputs] = await Promise.all([
+        api.readiness.getLatestAssessment(business.id).catch((err) => { if (err instanceof ApiError && err.status === 404) return null; throw err; }),
+        api.readiness.listAssessments(business.id).catch(() => []),
+        api.readiness.getLatestInputs(business.id).catch(() => null),
+      ]);
+      if (currentId.current === String(business.id)) {
+        setAssessment(latestAss);
+        setHistory(Array.isArray(allAss) ? allAss : []);
+        setLatestInputs(inputs);
+      }
+    } catch {
+      // Ignored on passive refresh
+    }
+  }
 
   async function handleRecalculate() {
     if (!business) return;
@@ -92,6 +117,23 @@ export default function ReadinessScore() {
       }
     } finally {
       setRecalculating(false);
+    }
+  }
+
+  async function handleInputsSaved() {
+    await refreshAssessment();
+    // If assessment wasn't created automatically yet, try createAssessment
+    if (business && !assessment) {
+      try {
+        const created = await api.readiness.createAssessment(business.id);
+        if (currentId.current === String(business.id)) {
+          setAssessment(created);
+          const allAss = await api.readiness.listAssessments(business.id).catch(() => []);
+          setHistory(Array.isArray(allAss) ? allAss : []);
+        }
+      } catch {
+        // Ignored; user can recalculate manually if needed
+      }
     }
   }
 
@@ -133,10 +175,14 @@ export default function ReadinessScore() {
     );
   }
 
-  const rawOverall = assessment?.overall_score ? parseFloat(String(assessment.overall_score)) : 0;
-  const overallScore = Math.round(rawOverall);
-  const band = overallScore >= 80 ? 'Investor-Ready' : overallScore >= 60 ? 'Developing' : 'Early Stage';
-  const bandColor = overallScore >= 80 ? '#22C55E' : overallScore >= 60 ? '#F59E0B' : '#F04438';
+  const rawOverall = assessment?.overall_score ? parseFloat(String(assessment.overall_score)) : null;
+  const overallScore = rawOverall !== null ? Math.round(rawOverall) : null;
+  const band = overallScore !== null
+    ? overallScore >= 80 ? 'Investor-Ready' : overallScore >= 60 ? 'Developing' : 'Early Stage'
+    : 'Not Assessed';
+  const bandColor = overallScore !== null
+    ? overallScore >= 80 ? '#22C55E' : overallScore >= 60 ? '#F59E0B' : '#F04438'
+    : '#8B9BB4';
 
   const r = 60;
   const circ = 2 * Math.PI * r;
@@ -168,7 +214,10 @@ export default function ReadinessScore() {
             {business.name} • {assessment?.evaluated_at ? `Version ${assessment.version} evaluated on ${new Date(assessment.evaluated_at).toLocaleDateString()}` : 'Awaiting initial assessment evaluation'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" onClick={() => setModalOpen(true)}>
+            {latestInputs ? 'Edit Questionnaire' : 'Complete Questionnaire'}
+          </Button>
           <Button size="sm" variant="secondary" onClick={handleRecalculate} disabled={recalculating}>
             {recalculating ? 'Evaluating...' : 'Recalculate Assessment'}
           </Button>
@@ -182,6 +231,24 @@ export default function ReadinessScore() {
           <div>
             <p className="text-[13px] font-semibold">{error}</p>
           </div>
+        </div>
+      )}
+
+      {/* Initial state if no assessment exists */}
+      {!assessment && (
+        <div className="mb-6 rounded-xl border border-[color:var(--vv-border)] bg-[#121A2B] p-8 text-center">
+          <div className="w-12 h-12 rounded-full bg-[#182338] border border-[color:var(--vv-border)] flex items-center justify-center mx-auto mb-4 text-[#C67A4E]">
+            <IconTrendingUp s={22} />
+          </div>
+          <h2 className="font-display text-lg font-semibold text-[color:var(--vv-text)] mb-2">
+            No Readiness Assessment Evaluated Yet
+          </h2>
+          <p className="text-[13px] text-[color:var(--vv-text-secondary)] max-w-md mx-auto mb-6 leading-relaxed">
+            Complete the 16-question readiness questionnaire covering market demand, business model clarity, scalability, and risks to generate your automated readiness score.
+          </p>
+          <Button onClick={() => setModalOpen(true)}>
+            {latestInputs ? 'Review Questionnaire & Evaluate' : 'Complete Readiness Questionnaire'}
+          </Button>
         </div>
       )}
 
@@ -212,19 +279,21 @@ export default function ReadinessScore() {
 
       {/* Top 3 summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
-        {/* Gauge */}
+        {/* Gauge / Score */}
         <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-xl p-6 flex flex-col items-center">
           <svg width="144" height="144" viewBox="0 0 144 144">
             <circle cx="72" cy="72" r={r} fill="none" stroke="#1e2e45" strokeWidth="8" />
-            <circle cx="72" cy="72" r={r} fill="none" stroke="#C67A4E" strokeWidth="8"
-              strokeDasharray={`${(overallScore / 100) * circ} ${circ - (overallScore / 100) * circ}`}
+            <circle cx="72" cy="72" r={r} fill="none" stroke={bandColor} strokeWidth="8"
+              strokeDasharray={`${overallScore !== null ? (overallScore / 100) * circ : 0} ${circ}`}
               strokeLinecap="round" transform="rotate(-90 72 72)" />
             <text x="72" y="67" textAnchor="middle" dominantBaseline="middle"
-              style={{ fontFamily: 'IBM Plex Mono', fontSize: '30px', fontWeight: 600, fill: '#C67A4E' }}>
-              {overallScore}
+              style={{ fontFamily: 'IBM Plex Mono', fontSize: overallScore !== null ? '30px' : '22px', fontWeight: 600, fill: bandColor }}>
+              {overallScore !== null ? overallScore : '—'}
             </text>
             <text x="72" y="88" textAnchor="middle" dominantBaseline="middle"
-              style={{ fontFamily: 'Inter', fontSize: '11px', fill: '#5E6D8F' }}>/ 100</text>
+              style={{ fontFamily: 'Inter', fontSize: '11px', fill: '#5E6D8F' }}>
+              {overallScore !== null ? '/ 100' : 'Not Assessed'}
+            </text>
           </svg>
           <p className="font-display text-lg font-semibold mt-2" style={{ color: bandColor }}>{band}</p>
           <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mt-1">Overall Readiness Score</p>
@@ -286,7 +355,7 @@ export default function ReadinessScore() {
           <div className="flex items-center justify-between py-2 border-b border-[color:var(--vv-border)]">
             <span className="text-[12px] text-[color:var(--vv-text-tertiary)]">Assessment Status</span>
             <span className="text-[12px] font-semibold text-[color:var(--vv-text)]">
-              {assessment?.is_incomplete ? 'Incomplete Inputs' : 'Complete'}
+              {!assessment ? 'Not Assessed' : assessment.is_incomplete ? 'Incomplete Inputs' : 'Complete'}
             </span>
           </div>
           <div className="flex items-center justify-between py-2">
@@ -299,63 +368,65 @@ export default function ReadinessScore() {
       </div>
 
       {/* Factor breakdown */}
-      <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-xl overflow-hidden mb-5">
-        <div className="px-5 py-4 border-b border-[color:var(--vv-border)] flex items-center justify-between">
-          <p className="text-[11px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold">
-            Factor Breakdown
-          </p>
-          <span className="text-[11px] text-[color:var(--vv-text-tertiary)]">Click a factor to view details</span>
-        </div>
-        <div className="divide-y divide-[#24304A]">
-          {factorResults.map(f => (
-            <div
-              key={f.key}
-              onClick={() => setExpandedFactor(expandedFactor === f.key ? null : f.key)}
-              className={`px-5 py-4 cursor-pointer hover:bg-white/2 transition-colors ${f.isWeak ? 'border-l-2 border-amber-400' : ''}`}
-            >
-              <div className="flex items-center gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-[13px] font-medium text-[color:var(--vv-text)]">{f.name}</span>
-                    {f.isWeak && <Badge variant="warning">Needs Attention</Badge>}
-                    {f.isIncomplete && <Badge variant="warning">Incomplete</Badge>}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 h-1.5 bg-[color:color-mix(in_srgb,var(--vv-raised)_90%,transparent)] rounded-full overflow-hidden max-w-[240px]">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{ width: `${f.score}%`, backgroundColor: f.score >= 70 ? '#C67A4E' : f.score >= 50 ? '#F59E0B' : '#F04438' }}
-                      />
+      {factorResults.length > 0 && (
+        <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-xl overflow-hidden mb-5">
+          <div className="px-5 py-4 border-b border-[color:var(--vv-border)] flex items-center justify-between">
+            <p className="text-[11px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold">
+              Factor Breakdown
+            </p>
+            <span className="text-[11px] text-[color:var(--vv-text-tertiary)]">Click a factor to view details</span>
+          </div>
+          <div className="divide-y divide-[#24304A]">
+            {factorResults.map(f => (
+              <div
+                key={f.key}
+                onClick={() => setExpandedFactor(expandedFactor === f.key ? null : f.key)}
+                className={`px-5 py-4 cursor-pointer hover:bg-white/2 transition-colors ${f.isWeak ? 'border-l-2 border-amber-400' : ''}`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-[13px] font-medium text-[color:var(--vv-text)]">{f.name}</span>
+                      {f.isWeak && <Badge variant="warning">Needs Attention</Badge>}
+                      {f.isIncomplete && <Badge variant="warning">Incomplete</Badge>}
                     </div>
-                    <span className="font-mono text-[12px] tabular-nums" style={{ color: f.score >= 70 ? '#C67A4E' : f.score >= 50 ? '#F59E0B' : '#F04438' }}>
-                      {f.score}/100
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-1.5 bg-[color:color-mix(in_srgb,var(--vv-raised)_90%,transparent)] rounded-full overflow-hidden max-w-[240px]">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${f.score}%`, backgroundColor: f.score >= 70 ? '#C67A4E' : f.score >= 50 ? '#F59E0B' : '#F04438' }}
+                        />
+                      </div>
+                      <span className="font-mono text-[12px] tabular-nums" style={{ color: f.score >= 70 ? '#C67A4E' : f.score >= 50 ? '#F59E0B' : '#F04438' }}>
+                        {f.score}/100
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">{f.weight}% weight</p>
                   </div>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">{f.weight}% weight</p>
-                </div>
+                {expandedFactor === f.key && (
+                  <div className="mt-3 p-3.5 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] rounded-lg text-[12px] space-y-2">
+                    {f.suggestions.length > 0 ? (
+                      <div>
+                        <p className="text-[11px] font-semibold text-[color:var(--vv-text-secondary)] mb-1">Backend Suggestions:</p>
+                        <ul className="list-disc list-inside space-y-1 text-[color:var(--vv-text-tertiary)]">
+                          {f.suggestions.map((s: any, idx: number) => (
+                            <li key={idx}>{s.text || s}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      <p className="text-[color:var(--vv-text-secondary)]">This factor meets or exceeds the platform threshold requirements.</p>
+                    )}
+                  </div>
+                )}
               </div>
-              {expandedFactor === f.key && (
-                <div className="mt-3 p-3.5 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] rounded-lg text-[12px] space-y-2">
-                  {f.suggestions.length > 0 ? (
-                    <div>
-                      <p className="text-[11px] font-semibold text-[color:var(--vv-text-secondary)] mb-1">Backend Suggestions:</p>
-                      <ul className="list-disc list-inside space-y-1 text-[color:var(--vv-text-tertiary)]">
-                        {f.suggestions.map((s: any, idx: number) => (
-                          <li key={idx}>{s.text || s}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : (
-                    <p className="text-[color:var(--vv-text-secondary)]">This factor meets or exceeds the platform threshold requirements.</p>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Backend Improvement Suggestions */}
       {suggestions.length > 0 && (
@@ -382,10 +453,22 @@ export default function ReadinessScore() {
         </div>
       )}
 
+      <ReadinessInsightsPanel key={`${business.id}:${assessment?.id ?? 'none'}`} businessId={business.id} />
+
       {/* Basis disclaimer */}
-      <div className="p-4 rounded-xl border border-[color:var(--vv-border)] bg-[#121A2B]/60 text-[11px] text-[color:var(--vv-text-tertiary)] leading-relaxed">
+      <div className="p-4 rounded-xl border border-[color:var(--vv-border)] bg-[#121A2B]/60 text-[11px] text-[color:var(--vv-text-tertiary)] leading-relaxed mt-5">
         {assessment?.basis || 'Rule-based assessment using founder-reported inputs; not independent verification, investment advice, or a prediction of returns.'}
       </div>
+
+      {/* Readiness Input Questionnaire Modal */}
+      {modalOpen && (
+        <ReadinessInputModal
+          businessId={business.id}
+          initialAnswers={latestInputs?.answers}
+          onClose={() => setModalOpen(false)}
+          onSaved={handleInputsSaved}
+        />
+      )}
     </div>
   );
 }

@@ -215,6 +215,9 @@ final class DealService
     {
         app(DealAccessService::class)->view($deal, $user, $roleParam);
 
+        $deal = $this->reconcileNdaSignedStage($deal, $user);
+        $deal = $this->reconcileAgreementStage($deal, $user);
+
         return $deal;
     }
 
@@ -340,6 +343,29 @@ final class DealService
             'changed_at' => now(),
         ]);
 
+        // If newly entered negotiation and a finalized agreement with accepted proposal already exists, advance to agreement
+        if ($deal->stage === DealStage::Negotiation) {
+            $agreement = DealAgreement::where('deal_id', $deal->id)->first();
+            if ($agreement && $agreement->isFinalized()) {
+                $hasAcceptedProposal = DealTermProposal::where('deal_id', $deal->id)
+                    ->where('status', 'accepted')
+                    ->exists();
+
+                if ($hasAcceptedProposal) {
+                    $deal->stage = DealStage::Agreement;
+                    $deal->save();
+
+                    DealStateHistory::create([
+                        'deal_id' => $deal->id,
+                        'previous_state' => DealStage::Negotiation,
+                        'new_state' => DealStage::Agreement,
+                        'changed_by_user_id' => $changedByUserId,
+                        'changed_at' => now(),
+                    ]);
+                }
+            }
+        }
+
         return $deal;
     }
 
@@ -403,6 +429,43 @@ final class DealService
             $actorId = $actor?->id ?? $lockedDeal->counterparty_user_id;
 
             return $this->applyStageTransition($lockedDeal, DealStage::NdaSigned, $actorId);
+        });
+    }
+
+    /**
+     * Idempotently reconcile a Deal's lifecycle stage against finalized bilateral Agreement status.
+     * If a finalized agreement exists and the Deal is at negotiation with all prerequisites satisfied,
+     * advance it to agreement.
+     *
+     * @throws ValidationException
+     */
+    public function reconcileAgreementStage(Deal $deal, ?User $actor = null): Deal
+    {
+        return DB::transaction(function () use ($deal, $actor) {
+            $lockedDeal = Deal::where('id', $deal->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($lockedDeal->stage !== DealStage::Negotiation) {
+                return $lockedDeal;
+            }
+
+            $agreement = DealAgreement::where('deal_id', $lockedDeal->id)->first();
+            if (! $agreement || ! $agreement->isFinalized()) {
+                return $lockedDeal;
+            }
+
+            $hasAcceptedProposal = DealTermProposal::where('deal_id', $lockedDeal->id)
+                ->where('status', 'accepted')
+                ->exists();
+
+            if (! $hasAcceptedProposal) {
+                return $lockedDeal;
+            }
+
+            $actorId = $actor?->id ?? $lockedDeal->founder_user_id;
+
+            return $this->applyStageTransition($lockedDeal, DealStage::Agreement, $actorId);
         });
     }
 

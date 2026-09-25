@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminBusinessController;
 use App\Http\Controllers\AdminFinancialReportController;
+use App\Http\Controllers\AdminInsightController;
 use App\Http\Controllers\AdminReputationController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AdminVerificationRequestController;
@@ -21,17 +22,20 @@ use App\Http\Controllers\BusinessRequirementController;
 use App\Http\Controllers\BusinessSubmissionController;
 use App\Http\Controllers\DealController;
 use App\Http\Controllers\DealFeedbackController;
+use App\Http\Controllers\DealInsightController;
 use App\Http\Controllers\DealMessageController;
 use App\Http\Controllers\DealMilestoneController;
 use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\InvestorPreferenceController;
 use App\Http\Controllers\MatchDetailController;
+use App\Http\Controllers\MatchingInsightController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationPreferenceController;
 use App\Http\Controllers\ParticipantRoleController;
 use App\Http\Controllers\ProfessionalProfileController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReadinessAssessmentController;
+use App\Http\Controllers\ReadinessInsightController;
 use App\Http\Controllers\ReadinessInputController;
 use App\Http\Controllers\RecommendationController;
 use App\Http\Controllers\ReputationController;
@@ -56,9 +60,8 @@ Route::prefix('auth')->middleware(RequireSpaSession::class)->group(function () {
 });
 
 Route::get('/auth/user', [SessionController::class, 'me'])->middleware('auth:sanctum');
-// A verification link opened from email is a browser navigation, so start a web session.
 Route::get('/auth/email/verify/{id}/{hash}', [VerificationController::class, 'verify'])
-    ->middleware(['web', 'auth:sanctum', 'signed', 'throttle:verification'])->name('verification.verify');
+    ->middleware(['web', 'signed', 'throttle:verification'])->name('verification.verify');
 
 Route::prefix('me')->middleware('auth:sanctum')->group(function () {
     Route::get('/connections', [BusinessConnectionController::class, 'index']);
@@ -71,6 +74,12 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
     Route::get('/businesses/{business}/readiness-assessments/{version}', [ReadinessAssessmentController::class, 'show'])
         ->whereNumber('business')->whereNumber('version');
     Route::post('/businesses/{business}/readiness-assessments', [ReadinessAssessmentController::class, 'store'])
+        ->middleware(RequireSpaSession::class)->whereNumber('business');
+    Route::get('/businesses/{business}/readiness-insights', [ReadinessInsightController::class, 'index'])->whereNumber('business');
+    Route::get('/businesses/{business}/readiness-insights/latest', [ReadinessInsightController::class, 'latest'])->whereNumber('business');
+    Route::get('/businesses/{business}/readiness-insights/{version}', [ReadinessInsightController::class, 'show'])
+        ->whereNumber('business')->whereNumber('version');
+    Route::post('/businesses/{business}/readiness-insights', [ReadinessInsightController::class, 'store'])
         ->middleware(RequireSpaSession::class)->whereNumber('business');
     Route::get('/businesses/{business}/readiness-inputs', [ReadinessInputController::class, 'latest'])->whereNumber('business');
     Route::get('/businesses/{business}/readiness-inputs/versions/{version}', [ReadinessInputController::class, 'show'])
@@ -93,6 +102,12 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
         ->whereNumber('business')->whereNumber('investor');
     Route::get('/matches/businesses/{business}/professionals/{professional}', [MatchDetailController::class, 'showBusinessProfessional'])
         ->whereNumber('business')->whereNumber('professional');
+    Route::get('/matches/businesses/{business}/{role}/{candidate}/matching-insight', [MatchingInsightController::class, 'current'])
+        ->whereNumber('business')->whereIn('role', ['investor', 'professional'])->whereNumber('candidate');
+    Route::get('/matches/businesses/{business}/{role}/{candidate}/matching-insights', [MatchingInsightController::class, 'history'])
+        ->whereNumber('business')->whereIn('role', ['investor', 'professional'])->whereNumber('candidate');
+    Route::post('/matches/businesses/{business}/{role}/{candidate}/matching-insight', [MatchingInsightController::class, 'store'])
+        ->middleware(RequireSpaSession::class)->whereNumber('business')->whereIn('role', ['investor', 'professional'])->whereNumber('candidate');
     Route::get('/businesses/{business}/disclosure-status', [BusinessDisclosureController::class, 'status'])
         ->whereNumber('business');
     Route::get('/businesses/{business}/disclosure', [BusinessDisclosureController::class, 'showDisclosure'])
@@ -106,6 +121,12 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
     Route::get('/deals', [DealController::class, 'index']);
     Route::get('/deals/{deal}', [DealController::class, 'show'])
         ->whereNumber('deal');
+    Route::get('/deals/{deal}/deal-insight', [DealInsightController::class, 'current'])
+        ->whereNumber('deal');
+    Route::get('/deals/{deal}/deal-insights', [DealInsightController::class, 'history'])
+        ->whereNumber('deal');
+    Route::post('/deals/{deal}/deal-insight', [DealInsightController::class, 'store'])
+        ->middleware(RequireSpaSession::class)->whereNumber('deal');
     Route::get('/deals/{deal}/history', [DealController::class, 'history'])
         ->whereNumber('deal');
     Route::get('/deals/{deal}/negotiation', [DealController::class, 'getNegotiation'])
@@ -255,7 +276,10 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'admin'])->group(function ()
     Route::get('/financial-governance', [AdminFinancialReportController::class, 'governanceOverview']);
     Route::get('/businesses', [AdminBusinessController::class, 'index']);
     Route::get('/businesses/{business}', [AdminBusinessController::class, 'show'])->whereNumber('business');
+    Route::get('/admin-insight', [AdminInsightController::class, 'current']);
+    Route::get('/admin-insights', [AdminInsightController::class, 'history']);
     Route::middleware(RequireSpaSession::class)->group(function () {
+        Route::post('/admin-insight', [AdminInsightController::class, 'store']);
         Route::post('/businesses/{business}/approve', [AdminBusinessController::class, 'approve'])->whereNumber('business');
         Route::post('/businesses/{business}/reject', [AdminBusinessController::class, 'reject'])->whereNumber('business');
         Route::post('/verification-requests/{verification_request}/approve', [AdminVerificationRequestController::class, 'approve'])->whereNumber('verification_request');

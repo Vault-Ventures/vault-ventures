@@ -22,7 +22,7 @@ const mockBusinesses = [
     skills: ['Engineering', 'CleanTech'],
     founder_verification_tier: 1,
     match: {
-      overall_score: 0.88,
+      overall_score: 88,
       strongest_alignments: [
         { factor_name: 'Industry Match', score: 1.0, explanation: 'Both parties are focused on CleanTech.' },
       ],
@@ -41,7 +41,7 @@ const mockBusinesses = [
     skills: ['FinTech', 'Machine Learning'],
     founder_verification_tier: 0,
     match: {
-      overall_score: 0.76,
+      overall_score: 76,
       strongest_alignments: [
         { factor_name: 'Industry Match', score: 1.0, explanation: 'FinTech alignment.' },
       ],
@@ -126,7 +126,7 @@ describe('Investor Discover Businesses', () => {
         funding_amount: 3000000,
         skills: ['HealthTech', 'Operations'],
         founder_verification_tier: 1,
-        match: { overall_score: 0.85, strongest_alignments: [], potential_gaps: [] },
+        match: { overall_score: 85, strongest_alignments: [], potential_gaps: [] },
       },
       {
         id: 2,
@@ -138,7 +138,7 @@ describe('Investor Discover Businesses', () => {
         funding_amount: 12000000,
         skills: ['SaaS', 'Engineering'],
         founder_verification_tier: 2,
-        match: { overall_score: 0.92, strongest_alignments: [], potential_gaps: [] },
+        match: { overall_score: 92, strongest_alignments: [], potential_gaps: [] },
       },
     ]);
 

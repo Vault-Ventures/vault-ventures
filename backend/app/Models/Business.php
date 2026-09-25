@@ -29,6 +29,16 @@ class Business extends Model
         return $this->hasMany(ReadinessAssessment::class);
     }
 
+    public function readinessInsights(): HasMany
+    {
+        return $this->hasMany(ReadinessInsight::class);
+    }
+
+    public function matchingInsights(): HasMany
+    {
+        return $this->hasMany(MatchingInsight::class);
+    }
+
     public function analyses(): HasMany
     {
         return $this->hasMany(BusinessAnalysis::class);

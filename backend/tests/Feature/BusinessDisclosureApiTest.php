@@ -454,7 +454,8 @@ class BusinessDisclosureApiTest extends TestCase
             ->assertJsonMissingPath('data.business.risk_level')
             ->assertJsonMissingPath('data.business.expected_involvement')
             ->assertJsonPath('data.requirements', null)
-            ->assertJsonPath('data.readiness', null)
+            ->assertJsonPath('data.readiness.overall_score', '78.50')
+            ->assertJsonPath('data.readiness.weak_areas', ['financial_modeling'])
             ->assertJsonPath('data.documents', []);
     }
 
@@ -485,7 +486,8 @@ class BusinessDisclosureApiTest extends TestCase
             ->assertJsonPath('data.requirements.skills', ['Fintech', 'Laravel'])
             ->assertJsonMissingPath('data.requirements.micro_proposed_terms')
             ->assertJsonMissingPath('data.requirements.large_standard_proposed_terms')
-            ->assertJsonPath('data.readiness', null)
+            ->assertJsonPath('data.readiness.overall_score', '78.50')
+            ->assertJsonPath('data.readiness.weak_areas', ['financial_modeling'])
             ->assertJsonPath('data.documents', []);
     }
 

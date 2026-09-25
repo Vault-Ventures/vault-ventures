@@ -21,6 +21,125 @@ export interface ApiErrorPayload {
   status?: number;
 }
 
+export interface AdvisoryAnalysis {
+  summary: string;
+  strengths: string[];
+  weaknesses: string[];
+  opportunities: string[];
+  risks: string[];
+  recommendations: string[];
+}
+
+export interface ReadinessInsightRecord extends AdvisoryAnalysis {
+  id: number;
+  business_id: number;
+  readiness_assessment_id: number;
+  version: number;
+  generated_at: string;
+  freshness: { is_current: boolean };
+}
+
+export interface MatchingFactorExplanation {
+  factor_key?: string;
+  explanation?: string;
+  factor?: string;
+  evidence?: string;
+  observation?: string;
+  confidence?: number;
+}
+
+export interface MatchingInsightRecord {
+  id: number;
+  business_id: number;
+  candidate_id: number;
+  counterparty_role: 'investor' | 'professional' | string;
+  version: number;
+  formula_version: string;
+  output_contract_version: string;
+  summary: string;
+  match_strengths: string[];
+  potential_gaps: string[];
+  discussion_points: string[];
+  cautions: string[];
+  factor_explanations: MatchingFactorExplanation[];
+  confidence?: number;
+  recommendations?: string[];
+  generated_at: string;
+  created_at?: string;
+  freshness: {
+    is_current: boolean;
+  };
+}
+
+export interface DealInsightRecord {
+  id: number;
+  deal_id: number;
+  version: number;
+  source_schema_version: string;
+  output_contract_version: string;
+  summary: string;
+  current_stage_summary: string;
+  key_points: string[];
+  open_items: string[];
+  discussion_points: string[];
+  cautions: string[];
+  generated_at: string;
+  created_at?: string;
+  freshness: {
+    is_current: boolean;
+  };
+}
+
+export interface AdminInsightRecord {
+  id: number;
+  version: number;
+  source_schema_version: string;
+  output_contract_version: string;
+  summary: string;
+  governance_observations: string[];
+  operational_highlights: string[];
+  attention_areas: string[];
+  suggested_review_points: string[];
+  generated_at: string;
+  created_at?: string;
+  is_current: boolean;
+}
+
+export interface BusinessAnalysisRecord {
+  id: number;
+  business_id: number;
+  version: number;
+  output_contract_version: string;
+  status: 'completed';
+  generated_at: string;
+  provider_identifier: string;
+  model_identifier: string | null;
+  analysis: AdvisoryAnalysis | null;
+  test_fixture: boolean;
+  basis: string;
+  freshness: { is_current: boolean };
+  rendered_output?: {
+    business_summary?: { source_ref: string; value: string }[];
+    review_points?: { factor_key: string; label: string }[];
+    recommended_actions?: { id: string; text?: string; message?: string }[];
+  };
+}
+
+export interface AnalysisMeta {
+  generation_enabled: boolean;
+  provider_status: 'configured' | 'not_configured' | 'disabled';
+  remote_health: 'not_checked';
+  eligible: boolean;
+  eligibility_reasons: string[];
+  current_version: number | null;
+  pagination?: { current_page: number; last_page: number; total: number };
+}
+
+export interface AnalysisEnvelope<T> {
+  data: T;
+  meta: AnalysisMeta;
+}
+
 export interface BusinessNdaData {
   business_id: number;
   counterparty_role: string | null;
@@ -430,6 +549,7 @@ export async function ensureCsrf(): Promise<void> {
 }
 
 interface RequestOptions extends Omit<RequestInit, 'body'> {
+  preserveEnvelope?: boolean;
   responseType?: 'blob';
   body?: unknown;
   params?: Record<string, string | number | boolean | undefined | null>;
@@ -443,7 +563,7 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
  * - Structured error handling
  */
 export async function apiClient<T = unknown>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-  const { params, headers: customHeaders, method = 'GET', body, responseType, ...rest } = options;
+  const { params, headers: customHeaders, method = 'GET', body, responseType, preserveEnvelope, ...rest } = options;
 
   const isStateChanging = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase());
   if (isStateChanging) {
@@ -518,7 +638,7 @@ export async function apiClient<T = unknown>(endpoint: string, options: RequestO
 
   // If response is formatted using ApiResponse::success ($data['data'])
   if (data && typeof data === 'object' && 'success' in data && 'data' in data) {
-    return data.data as T;
+    return (preserveEnvelope ? data : data.data) as T;
   }
 
   return data as T;
@@ -879,6 +999,12 @@ export interface ParticipantVerificationEvidenceData {
 }
 
 export const api = {
+  businessAnalysis: {
+    latest: (businessId: number | string) => apiClient<AnalysisEnvelope<BusinessAnalysisRecord | null>>(`/api/me/businesses/${businessId}/business-analyses/latest`, { preserveEnvelope: true }),
+    history: (businessId: number | string, page = 1) => apiClient<AnalysisEnvelope<BusinessAnalysisRecord[]>>(`/api/me/businesses/${businessId}/business-analyses`, { preserveEnvelope: true, params: { page, per_page: 10 } }),
+    version: (businessId: number | string, version: number) => apiClient<AnalysisEnvelope<BusinessAnalysisRecord>>(`/api/me/businesses/${businessId}/business-analyses/${version}`, { preserveEnvelope: true }),
+    generate: (businessId: number | string) => apiClient<AnalysisEnvelope<BusinessAnalysisRecord>>(`/api/me/businesses/${businessId}/business-analyses`, { method: 'POST', body: {}, preserveEnvelope: true }),
+  },
   verification: {
     account: () => apiClient<VerificationAccountData>('/api/auth/user'),
     sendEmail: () => apiClient<null>('/api/auth/email/verification-notification', { method: 'POST' }),
@@ -975,6 +1101,23 @@ export const api = {
       complete: (dealId: number | string, role?: string) =>
         apiClient<DealActivationResponseData>(`/api/me/deals/${dealId}/complete`, { method: 'POST', params: role ? { role } : undefined }),
     },
+    insights: {
+      current: (dealId: number | string, role?: string) =>
+        apiClient<DealInsightRecord | null>(
+          `/api/me/deals/${dealId}/deal-insight`,
+          { params: role ? { role } : undefined }
+        ),
+      generate: (dealId: number | string, role?: string) =>
+        apiClient<DealInsightRecord>(
+          `/api/me/deals/${dealId}/deal-insight`,
+          { method: 'POST', body: {}, params: role ? { role } : undefined }
+        ),
+      history: (dealId: number | string, role?: string) =>
+        apiClient<DealInsightRecord[]>(
+          `/api/me/deals/${dealId}/deal-insights`,
+          { params: role ? { role } : undefined }
+        ),
+    },
   },
 
   admin: {
@@ -1034,6 +1177,11 @@ export const api = {
         apiClient<BusinessRecord>(`/api/admin/businesses/${id}/approve`, { method: 'POST' }),
       reject: (id: number | string, reason: string) =>
         apiClient<BusinessRecord>(`/api/admin/businesses/${id}/reject`, { method: 'POST', body: { rejection_reason: reason } }),
+    },
+    insights: {
+      current: () => apiClient<AdminInsightRecord | null>(`/api/admin/admin-insight`),
+      generate: () => apiClient<AdminInsightRecord>(`/api/admin/admin-insight`, { method: 'POST', body: {} }),
+      history: () => apiClient<AdminInsightRecord[]>(`/api/admin/admin-insights`),
     },
   },
 
@@ -1166,6 +1314,45 @@ export const api = {
       apiClient<{ removed_role: string; roles: string[] }>(`/api/me/roles/${role}`, { method: 'DELETE' }),
   },
 
+  matchingInsights: {
+    current: (businessId: number | string, role: string, candidateId: number | string) =>
+      apiClient<MatchingInsightRecord | null>(
+        `/api/me/matches/businesses/${businessId}/${role}/${candidateId}/matching-insight`
+      ),
+    generate: (businessId: number | string, role: string, candidateId: number | string) =>
+      apiClient<MatchingInsightRecord>(
+        `/api/me/matches/businesses/${businessId}/${role}/${candidateId}/matching-insight`,
+        { method: 'POST', body: {} }
+      ),
+    history: (businessId: number | string, role: string, candidateId: number | string) =>
+      apiClient<MatchingInsightRecord[]>(
+        `/api/me/matches/businesses/${businessId}/${role}/${candidateId}/matching-insights`
+      ),
+  },
+
+  dealInsights: {
+    current: (dealId: number | string, role?: string) =>
+      apiClient<DealInsightRecord | null>(
+        `/api/me/deals/${dealId}/deal-insight`,
+        { params: role ? { role } : undefined }
+      ),
+    generate: (dealId: number | string, role?: string) =>
+      apiClient<DealInsightRecord>(
+        `/api/me/deals/${dealId}/deal-insight`,
+        { method: 'POST', body: {}, params: role ? { role } : undefined }
+      ),
+    history: (dealId: number | string, role?: string) =>
+      apiClient<DealInsightRecord[]>(
+        `/api/me/deals/${dealId}/deal-insights`,
+        { params: role ? { role } : undefined }
+      ),
+  },
+
+  readinessInsights: {
+    latest: (id: number | string) => apiClient<AnalysisEnvelope<ReadinessInsightRecord | null>>(`/api/me/businesses/${id}/readiness-insights/latest`, { preserveEnvelope: true }),
+    history: (id: number | string) => apiClient<AnalysisEnvelope<ReadinessInsightRecord[]>>(`/api/me/businesses/${id}/readiness-insights`, { preserveEnvelope: true }),
+    generate: (id: number | string) => apiClient<AnalysisEnvelope<ReadinessInsightRecord>>(`/api/me/businesses/${id}/readiness-insights`, { method: 'POST', body: {}, preserveEnvelope: true }),
+  },
   readiness: {
     listAssessments: (businessId: number | string) =>
       apiClient<ReadinessAssessmentData[]>(`/api/me/businesses/${businessId}/readiness-assessments`),

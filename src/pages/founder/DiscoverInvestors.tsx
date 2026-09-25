@@ -373,7 +373,7 @@ export default function DiscoverInvestors() {
           .toUpperCase() || 'IV';
 
         const matchObj = item.match || {};
-        const score = Math.round((matchObj.overall_score ?? 0) * 100);
+        const score = Math.max(0, Math.min(100, Math.round(Number(matchObj.overall_score ?? 0))));
         const alignments = matchObj.strongest_alignments || [];
         const gaps = matchObj.potential_gaps || [];
 
@@ -618,6 +618,9 @@ export default function DiscoverInvestors() {
       {activeInvestor && (
         <MatchExplanationDrawer
           data={activeInvestor.matchDetail}
+          businessId={selectedBusinessId}
+          role="investor"
+          candidateId={activeInvestor.id}
           cta={{
             label: interestSuccess ? '✓ Interest Expressed' : interestLoading ? 'Expressing…' : 'Express Interest',
             action: () => handleExpressInterest(activeInvestor),

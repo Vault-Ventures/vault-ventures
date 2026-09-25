@@ -377,7 +377,7 @@ export default function DiscoverProfessionals() {
           .toUpperCase() || 'PR';
 
         const matchObj = item.match || {};
-        const score = Math.round((matchObj.overall_score ?? 0) * 100);
+        const score = Math.max(0, Math.min(100, Math.round(Number(matchObj.overall_score ?? 0))));
         const alignments = matchObj.strongest_alignments || [];
         const gaps = matchObj.potential_gaps || [];
 
@@ -624,6 +624,9 @@ export default function DiscoverProfessionals() {
       {activeProfessional && (
         <MatchExplanationDrawer
           data={activeProfessional.matchDetail}
+          businessId={selectedBusinessId}
+          role="professional"
+          candidateId={activeProfessional.id}
           cta={{
             label: interestSuccess ? '✓ Interest Expressed' : interestLoading ? 'Expressing…' : 'Apply / Connect',
             action: () => handleExpressInterest(activeProfessional),

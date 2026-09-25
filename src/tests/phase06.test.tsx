@@ -31,6 +31,7 @@ beforeEach(() => {
   vi.spyOn(api.businesses, 'getLatestAnalysis').mockResolvedValue(null);
   vi.spyOn(api.readiness, 'getLatestAssessment').mockResolvedValue(assessment);
   vi.spyOn(api.readiness, 'listAssessments').mockResolvedValue([]);
+  vi.spyOn(api.readiness, 'getLatestInputs').mockResolvedValue(null);
   vi.spyOn(api.readiness, 'createAssessment').mockResolvedValue(assessment);
   vi.spyOn(api.reputation, 'get').mockResolvedValue(null as any);
 });

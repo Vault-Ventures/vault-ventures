@@ -3,6 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { Badge, VerificationBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { StagedDisclosure } from '../../components/ui/StagedDisclosure';
+import DealInsightsSection from '../../components/deals/DealInsightsSection';
 import { useRole } from '../../components/layout/AppShell';
 import { useAuth } from '../../context/AuthContext';
 import { canAccess } from '../../utils/permissions';
@@ -627,6 +628,8 @@ export default function DealRoom() {
   const isFounder = deal && user?.id === deal.founder_user_id;
   const isCounterparty = deal && user?.id === deal.counterparty_user_id;
   const isParticipant = Boolean(isFounder || isCounterparty);
+  const effectiveRole = isFounder ? undefined : (isCounterparty ? deal?.counterparty_role : (role === 'investor' || role === 'professional' ? role : undefined));
+  const canGenerateInsight = !isAdmin && (isFounder || isCounterparty || canParticipantAct);
 
   const founderName = business?.name ? `${business.name} (Founder)` : 'Founder';
   const counterpartyRoleLabel = deal?.counterparty_role === 'investor' ? 'Investor' : 'Professional';
@@ -1068,6 +1071,13 @@ export default function DealRoom() {
                   )}
                 </div>
               </div>
+
+              {/* AI-Assisted Deal Insights Section */}
+              <DealInsightsSection
+                dealId={deal?.id || dealId}
+                role={effectiveRole}
+                canGenerate={canGenerateInsight}
+              />
 
               {/* Recent Activity Snapshot */}
               <div className="p-5 rounded-xl bg-[#121A2B] border border-[#1c2a3e] space-y-3">

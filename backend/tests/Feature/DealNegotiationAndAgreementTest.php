@@ -637,4 +637,87 @@ class DealNegotiationAndAgreementTest extends TestCase
         $this->actingAs($unrelated)->postJson("/api/me/deals/{$deal->id}/agreement/generate")->assertForbidden();
         $this->actingAs($unrelated)->postJson("/api/me/deals/{$deal->id}/agreement/sign")->assertForbidden();
     }
+
+    public function test_agreement_finalized_early_reconciles_when_later_reaching_negotiation(): void
+    {
+        $founder = $this->createFounder();
+        $investor = $this->createInvestor();
+        $business = $this->createBusiness($founder);
+        $connection = $this->createConnection($business, $founder, $investor);
+        $deal = $this->createDeal($connection, DealStage::DealRoomOpened);
+
+        $proposal = DealTermProposal::create([
+            'deal_id' => $deal->id,
+            'version' => 1,
+            'proposed_by_user_id' => $founder->id,
+            'proposed_by_role' => 'founder',
+            'investment_type' => 'standard_equity',
+            'amount' => 25000.00,
+            'equity_percentage' => 2.00,
+            'status' => 'accepted',
+        ]);
+
+        $this->actingAs($founder)->postJson("/api/me/deals/{$deal->id}/agreement/generate")->assertCreated();
+
+        // Both sign while deal is still at DealRoomOpened
+        $this->actingAs($founder)->postJson("/api/me/deals/{$deal->id}/agreement/sign")->assertOk();
+        $this->actingAs($investor)->postJson("/api/me/deals/{$deal->id}/agreement/sign")->assertOk();
+
+        $this->assertSame(DealStage::DealRoomOpened, $deal->fresh()->stage);
+
+        // Move deal_room_opened -> nda_signed
+        $this->createActiveNda($business, $investor);
+        $this->actingAs($founder)->postJson("/api/me/deals/{$deal->id}/transition", [
+            'target_state' => 'nda_signed',
+        ])->assertOk();
+
+        $this->assertSame(DealStage::NdaSigned, $deal->fresh()->stage);
+
+        // Move nda_signed -> negotiation -> should automatically advance to Agreement because agreement is finalized
+        $resp = $this->actingAs($founder)->postJson("/api/me/deals/{$deal->id}/transition", [
+            'target_state' => 'negotiation',
+        ]);
+
+        $resp->assertOk();
+        $this->assertSame(DealStage::Agreement, $deal->fresh()->stage);
+
+        // Verify history has recorded both transitions sequentially
+        $histories = $deal->histories()->orderBy('id')->get();
+        $transitions = $histories->map(fn ($h) => ($h->previous_state?->value ?? 'null').'->'.$h->new_state->value)->toArray();
+
+        $this->assertContains('deal_room_opened->nda_signed', $transitions);
+        $this->assertContains('nda_signed->negotiation', $transitions);
+        $this->assertContains('negotiation->agreement', $transitions);
+    }
+
+    public function test_non_finalized_agreement_does_not_advance_deal(): void
+    {
+        $founder = $this->createFounder();
+        $investor = $this->createInvestor();
+        $business = $this->createBusiness($founder);
+        $connection = $this->createConnection($business, $founder, $investor);
+        $deal = $this->createDeal($connection, DealStage::Negotiation);
+
+        $proposal = DealTermProposal::create([
+            'deal_id' => $deal->id,
+            'version' => 1,
+            'proposed_by_user_id' => $founder->id,
+            'proposed_by_role' => 'founder',
+            'investment_type' => 'standard_equity',
+            'amount' => 50000.00,
+            'equity_percentage' => 5.00,
+            'status' => 'accepted',
+        ]);
+
+        $this->actingAs($founder)->postJson("/api/me/deals/{$deal->id}/agreement/generate")->assertCreated();
+
+        // Only founder signs
+        $this->actingAs($founder)->postJson("/api/me/deals/{$deal->id}/agreement/sign")->assertOk();
+
+        $this->assertSame(DealStage::Negotiation, $deal->fresh()->stage);
+
+        // Accessing deal room or agreement should NOT advance to Agreement since counterparty hasn't signed
+        $this->actingAs($founder)->getJson("/api/me/deals/{$deal->id}")->assertOk();
+        $this->assertSame(DealStage::Negotiation, $deal->fresh()->stage);
+    }
 }

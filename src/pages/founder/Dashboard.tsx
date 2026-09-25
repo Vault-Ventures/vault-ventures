@@ -121,12 +121,8 @@ export default function FounderDashboard() {
       setLoading(true);
       setError(null);
 
-      // Load businesses and reputation concurrently
-      const [bizRes, repRes] = await Promise.all([
-        api.get<{ items: BackendBusiness[] }>('/api/me/businesses').catch(() => ({ items: [] })),
-        api.reputation.get('founder').catch(() => null),
-      ]);
-
+      // 1. Critical primary data: load businesses and unblock main UI immediately
+      const bizRes = await api.get<{ items: BackendBusiness[] }>('/api/me/businesses').catch(() => ({ items: [] }));
       const rawItems = bizRes.items || [];
       const mapped: DashboardBusiness[] = rawItems.map(b => {
         const isPub = b.status === 'published';
@@ -143,23 +139,25 @@ export default function FounderDashboard() {
         };
       });
       setBusinesses(mapped);
-      setReputation(repRes);
+      setLoading(false);
 
-      // If founder has businesses, fetch real investor recommendations for the primary business
+      // 2. Secondary data: load reputation and recommendations asynchronously without blocking UI
+      api.reputation.get('founder')
+        .then(rep => setReputation(rep))
+        .catch(() => setReputation(null));
+
       if (rawItems.length > 0) {
-        try {
-          const recRes = await api.recommendations.investors(rawItems[0].id);
-          const recItems = Array.isArray(recRes) ? recRes : ((recRes as any)?.data || []);
-          setRecommendations(recItems.slice(0, 5));
-        } catch {
-          setRecommendations([]);
-        }
+        api.recommendations.investors(rawItems[0].id)
+          .then(recRes => {
+            const recItems = Array.isArray(recRes) ? recRes : ((recRes as any)?.data || []);
+            setRecommendations(recItems.slice(0, 5));
+          })
+          .catch(() => setRecommendations([]));
       } else {
         setRecommendations([]);
       }
     } catch (err: any) {
       setError(err?.message || 'Failed to load dashboard data. Please try again.');
-    } finally {
       setLoading(false);
     }
   }, [tier]);

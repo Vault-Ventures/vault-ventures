@@ -37,6 +37,8 @@ class BusinessAnalysisTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Retain regression coverage of the existing reference-only contract and history.
+        config(['business_analysis.output_version' => '1']);
         Http::preventStrayRequests();
         $this->owner = User::factory()->unverified()->create();
         $this->actingAs($this->owner, 'web')->withCredentials()->withHeaders(['Origin' => 'http://localhost:8443', 'Accept' => 'application/json']);
@@ -65,6 +67,31 @@ class BusinessAnalysisTest extends TestCase
         return app(BusinessAnalysisService::class)->capture(Business::findOrFail($this->businessId));
     }
 
+    public function test_gemini_owner_generation_preserves_v1_contract_and_redacts_http_errors(): void
+    {
+        $this->ready();
+        $secret = bin2hex(random_bytes(24));
+        config(['ai.provider' => 'gemini', 'ai.api_key' => $secret, 'ai.model' => 'gemini-3.8-flash']);
+        $snapshot = $this->capture()['snapshot'];
+        Http::fake(['*' => Http::sequence()->push(AiFoundationTest::envelope(FakeAnalysisProvider::validOutput($snapshot)))
+            ->push(['error' => ['message' => $secret]], 429)]);
+        $before = $this->sourceRows();
+        $response = $this->postJson($this->endpoint)->assertCreated()->assertJsonPath('data.provider_identifier', 'gemini')->assertJsonPath('data.test_fixture', false);
+        $this->assertStringNotContainsString($secret, $response->getContent());
+        $this->assertSame($before, $this->sourceRows());
+        Http::assertSent(function ($request) {
+            $data = json_decode($request['input'], true);
+            $this->assertSame(['untrusted_business_data', 'available_factors', 'applicable_suggestion_ids'], array_keys($data));
+            return true;
+        });
+        // A fresh model configuration forces a new attempt while retaining prior history.
+        config(['ai.model' => 'gemini-3.7-flash']);
+        $failure = $this->postJson($this->endpoint)->assertStatus(503)->assertJsonPath('error.code', 'ANALYSIS_PROVIDER_RATE_LIMIT');
+        $this->assertStringNotContainsString($secret, $failure->getContent());
+        $this->assertDatabaseCount('business_analyses', 1);
+        $this->assertSame($before, $this->sourceRows());
+    }
+
     private function sourceRows(): array
     {
         $result = [];
@@ -73,6 +100,26 @@ class BusinessAnalysisTest extends TestCase
         }
 
         return $result;
+    }
+
+    public static function lifecycleStates(): array
+    {
+        return [['submitted', true], ['pending_approval', true], ['approved', true], ['published', true], ['draft', false], ['rejected', false]];
+    }
+
+    #[DataProvider('lifecycleStates')]
+    public function test_analysis_eligibility_respects_current_business_lifecycle(string $status, bool $eligible): void
+    {
+        $this->ready();
+        $business = Business::findOrFail($this->businessId);
+        $business->forceFill(['status' => $status])->save();
+        if ($eligible) {
+            app(\App\Services\Readiness\ReadinessAssessmentService::class)->assess($business->id);
+        }
+        $state = $this->capture();
+        $this->assertSame($eligible, $state['eligibility_reasons'] === []);
+        $this->assertSame($status, $business->fresh()->status->value);
+        Http::assertNothingSent();
     }
 
     public function test_disabled_and_eligibility_do_not_generate_lock_or_consume_allowance(): void

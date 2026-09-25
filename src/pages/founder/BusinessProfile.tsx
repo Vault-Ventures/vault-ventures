@@ -10,11 +10,12 @@ import {
 } from '../../components/ui/StagedDisclosure';
 import type { NDARecord } from '../../components/ui/StagedDisclosure';
 import {
-  AIBadge, MatchScoreRing, MatchFactors, ImprovementItem, AIDisclaimer, MatchExplanationDrawer,
+  MatchScoreRing, MatchFactors, MatchExplanationDrawer,
 } from '../../components/ui/AIInsights';
-import type { MatchFactor, ImprovementItemData, MatchDetail } from '../../components/ui/AIInsights';
+import type { MatchFactor, MatchDetail } from '../../components/ui/AIInsights';
 import { useRole } from '../../components/layout/AppShell';
 import { api, resolveMediaUrl } from '../../services/api';
+import BusinessAnalysisPanel from '../../components/business/BusinessAnalysisPanel';
 
 // -- Currency helper ------------------------------------------------
 function fmtBDT(n: number): string {
@@ -178,7 +179,6 @@ export default function BusinessProfile() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [bizData, setBizData] = useState<any>(null);
   const [readinessData, setReadinessData] = useState<any>(null);
-  const [analysisData, setAnalysisData] = useState<any>(null);
 
   const [activeTab, setActiveTab] = useState('overview');
   const viewAs: ViewRole = location.pathname.startsWith('/app/founder/') ? 'founder' : role === 'investor' || role === 'professional' ? role : 'founder';
@@ -223,7 +223,6 @@ export default function BusinessProfile() {
       setLoadError(null);
       setBizData(null);
       setReadinessData(null);
-      setAnalysisData(null);
       try {
         if (!id || !/^[1-9]\d*$/.test(id)) throw new Error('Invalid business ID.');
         const businessId = id;
@@ -272,21 +271,17 @@ export default function BusinessProfile() {
           }
         }
 
-        // Fetch readiness & analysis if businessId available
+        // Fetch readiness & analysis if businessId available (owner-only)
         if (businessId && /^\d+$/.test(businessId)) {
-          try {
-            const rData = await api.readiness.getLatestAssessment(businessId);
-            if (rData && isMounted) {
-              setReadinessData(rData);
-            }
-          } catch (e) {}
+          if (isOwner) {
+            try {
+              const rData = await api.readiness.getLatestAssessment(businessId);
+              if (rData && isMounted) {
+                setReadinessData(rData);
+              }
+            } catch (e) {}
+          }
 
-          try {
-            const aData = await api.businesses.getLatestAnalysis(businessId);
-            if (aData && isMounted) {
-              setAnalysisData(aData);
-            }
-          } catch (e) {}
 
           if (!isOwner) {
             try {
@@ -463,32 +458,22 @@ export default function BusinessProfile() {
   // Derive readiness factors dynamically
   const readinessFactors = readinessData?.factor_results
     ? Object.entries(readinessData.factor_results).map(([key, val]: [string, any]) => ({
-        name: val.label || key.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
-        score: Math.round(val.score || 0),
-        weight: val.weight || 12.5,
-        desc: val.description || (val.score >= 70 ? 'Strong alignment.' : 'Needs refinement.'),
+        name: val.name || val.label || key.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+        score: Math.round(Number(val.score || 0)),
+        weight: val.weight !== undefined ? Number(val.weight) : 12.5,
+        desc: val.description || (Number(val.score || 0) >= 70 ? 'Strong alignment.' : 'Needs refinement.'),
       }))
     : [];
 
-  const overallReadiness = readinessData?.overall_score !== undefined
-    ? Math.round(readinessData.overall_score)
+  const overallReadiness = readinessData?.overall_score !== undefined && readinessData?.overall_score !== null
+    ? Math.round(Number(readinessData.overall_score))
     : (readinessFactors.length > 0
         ? Math.round(readinessFactors.reduce((acc: number, f: any) => acc + f.score * (f.weight / 100), 0))
         : null);
 
-  // Derive AI analysis dynamically
-  const aiAnalysis = {
-    overallAssessment: analysisData?.overall_assessment || analysisData?.summary || null,
-    strengths: analysisData?.strengths
-      ? analysisData.strengths.map((s: any) => typeof s === 'string' ? { title: s, description: s } : s)
-      : [],
-    improvements: (analysisData?.improvements || []) as ImprovementItemData[],
-    insights: (analysisData?.insights || []) as string[],
-  };
-
   const tabs = [
     { key: 'overview', label: 'Overview' },
-    { key: 'ai', label: 'AI Analysis' },
+    ...(isOwner ? [{ key: 'ai', label: 'AI Analysis' }] : []),
     { key: 'readiness', label: 'Readiness' },
     { key: 'funding', label: 'Funding & Milestones' },
     { key: 'team', label: 'Team' },
@@ -869,72 +854,8 @@ export default function BusinessProfile() {
           )}
 
           {/* AI ANALYSIS */}
-          {activeTab === 'ai' && (
-            <div className="space-y-4">
-              {aiAnalysis.overallAssessment ? (
-                <>
-                  <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] overflow-hidden">
-                    <div className="flex items-center gap-2.5 px-5 py-4 border-b border-[color:var(--vv-border)]"
-                      style={{ background: 'rgba(198,122,78,0.03)' }}>
-                      <AIBadge label="AI Analysis" />
-                      <span className="text-[11px] text-[color:var(--vv-text-tertiary)]">Generated by Vault AI &bull; Updated {currentBusiness.updatedAt}</span>
-                    </div>
-                    <div className="p-5">
-                      <p className="text-[13.5px] text-[color:var(--vv-text-secondary)] leading-relaxed mb-4">{aiAnalysis.overallAssessment}</p>
-                    </div>
-                  </div>
-
-                  {aiAnalysis.strengths.length > 0 && (
-                    <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] overflow-hidden">
-                      <div className="flex items-center gap-2 px-5 py-3.5 border-b border-[color:var(--vv-border)]">
-                        <p className="text-[12.5px] font-semibold text-[color:var(--vv-text)]">Key Strengths</p>
-                        <span className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">{aiAnalysis.strengths.length} identified</span>
-                      </div>
-                      <div className="divide-y divide-[#1c2a3e]">
-                        {aiAnalysis.strengths.map((s: any, i: number) => (
-                          <div key={i} className="flex gap-3 px-5 py-3.5">
-                            <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5"
-                              style={{ background: 'rgba(34,197,94,0.10)', border: '1px solid rgba(34,197,94,0.22)' }}>
-                              <svg width="9" height="9" fill="none" stroke="#22C55E" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7" /></svg>
-                            </div>
-                            <div>
-                              <p className="text-[12.5px] font-medium text-[color:var(--vv-text)] mb-0.5">{s.title}</p>
-                              <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)] leading-snug">{s.description}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {aiAnalysis.improvements.length > 0 && (
-                    <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] overflow-hidden">
-                      <div className="px-5 py-3.5 border-b border-[color:var(--vv-border)]">
-                        <p className="text-[12.5px] font-semibold text-[color:var(--vv-text)]">Improvement Areas</p>
-                      </div>
-                      <div className="px-5 py-1">
-                        {aiAnalysis.improvements.map((item: any, i: number) => (
-                          <ImprovementItem key={i} {...item} />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="bg-[#121A2B] border border-[color:var(--vv-border)] rounded-[12px] p-8 text-center">
-                  <AIBadge label="AI Analysis" />
-                  <h3 className="font-display text-[15px] font-semibold text-[color:var(--vv-text)] mt-3 mb-1.5">No AI Analysis Generated Yet</h3>
-                  <p className="text-[13px] text-[color:var(--vv-text-tertiary)] max-w-sm mx-auto mb-4">
-                    AI analysis is calculated based on submitted readiness inputs and business disclosures.
-                  </p>
-                  {isOwner && (
-                    <Button size="sm" onClick={() => navigate(`/app/founder/readiness?businessId=${bizData.id}`)}>
-                      Run Readiness Assessment
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
+          {activeTab === 'ai' && isOwner && (
+            <BusinessAnalysisPanel businessId={id ?? bizData.id} />
           )}
 
           {/* READINESS */}

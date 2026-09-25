@@ -449,7 +449,7 @@ export default function DiscoverBusinesses({ context }: { context: 'investor' | 
           .toUpperCase() || 'PB';
 
         const matchObj = item.match || {};
-        const score = Math.round((matchObj.overall_score ?? 0) * 100);
+        const score = Math.max(0, Math.min(100, Math.round(Number(matchObj.overall_score ?? 0))));
         const alignments = matchObj.strongest_alignments || [];
         const gaps = matchObj.potential_gaps || [];
 
@@ -703,6 +703,8 @@ export default function DiscoverBusinesses({ context }: { context: 'investor' | 
       {activeBusiness && (
         <MatchExplanationDrawer
           data={activeBusiness.matchDetail}
+          businessId={activeBusiness.id}
+          role={context}
           cta={{
             label: interestSuccess ? '✓ Interest Expressed' : interestLoading ? 'Expressing…' : ctaLabel,
             action: () => handleExpressInterest(activeBusiness),
@@ -712,4 +714,4 @@ export default function DiscoverBusinesses({ context }: { context: 'investor' | 
       )}
     </div>
   );
-}
+}

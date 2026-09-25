@@ -18,12 +18,13 @@ class BusinessAnalysisService
 {
     public function provider(): AnalysisProvider
     {
-        // Test doubles require explicit PHPUnit injection; application mode always stays disabled.
-        if (! app()->runningUnitTests() || ! defined('PHPUNIT_COMPOSER_INSTALL')) {
+        $provider = app(AnalysisProvider::class);
+        // Preserve test-fixture isolation even if an instance is mistakenly retained outside testing.
+        if ($provider->identifier() === 'test_fake' && (! app()->runningUnitTests() || ! defined('PHPUNIT_COMPOSER_INSTALL'))) {
             return new DisabledAnalysisProvider;
         }
 
-        return app(AnalysisProvider::class);
+        return $provider;
     }
 
     public function capture(Business $business): array
@@ -42,7 +43,12 @@ class BusinessAnalysisService
 
     public function metadata(Business $business, array $state): array
     {
-        return ['generation_enabled' => $this->provider()->enabled(), 'eligible' => $state['eligibility_reasons'] === [],
+        $provider = $this->provider();
+        return ['generation_enabled' => $provider->enabled(),
+            'output_contract_version' => AnalysisContract::versions()['output_contract_version'],
+            'provider_status' => $provider->enabled() ? 'configured' : ($provider->identifier() === 'disabled' ? 'disabled' : 'not_configured'),
+            // No health-check requests, billing or claims of remote availability on GET.
+            'remote_health' => 'not_checked', 'eligible' => $state['eligibility_reasons'] === [],
             'eligibility_reasons' => $state['eligibility_reasons'], 'current_version' => $this->current($business, $state)?->version];
     }
 
@@ -105,12 +111,21 @@ class BusinessAnalysisService
             }
             $this->consumeAllowance($user);
             try {
-                $raw = $provider->generate($state['snapshot']);
+                if ($state['snapshot']['configuration']['output_contract_version'] === '2') {
+                    $result = $provider->analyze(new AnalysisInput($state['snapshot']['business']));
+                    // Revalidate at the persistence boundary, including injected providers.
+                    $output = AnalysisResult::fromJson(json_encode($result->toArray(), JSON_THROW_ON_ERROR))->toArray();
+                    $rendered = $output;
+                } else {
+                    $raw = $provider->generate($state['snapshot']);
+                    $output = app(AnalysisOutputValidator::class)->validate($raw, $state['snapshot']);
+                    $rendered = app(AnalysisRenderer::class)->render($output, $state['snapshot']);
+                }
+            } catch (AnalysisFailure $failure) {
+                throw $failure;
             } catch (Throwable) {
                 throw new AnalysisFailure('ANALYSIS_ADAPTER_FAILURE', 503);
             }
-            $output = app(AnalysisOutputValidator::class)->validate($raw, $state['snapshot']);
-            $rendered = app(AnalysisRenderer::class)->render($output, $state['snapshot']);
 
             return DB::transaction(function () use ($user, $business, $state, $output, $rendered, $lock, $key, $cache) {
                 $owned = Business::query()->lockForUpdate()->findOrFail($business->id);

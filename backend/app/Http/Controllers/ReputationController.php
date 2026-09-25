@@ -40,10 +40,11 @@ class ReputationController extends Controller
         }
 
         // Return summaries for all roles assigned to the user
-        $activeRoles = $user->roles()->pluck('role')->all();
+        $rolesCollection = $user->relationLoaded('roles') ? $user->roles : $user->roles()->get();
         $summaries = [];
 
-        foreach ($activeRoles as $roleItem) {
+        foreach ($rolesCollection as $roleRecord) {
+            $roleItem = $roleRecord->role ?? $roleRecord;
             $roleEnum = $roleItem instanceof ParticipantRole ? $roleItem : ParticipantRole::tryFrom((string) $roleItem);
             if ($roleEnum !== null) {
                 $summaries[$roleEnum->value] = $this->reputationService->getReputationSummary($user, $roleEnum);

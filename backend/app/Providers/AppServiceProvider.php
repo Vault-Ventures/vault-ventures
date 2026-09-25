@@ -25,7 +25,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->bind(AnalysisProvider::class, DisabledAnalysisProvider::class);
+        $this->app->bind(AnalysisProvider::class, fn ($app) => config('ai.provider') === 'gemini'
+            ? $app->make(\App\Services\BusinessAnalysis\GeminiAnalysisProvider::class)
+            : new DisabledAnalysisProvider);
         $this->app->bind(OtpGeneratorInterface::class, RandomOtpGenerator::class);
         $this->app->bind(\App\Contracts\PhoneVerificationCodeDeliveryInterface::class, function () {
             $this->assertPhoneDeliveryConfiguration();

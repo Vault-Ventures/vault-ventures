@@ -22,6 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'verification.tier' => EnsureVerificationTier::class,
             'admin' => \App\Http\Middleware\EnsureAdminAccess::class,
         ]);
+        $middleware->redirectGuestsTo(function (Request $request) {
+            $origin = config('cors.allowed_origins.0');
+            return is_string($origin) && $origin !== '' ? $origin.'/app/auth/login' : null;
+        });
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->shouldRenderJsonWhen(fn (Request $request) => $request->is('api', 'api/*') || $request->expectsJson()

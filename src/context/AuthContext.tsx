@@ -1,9 +1,30 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { api, ApiError } from '../services/api';
+import { api } from '../services/api';
 
 export type NormalRole = 'founder' | 'investor' | 'professional';
 export type SessionStatus = 'initializing' | 'authenticated' | 'unauthenticated';
 export type VerificationTier = 0 | 1 | 2;
+
+export interface RawAuthUserData {
+  id: number;
+  name: string;
+  email: string;
+  email_verified_at: string | null;
+  phone: string | null;
+  phone_verified_at: string | null;
+  headline?: string | null;
+  bio?: string | null;
+  location?: string | null;
+  avatar_url?: string | null;
+  cover_photo_url?: string | null;
+  experience?: any[];
+  portfolio?: any[];
+  preferences?: Record<string, any>;
+  verification_tier: VerificationTier;
+  verification_tier_label: string;
+  roles?: NormalRole[];
+  is_admin?: boolean;
+}
 
 export interface AuthUser {
   id: number;
@@ -92,26 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   /**
-   * Helper to inspect if the authenticated user has admin access.
-   */
-  const checkAdminPrivilege = async (currentAdminState?: boolean): Promise<boolean> => {
-    try {
-      await api.get('/api/admin/verification-requests');
-      return true;
-    } catch (err: unknown) {
-      if (err instanceof ApiError && (err.status === 403 || err.status === 401)) {
-        return false;
-      }
-      // If error is not an explicit 403/401 forbidden (e.g. server 500 or network error), retain admin state if already set
-      if (currentAdminState) {
-        return true;
-      }
-      return false;
-    }
-  };
-
-  /**
-   * Helper to load the user's enrolled roles and profiles.
+   * Helper to load the user's enrolled roles and profiles when mutating roles.
    */
   const loadUserRoles = async (): Promise<NormalRole[]> => {
     try {
@@ -130,17 +132,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   const refreshUser = useCallback(async (): Promise<AuthUser | null> => {
     try {
-      const userData = await api.get<Omit<AuthUser, 'roles' | 'isAdmin'>>('/api/auth/user');
+      const userData = await api.get<RawAuthUserData>('/api/auth/user');
       if (!userData || !userData.id) {
         setSession(unauthenticatedSession);
         return null;
       }
 
-      const [roles, isAdmin] = await Promise.all([
-        loadUserRoles(),
-        checkAdminPrivilege(session.isAdmin),
-      ]);
-
+      const roles: NormalRole[] = Array.isArray(userData.roles) ? userData.roles : [];
+      const isAdmin: boolean = Boolean(userData.is_admin);
       const activeRole: NormalRole = roles.length > 0 ? roles[0] : 'founder';
       const tier: VerificationTier = (userData.verification_tier === 1 || userData.verification_tier === 2) ? (userData.verification_tier as 1 | 2) : 0;
       const authUser: AuthUser = {
@@ -175,13 +174,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * Login with email and password against Laravel backend.
    */
   const login = async (credentials: LoginPayload): Promise<AuthUser> => {
-    const userData = await api.post<Omit<AuthUser, 'roles' | 'isAdmin'>>('/api/auth/login', credentials);
+    const userData = await api.post<RawAuthUserData>('/api/auth/login', credentials);
 
-    const [roles, isAdmin] = await Promise.all([
-      loadUserRoles(),
-      checkAdminPrivilege(),
-    ]);
-
+    const roles: NormalRole[] = Array.isArray(userData.roles) ? userData.roles : [];
+    const isAdmin: boolean = Boolean(userData.is_admin);
     const activeRole: NormalRole = roles.length > 0 ? roles[0] : 'founder';
     const tier: VerificationTier = (userData.verification_tier === 1 || userData.verification_tier === 2) ? (userData.verification_tier as 1 | 2) : 0;
     const authUser: AuthUser = {

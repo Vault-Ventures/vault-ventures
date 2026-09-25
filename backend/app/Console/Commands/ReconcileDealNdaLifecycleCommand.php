@@ -46,6 +46,7 @@ class ReconcileDealNdaLifecycleCommand extends Command
         foreach ($deals as $deal) {
             $previousStage = $deal->stage;
             $reconciledDeal = $dealService->reconcileNdaSignedStage($deal);
+            $reconciledDeal = $dealService->reconcileAgreementStage($reconciledDeal);
 
             if ($previousStage !== $reconciledDeal->stage) {
                 $this->info("Deal #{$deal->id} reconciled: {$previousStage->value} -> {$reconciledDeal->stage->value}");

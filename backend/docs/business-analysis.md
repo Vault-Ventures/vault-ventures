@@ -1,3 +1,7 @@
+# Current status: AI Phase 1
+
+The historical disabled-only implementation below is superseded by [AI foundation](ai-foundation.md). The existing v1 persistence, validation and authorization contracts remain in place. Gemini is now configurable server-side; no key is configured locally and no live call has been tested. The analysis eligibility boundary also recognizes the current submitted lifecycle states. See the linked document for provider configuration, privacy boundaries and verification.
+
 # Phase 3 — Part 3 — AI Business Analysis & Improvement Guidance
 
 Completed 2026-09-10 under the final owner-approved constrained contract.
@@ -154,4 +158,3 @@ Commands and exact file inventory are recorded in ../../IMPLEMENTATION_LOG.md.
 Phase 3 Part 3 foundation complete. REAL EXTERNAL AI IS NOT IMPLEMENTED OR ENABLED.
 No live analysis, frontend changes, document parsing or Phase 3 Part 4.
 Any real provider, private-data transmission, consent/privacy arrangement, unrestricted narrative or extra inputs needs separate explicit approval. The next step is owner review of this disabled foundation; no future integration is authorized by its completion.
-

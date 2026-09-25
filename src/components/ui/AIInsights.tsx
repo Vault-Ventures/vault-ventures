@@ -1,4 +1,10 @@
 import React, { useState } from 'react';
+import MatchingInsightsSection, {
+  MATCHING_INSIGHTS_DISCLOSURE,
+  formatFactorLabel,
+} from '../matching/MatchingInsightsSection';
+
+export { MatchingInsightsSection, MATCHING_INSIGHTS_DISCLOSURE, formatFactorLabel };
 
 // -- AIBadge -------------------------------------------------------------------
 
@@ -196,6 +202,9 @@ export interface MatchDetail {
   gaps: GapFactor[];
   whyThisMatch: string[];
   contextLabel?: string;
+  businessId?: number | string;
+  role?: 'investor' | 'professional' | string;
+  candidateId?: number | string;
 }
 
 // -- Match Explanation Drawer sub-components -----------------------------------
@@ -254,16 +263,26 @@ function GapFactorRow({ factor, description, severity }: GapFactor) {
 
 export function MatchExplanationDrawer({
   data,
+  businessId,
+  role,
+  candidateId,
   cta,
   onClose,
 }: {
   data: MatchDetail;
+  businessId?: number | string;
+  role?: 'investor' | 'professional' | string;
+  candidateId?: number | string;
   cta?: { label: string; href?: string; action?: () => void };
   onClose: () => void;
 }) {
   const { score } = data;
   const scoreLabel = score >= 80 ? 'Strong Match' : score >= 65 ? 'Good Match' : score >= 50 ? 'Moderate Match' : 'Developing Match';
   const scoreColor = score >= 80 ? 'var(--color-trust-gold)' : score >= 65 ? 'var(--color-info)' : 'var(--color-text-tertiary)';
+
+  const activeBusinessId = businessId ?? data.businessId;
+  const activeRole = role ?? data.role;
+  const activeCandidateId = candidateId ?? data.candidateId;
 
   return (
     <div className="fixed inset-0 z-[70] flex justify-end" role="dialog" aria-modal="true" aria-labelledby="ai-insights-title">
@@ -274,7 +293,7 @@ export function MatchExplanationDrawer({
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#1c2a3e] shrink-0"
           style={{ background: 'rgba(198,122,78,0.03)' }}>
           <div className="flex items-center gap-2 min-w-0">
-            <AIBadge label="AI Match Analysis" />
+            <AIBadge label="Match Analysis" />
             <span id="ai-insights-title" className="text-[11.5px] text-[color:var(--vv-text-tertiary)] truncate">{data.entityName}</span>
             {data.contextLabel && <span className="text-[10.5px] text-[#C67A4E] truncate">{data.contextLabel}</span>}
           </div>
@@ -348,15 +367,12 @@ export function MatchExplanationDrawer({
               </div>
             </div>
 
-            {/* AI transparency */}
-            <div className="pt-1 border-t border-[#1c2a3e]">
-              <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] leading-relaxed">
-                <span style={{ color: '#C67A4E' }}>?</span>{' '}
-                Generated from available profile, business, and preference information.
-                Match scores are recommendations, not guarantees.
-                Review the underlying information before making decisions.
-              </p>
-            </div>
+            {/* AI-Assisted Match Insights (Separate advisory section) */}
+            <MatchingInsightsSection
+              businessId={activeBusinessId}
+              role={activeRole}
+              candidateId={activeCandidateId}
+            />
           </div>
         </div>
 
