@@ -159,7 +159,12 @@ function AccountMenu({ role, onManageRoles, onClose, onLogout }: {
         ))}
       </div>
       <div className="border-t border-[#1c2a3e]">
-        <button onClick={async () => { onClose(); await onLogout(); navigate(isAdmin ? '/admin-login' : '/login'); }}
+        <button onClick={async () => {
+          const dest = isAdmin ? '/admin-login' : '/';
+          onClose();
+          navigate(dest, { replace: true });
+          await onLogout();
+        }}
           className="w-full text-left px-3 py-2 text-[12px] text-[color:var(--vv-text-tertiary)] hover:text-[#F04438] hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)] transition-colors flex items-center gap-2">
           <IconLogOut s={12} /> Sign out
         </button>

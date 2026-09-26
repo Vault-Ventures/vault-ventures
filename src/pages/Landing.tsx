@@ -4,6 +4,8 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { ScoreDetail } from '../components/ui/ScoreComponents';
 import { IconArrowRight, IconShield, IconCheck, IconChevronDown } from '../components/layout/Icons';
+import { AuthModal, AuthModalView } from '../components/landing/AuthModal';
+import { NormalRole } from '../context/AuthContext';
 
 const MATCH_FACTORS = [
   { name: 'Industry Alignment', weight: 25, score: 92, explanation: 'Both parties selected FinTech as primary industry, with 3 overlapping sub-sectors.' },
@@ -78,7 +80,7 @@ const FAQ_ITEMS = [
   { q: 'Can one account have multiple roles?', a: 'Yes. A single account can hold Founder, Investor, and Professional roles. Each workspace is completely separate with independent dashboards and deal rooms.' },
   { q: 'How does AI matching work?', a: 'The engine uses rule-based scoring with documented, auditable weights across 6 factors. It is deterministic and fully explainable - you can inspect every factor and weight in the Match Score breakdown.' },
   { q: 'How does verification work?', a: 'Identity verification is tiered: Tier 1 (government ID), Tier 2 (accredited investor credentials), Tier 3 (institutional). Each tier unlocks additional platform capabilities.' },
-  { q: 'How does the Deal Room work?', a: 'The Deal Room progresses through 8 defined stages from Match ? Interest ? NDA ? Negotiation ? Agreement ? Milestones ? Completed. Every action is time-stamped and auditable.' },
+  { q: 'How does the Deal Room work?', a: 'The Deal Room progresses through 8 defined stages from Match → Interest → NDA → Negotiation → Agreement → Milestones → Completed. Every action is time-stamped and auditable.' },
 ];
 
 const JOURNEY_STEPS = ['Discover', 'Match', 'Connect', 'Build Trust', 'Collaborate', 'Deal'];
@@ -86,9 +88,20 @@ const JOURNEY_STEPS = ['Discover', 'Match', 'Connect', 'Build Trust', 'Collabora
 export default function Landing() {
   const [activePricingRole, setActivePricingRole] = useState('Founder');
   const [activeValueRole, setActiveValueRole] = useState<'Founder' | 'Investor' | 'Professional'>('Founder');
-  const [showScore, setShowScore] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  // Auth modal state
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authModalView, setAuthModalView] = useState<AuthModalView>('login');
+  const [authModalRole, setAuthModalRole] = useState<NormalRole | undefined>(undefined);
+
+  const openAuth = (view: AuthModalView = 'login', role?: NormalRole) => {
+    setAuthModalView(view);
+    setAuthModalRole(role);
+    setAuthModalOpen(true);
+  };
+
   const pricing = PRICING.find(p => p.role === activePricingRole)!;
   const valueProp = VALUE_PROPS[activeValueRole];
 
@@ -96,12 +109,12 @@ export default function Landing() {
     <div className="min-h-screen bg-[#0B1220] text-[color:var(--vv-text)]">
 
       {/* -- Public Nav --------------------------------------------- */}
-      <nav className="fixed top-0 left-0 right-0 z-50 h-14 flex items-center justify-between px-5 lg:px-10 bg-[#0D1626] border-b border-[#1c2a3e]">
+      <nav className="fixed top-0 left-0 right-0 z-40 h-14 flex items-center justify-between px-5 lg:px-10 bg-[#0D1626] border-b border-[#1c2a3e]">
         <Link to="/" className="flex items-center gap-2.5 flex-shrink-0">
           <svg viewBox="0 0 28 28" fill="none" className="w-6 h-6 vv-logo-glow">
             <path d="M14 3L5 8v5c0 4.97 3.67 9.62 9 10.93C19.33 22.62 23 17.97 23 13V8L14 3z"
-              fill="#C67A4E" fillOpacity="0.22" stroke="#C67A4E" strokeWidth="1.25" strokeLinejoin="round"/>
-            <path d="M11 14l2 2 4-4" stroke="#E8A878" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              fill="#C67A4E" fillOpacity="0.22" stroke="#C67A4E" strokeWidth="1.25" strokeLinejoin="round" />
+            <path d="M11 14l2 2 4-4" stroke="#E8A878" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <span className="font-display font-semibold text-[13.5px] text-[color:var(--vv-text)] tracking-tight">Vault Ventures</span>
         </Link>
@@ -113,11 +126,11 @@ export default function Landing() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Link to="/login" className="hidden sm:block"><Button variant="ghost" size="sm">Sign in</Button></Link>
-          <Link to="/register"><Button size="sm">Get started</Button></Link>
+          <Button variant="ghost" size="sm" className="hidden sm:inline-flex" onClick={() => openAuth('login')}>Sign in</Button>
+          <Button size="sm" onClick={() => openAuth('register')}>Get started</Button>
           <button className="md:hidden ml-1 text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] transition-colors p-1" onClick={() => setMobileNavOpen(v => !v)} aria-label={mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'} aria-expanded={mobileNavOpen}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              {mobileNavOpen ? <path d="M18 6 6 18M6 6l12 12"/> : <path d="M3 12h18M3 6h18M3 18h18"/>}
+              {mobileNavOpen ? <path d="M18 6 6 18M6 6l12 12" /> : <path d="M3 12h18M3 6h18M3 18h18" />}
             </svg>
           </button>
         </div>
@@ -129,126 +142,21 @@ export default function Landing() {
                 className="block py-2 text-[13px] text-[color:var(--vv-text-secondary)] hover:text-[color:var(--vv-text)] transition-colors">{label}</a>
             ))}
             <div className="pt-2 border-t border-[#1c2a3e] mt-1">
-              <Link to="/login" onClick={() => setMobileNavOpen(false)} className="block py-2 text-[13px] text-[color:var(--vv-text-tertiary)]">Sign in</Link>
+              <button onClick={() => { setMobileNavOpen(false); openAuth('login'); }} className="block w-full text-left py-2 text-[13px] text-[color:var(--vv-text-tertiary)]">Sign in</button>
             </div>
           </div>
         )}
       </nav>
 
-      {/* -- Hero --------------------------------------------------- */}
-      <section className="relative pt-32 pb-20 px-5 lg:px-10 overflow-hidden">
-        {/* Atmospheric hero accent */}
-        <div className="absolute inset-0 pointer-events-none" aria-hidden>
-          <div style={{
-            position: 'absolute', top: '-10%', left: '-5%', width: '60%', height: '70%',
-            background: 'radial-gradient(ellipse at center, rgba(198,122,78,0.07) 0%, transparent 65%)',
-          }} />
-          <div style={{
-            position: 'absolute', bottom: '0%', right: '-8%', width: '55%', height: '60%',
-            background: 'radial-gradient(ellipse at center, rgba(201,130,68,0.055) 0%, transparent 60%)',
-          }} />
-        </div>
-
-        <div className="relative max-w-[1120px] mx-auto">
-          <div className="max-w-[640px]">
-            <p className="text-[11px] text-[#C67A4E] uppercase tracking-[0.13em] font-semibold mb-5">Capital Intelligence Platform</p>
-            <h1 className="font-display text-[40px] sm:text-[48px] lg:text-[56px] font-semibold leading-[1.04] text-[color:var(--vv-text)] mb-5 tracking-tight">
-              Where capital, ideas,<br className="hidden sm:block" />
-              <span style={{ background: 'linear-gradient(135deg, #7A4527 0%, #C67A4E 55%, #E8A878 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}> and talent converge.</span>
-            </h1>
-            <p className="text-[15px] text-[color:var(--vv-text-tertiary)] leading-relaxed mb-8 max-w-[480px]">
-              A verified, structured deal platform for founders, investors, and professionals. AI-matched. Staged disclosure. Full audit trail.
-            </p>
-            <div className="flex flex-wrap gap-3 mb-7">
-              <Link to="/register"><Button size="lg">Get Started <IconArrowRight s={15} /></Button></Link>
-              <a href="#how-it-works"><Button size="lg" variant="secondary">Explore Platform</Button></a>
-            </div>
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[11.5px] text-[color:var(--vv-text-tertiary)]">
-              {['No fabricated metrics', 'Explainable AI scores', 'Simulation clearly labeled'].map((item, i) => (
-                <div key={i} className="flex items-center gap-1.5">
-                  <IconCheck s={11} className="text-[#22C55E]" />{item}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Product preview */}
-          <div className="mt-14 bg-[#121A2B] border border-[color:var(--vv-border)] rounded-xl overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-[color:var(--vv-border)] bg-[#0D1626]">
-              <div>
-                <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-0.5">NovaTech AI - Meridian Capital</p>
-                <p className="text-[13px] font-semibold text-[color:var(--vv-text)]">Deal Room - NDA Signed</p>
-              </div>
-              <Badge variant="accent" dot>Stage 3 of 4</Badge>
-            </div>
-            <div className="flex items-center gap-0 px-5 py-3 border-b border-[color:var(--vv-border)] bg-[#0D1626] overflow-x-auto">
-              {['Matched', 'Interest', 'Deal Room', 'NDA Signed', 'Negotiation', 'Agreement', 'Milestones', 'Completed'].map((s, i) => (
-                <div key={s} className="flex items-center flex-shrink-0">
-                  <div className="flex flex-col items-center">
-                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center text-[8px] font-bold ${
-                      i < 4 ? (i === 3 ? 'bg-[#C67A4E] border-[#C67A4E] text-white' : 'bg-[#22C55E] border-[#22C55E] text-white')
-                      : 'bg-transparent border-[color:var(--vv-border-strong)] text-[color:var(--vv-text-tertiary)]'
-                    }`}>
-                      {i < 3 ? <IconCheck s={9} /> : i + 1}
-                    </div>
-                    <span className="text-[9px] text-[color:var(--vv-text-tertiary)] mt-1 whitespace-nowrap">{s}</span>
-                  </div>
-                  {i < 7 && <div className={`w-6 h-px mx-1 mb-3 ${i < 3 ? 'bg-[#22C55E]' : 'bg-[#35446A]'}`} />}
-                </div>
-              ))}
-            </div>
-            <div className="p-5">
-              {!showScore ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border)] rounded-[10px] p-4">
-                    <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-3">AI Match Score</p>
-                    <div className="flex items-center gap-4">
-                      <svg width="64" height="64" viewBox="0 0 64 64">
-                        <circle cx="32" cy="32" r="26" fill="none" stroke="#1e2e45" strokeWidth="5"/>
-                        <circle cx="32" cy="32" r="26" fill="none" stroke="#C67A4E" strokeWidth="5"
-                          strokeDasharray={`${(86/100)*(2*Math.PI*26)} ${2*Math.PI*26}`}
-                          strokeLinecap="round" transform="rotate(-90 32 32)"/>
-                        <text x="32" y="35" textAnchor="middle" dominantBaseline="middle" style={{ fontFamily: 'IBM Plex Mono', fontSize: '13px', fontWeight: 600, fill: '#C67A4E' }}>86</text>
-                      </svg>
-                      <div>
-                        <p className="text-[17px] font-display font-semibold text-[color:var(--vv-text)]">Strong Match</p>
-                        <p className="text-[12px] text-[color:var(--vv-text-tertiary)] mt-1">Calculated from 6 weighted factors</p>
-                        <button onClick={() => setShowScore(true)} className="mt-2 text-[11.5px] text-[#C67A4E] hover:underline flex items-center gap-1">
-                          View breakdown <IconArrowRight s={11} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { label: 'Readiness', value: '78', sub: 'Developing', color: '#C67A4E' },
-                      { label: 'NDA Status', value: null, badge: true },
-                      { label: 'Data Room', value: 'Stage 3', sub: '7 docs accessible', color: '#22C55E' },
-                      { label: 'Deal Stage', value: 'Negotiation', sub: 'Terms submitted', color: '#F59E0B' },
-                    ].map((m, i) => (
-                      <div key={i} className="bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border)] rounded-[10px] p-3">
-                        <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold mb-1.5">{m.label}</p>
-                        {m.badge ? (
-                          <Badge variant="success" dot>Both signed</Badge>
-                        ) : (
-                          <>
-                            <p className="font-mono text-[15px] font-semibold tabular-nums" style={{ color: m.color }}>{m.value}</p>
-                            <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-0.5">{m.sub}</p>
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <ScoreDetail score={86} label="Match Score" qualitativeBand="Strong Match"
-                  factors={MATCH_FACTORS} title="Match Score - Full Breakdown"
-                  subtitle="NovaTech AI - Meridian Capital" type="match"
-                  partyA={{ name: 'NovaTech AI' }} partyB={{ name: 'Meridian Capital' }}
-                  onClose={() => setShowScore(false)} />
-              )}
-            </div>
-          </div>
+      {/* -- Immersive Landing Hero Image --------------------------- */}
+      <section className="relative w-full pt-14 bg-[#0B1220] flex items-center justify-center overflow-hidden border-b border-[#1c2a3e]/40">
+        <div className="relative w-full max-w-[1920px] mx-auto flex items-center justify-center">
+          <img
+            src="/hero/vault-hero-base.png"
+            alt="Vault Ventures Platform"
+            className="w-full h-auto object-contain object-center select-none pointer-events-none"
+            loading="eager"
+          />
         </div>
       </section>
 
@@ -281,7 +189,7 @@ export default function Landing() {
                   </div>
                   {i < JOURNEY_STEPS.length - 1 && (
                     <div className="w-12 sm:w-16 h-px mx-1 mb-5 flex-shrink-0"
-                      style={{ background: `linear-gradient(90deg, rgba(198,122,78,${0.28 - i*0.03}), rgba(198,122,78,${0.10 + i*0.03}))` }} />
+                      style={{ background: `linear-gradient(90deg, rgba(198,122,78,${0.28 - i * 0.03}), rgba(198,122,78,${0.10 + i * 0.03}))` }} />
                   )}
                 </React.Fragment>
               ))}
@@ -291,7 +199,7 @@ export default function Landing() {
           {/* 3-column role journeys */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-[color:color-mix(in_srgb,var(--vv-raised)_90%,transparent)] rounded-xl overflow-hidden">
             {[
-              { role: 'Founder', color: '#C67A4E', steps: ['Register & verify identity', 'Build your Business Profile', 'AI generates Readiness Score', 'Discover investors & professionals', 'Progress through Staged Disclosure', 'Sign NDA ? Deal Room', 'Track milestones, grow reputation'] },
+              { role: 'Founder', color: '#C67A4E', steps: ['Register & verify identity', 'Build your Business Profile', 'AI generates Readiness Score', 'Discover investors & professionals', 'Progress through Staged Disclosure', 'Sign NDA → Deal Room', 'Track milestones, grow reputation'] },
               { role: 'Investor', color: '#C9A24B', steps: ['Register & verify credentials', 'Set investment preferences', 'AI surfaces matched startups', 'Review Match Score breakdowns', 'Express interest & connect', 'Due diligence via Deal Room', 'Portfolio tracking'] },
               { role: 'Professional', color: '#22C55E', steps: ['Register & verify skills', 'Build structured profile', 'AI ranks best-fit opportunities', 'Apply to matched startups', 'Negotiate terms on-platform', 'Join Deal Room as team member', 'Build verified reputation'] },
             ].map(({ role, color, steps }) => (
@@ -314,9 +222,9 @@ export default function Landing() {
                   ))}
                 </div>
                 <div className="mt-5 pt-4 border-t border-[color:var(--vv-border)]">
-                  <Link to={`/register?role=${role.toLowerCase()}`}>
-                    <Button variant="secondary" size="sm" className="w-full">Register as {role}</Button>
-                  </Link>
+                  <Button variant="secondary" size="sm" className="w-full" onClick={() => openAuth('register', role.toLowerCase() as NormalRole)}>
+                    Register as {role}
+                  </Button>
                 </div>
               </div>
             ))}
@@ -336,11 +244,10 @@ export default function Landing() {
           <div className="flex gap-1.5 mb-8">
             {(['Founder', 'Investor', 'Professional'] as const).map(role => (
               <button key={role} onClick={() => setActiveValueRole(role)}
-                className={`px-4 py-2 rounded-md text-[12.5px] font-medium transition-all duration-150 ${
-                  activeValueRole === role
+                className={`px-4 py-2 rounded-md text-[12.5px] font-medium transition-all duration-150 ${activeValueRole === role
                     ? 'text-white border border-white/14'
                     : 'bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)]'
-                }`}
+                  }`}
                 style={activeValueRole === role ? {
                   background: 'linear-gradient(135deg, #7A4527, #C67A4E, #E8A878)',
                 } : undefined}>
@@ -353,9 +260,9 @@ export default function Landing() {
             <div>
               <h3 className="font-display text-[22px] font-semibold text-[color:var(--vv-text)] mb-3 leading-snug">{valueProp.headline}</h3>
               <p className="text-[14px] text-[color:var(--vv-text-tertiary)] leading-relaxed mb-6">{valueProp.body}</p>
-              <Link to="/register">
-                <Button size="md">Get started as {activeValueRole} <IconArrowRight s={14} /></Button>
-              </Link>
+              <Button size="md" onClick={() => openAuth('register', activeValueRole.toLowerCase() as NormalRole)}>
+                Get started as {activeValueRole} <IconArrowRight s={14} />
+              </Button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {valueProp.features.map((f, i) => (
@@ -455,10 +362,9 @@ export default function Landing() {
                 ].map((s, i) => (
                   <div key={i} className="flex gap-4 pb-4 last:pb-0">
                     <div className="flex flex-col items-center">
-                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                        !s.locked ? 'bg-[#22C55E] border-[#22C55E]' : 'bg-transparent border-[color:var(--vv-border-strong)]'
-                      }`}>
-                        {!s.locked ? <IconCheck s={12} className="text-white" /> : <span className="text-[color:var(--vv-text-tertiary)] text-[9px] font-bold">{i+1}</span>}
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${!s.locked ? 'bg-[#22C55E] border-[#22C55E]' : 'bg-transparent border-[color:var(--vv-border-strong)]'
+                        }`}>
+                        {!s.locked ? <IconCheck s={12} className="text-white" /> : <span className="text-[color:var(--vv-text-tertiary)] text-[9px] font-bold">{i + 1}</span>}
                       </div>
                       {i < 3 && <div className={`w-px flex-1 mt-1 min-h-[16px] ${!s.locked ? 'bg-[#22C55E]/30' : 'bg-[#35446A]/40'}`} />}
                     </div>
@@ -501,11 +407,10 @@ export default function Landing() {
           <div className="flex gap-1.5 mb-6">
             {['Founder', 'Investor', 'Professional'].map(r => (
               <button key={r} onClick={() => setActivePricingRole(r)}
-                className={`px-3.5 py-1.5 rounded-md text-[12px] font-medium transition-all duration-150 ${
-                  activePricingRole === r
+                className={`px-3.5 py-1.5 rounded-md text-[12px] font-medium transition-all duration-150 ${activePricingRole === r
                     ? 'text-white border border-white/14'
                     : 'bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)]'
-                }`}
+                  }`}
                 style={activePricingRole === r ? {
                   background: 'linear-gradient(135deg, #7A4527, #C67A4E, #E8A878)',
                 } : undefined}>
@@ -524,7 +429,9 @@ export default function Landing() {
                   </li>
                 ))}
               </ul>
-              <Link to="/register"><Button variant="secondary" className="w-full" size="md">Start free</Button></Link>
+              <Button variant="secondary" className="w-full" size="md" onClick={() => openAuth('register', activePricingRole.toLowerCase() as NormalRole)}>
+                Start free
+              </Button>
             </div>
             <div className="bg-[#121A2B] border rounded-[10px] p-5 relative overflow-hidden"
               style={{ borderColor: 'rgba(198,122,78,0.22)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.065), 0 0 24px rgba(198,122,78,0.06), 0 0 40px rgba(198,122,78,0.04)' }}>
@@ -539,7 +446,9 @@ export default function Landing() {
                   </li>
                 ))}
               </ul>
-              <Link to="/register"><Button className="w-full" size="md">Upgrade to Premium</Button></Link>
+              <Button className="w-full" size="md" onClick={() => openAuth('register', activePricingRole.toLowerCase() as NormalRole)}>
+                Upgrade to Premium
+              </Button>
             </div>
           </div>
         </div>
@@ -587,8 +496,8 @@ export default function Landing() {
             Join verified founders, investors, and professionals building structured deals on a platform designed for trust.
           </p>
           <div className="flex flex-wrap gap-3 justify-center">
-            <Link to="/register"><Button size="lg">Get Started <IconArrowRight s={15} /></Button></Link>
-            <Link to="/login"><Button size="lg" variant="secondary">Sign In</Button></Link>
+            <Button size="lg" onClick={() => openAuth('register')}>Get Started <IconArrowRight s={15} /></Button>
+            <Button size="lg" variant="secondary" onClick={() => openAuth('login')}>Sign In</Button>
           </div>
         </div>
       </section>
@@ -602,8 +511,8 @@ export default function Landing() {
               <div className="flex items-center gap-2.5 mb-3">
                 <svg viewBox="0 0 28 28" fill="none" className="w-5 h-5 vv-logo-glow">
                   <path d="M14 3L5 8v5c0 4.97 3.67 9.62 9 10.93C19.33 22.62 23 17.97 23 13V8L14 3z"
-                    fill="#C67A4E" fillOpacity="0.22" stroke="#C67A4E" strokeWidth="1.25" strokeLinejoin="round"/>
-                  <path d="M11 14l2 2 4-4" stroke="#E8A878" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    fill="#C67A4E" fillOpacity="0.22" stroke="#C67A4E" strokeWidth="1.25" strokeLinejoin="round" />
+                  <path d="M11 14l2 2 4-4" stroke="#E8A878" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 <span className="font-display font-semibold text-[13px] text-[color:var(--vv-text)]">Vault Ventures</span>
               </div>
@@ -633,19 +542,33 @@ export default function Landing() {
             <div>
               <p className="text-[10px] uppercase tracking-widest font-semibold text-[color:var(--vv-text-tertiary)] mb-3">Get Access</p>
               <div className="space-y-2.5">
-                <Link to="/login" className="block text-[12.5px] text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] transition-colors">Sign In</Link>
-                <Link to="/register" className="block text-[12.5px] text-[#C67A4E] hover:text-[#C67A4E] transition-colors">Get Started ?</Link>
-                <Link to="/admin-login" className="block text-[11px] text-[color:var(--vv-text-tertiary)]/50 hover:text-[color:var(--vv-text-tertiary)] transition-colors">Admin access</Link>
+                <button onClick={() => openAuth('login')} className="block text-[12.5px] text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] transition-colors text-left">
+                  Sign In
+                </button>
+                <button onClick={() => openAuth('register')} className="block text-[12.5px] text-[#C67A4E] hover:text-[#C67A4E] transition-colors text-left">
+                  Get Started →
+                </button>
+                <Link to="/admin-login" className="block text-[11px] text-[color:var(--vv-text-tertiary)]/50 hover:text-[color:var(--vv-text-tertiary)] transition-colors">
+                  Admin access
+                </Link>
               </div>
             </div>
           </div>
 
           <div className="pt-6 border-t border-[#1c2a3e] flex flex-col sm:flex-row items-center justify-between gap-2">
-            <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">- 2025 Vault Ventures. All rights reserved.</p>
+            <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">© 2025 Vault Ventures. All rights reserved.</p>
             <p className="text-[11px] text-[color:var(--vv-text-tertiary)] text-center sm:text-right">Financial figures are simulations. No real capital is raised or transferred on-platform.</p>
           </div>
         </div>
       </footer>
+
+      {/* -- Auth Modal Dialog -------------------------------------- */}
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        initialView={authModalView}
+        initialRole={authModalRole}
+      />
 
     </div>
   );
