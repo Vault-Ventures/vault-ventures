@@ -1,0 +1,375 @@
+{
+  "stats": {
+    "suites": 4,
+    "tests": 4,
+    "passes": 4,
+    "pending": 0,
+    "failures": 0,
+    "start": "2026-09-29T21:49:16.085Z",
+    "end": "2026-09-29T21:50:17.120Z",
+    "duration": 61035,
+    "testsRegistered": 4,
+    "passPercent": 100,
+    "pendingPercent": 0,
+    "other": 0,
+    "hasOther": false,
+    "skipped": 0,
+    "hasSkipped": false
+  },
+  "results": [
+    {
+      "uuid": "7e779708-3454-4335-9a27-0aa4badda91b",
+      "title": "",
+      "fullFile": "",
+      "file": "",
+      "beforeHooks": [],
+      "afterHooks": [],
+      "tests": [],
+      "suites": [
+        {
+          "uuid": "4f6a2f83-171f-4235-a4b2-19e77ab8bd22",
+          "title": "Vault Ventures Homepage Smoke Test",
+          "fullFile": "G:\\Vault-Ventures-Selenium-Tests\\tests\\homepage.test.js",
+          "file": "\\tests\\homepage.test.js",
+          "beforeHooks": [
+            {
+              "title": "\"before all\" hook in \"Vault Ventures Homepage Smoke Test\"",
+              "fullTitle": "Vault Ventures Homepage Smoke Test \"before all\" hook in \"Vault Ventures Homepage Smoke Test\"",
+              "timedOut": false,
+              "duration": 3939,
+              "state": null,
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "const options = new chrome.Options();\noptions.addArguments(\"--start-maximized\");\ndriver = await new Builder()\n  .forBrowser(\"chrome\")\n  .setChromeOptions(options)\n  .build();",
+              "err": {},
+              "uuid": "364a0353-1517-4068-8b78-0b813ee02fb7",
+              "parentUUID": "4f6a2f83-171f-4235-a4b2-19e77ab8bd22",
+              "isHook": true,
+              "skipped": false
+            }
+          ],
+          "afterHooks": [
+            {
+              "title": "\"after all\" hook in \"Vault Ventures Homepage Smoke Test\"",
+              "fullTitle": "Vault Ventures Homepage Smoke Test \"after all\" hook in \"Vault Ventures Homepage Smoke Test\"",
+              "timedOut": false,
+              "duration": 346,
+              "state": null,
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "if (driver) {\n  await driver.quit();\n}",
+              "err": {},
+              "uuid": "36dc94ec-b0e4-47ba-bc5d-b4df481aa5fe",
+              "parentUUID": "4f6a2f83-171f-4235-a4b2-19e77ab8bd22",
+              "isHook": true,
+              "skipped": false
+            }
+          ],
+          "tests": [
+            {
+              "title": "TC-01 should open Vault Ventures homepage successfully",
+              "fullTitle": "Vault Ventures Homepage Smoke Test TC-01 should open Vault Ventures homepage successfully",
+              "timedOut": false,
+              "duration": 5895,
+              "state": "passed",
+              "speed": "slow",
+              "pass": true,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "await driver.get(\"http://localhost:8443/\");\nawait driver.wait(until.elementLocated(By.css(\"body\")), 15000);\nawait driver.sleep(3000);\nconst currentUrl = await driver.getCurrentUrl();\nconst title = await driver.getTitle();\nfs.writeFileSync(\n  \"screenshots/TC-01-homepage.png\",\n  await driver.takeScreenshot(),\n  \"base64\"\n);\nif (!currentUrl.includes(\"localhost:8443\")) {\n  throw new Error(\"Homepage URL did not load correctly.\");\n}\nconsole.log(\"Current URL:\", currentUrl);\nconsole.log(\"Page title:\", title);",
+              "err": {},
+              "uuid": "e58707c4-c4a1-44e4-afa1-d18c72abeaff",
+              "parentUUID": "4f6a2f83-171f-4235-a4b2-19e77ab8bd22",
+              "isHook": false,
+              "skipped": false
+            }
+          ],
+          "suites": [],
+          "passes": [
+            "e58707c4-c4a1-44e4-afa1-d18c72abeaff"
+          ],
+          "failures": [],
+          "pending": [],
+          "skipped": [],
+          "duration": 5895,
+          "root": false,
+          "rootEmpty": false,
+          "_timeout": 60000
+        },
+        {
+          "uuid": "b2c64810-5a35-4f07-9511-d4cf5cf7d7f1",
+          "title": "Vault Ventures Invalid Login Test",
+          "fullFile": "G:\\Vault-Ventures-Selenium-Tests\\tests\\invalid-login.test.js",
+          "file": "\\tests\\invalid-login.test.js",
+          "beforeHooks": [
+            {
+              "title": "\"before all\" hook in \"Vault Ventures Invalid Login Test\"",
+              "fullTitle": "Vault Ventures Invalid Login Test \"before all\" hook in \"Vault Ventures Invalid Login Test\"",
+              "timedOut": false,
+              "duration": 3189,
+              "state": null,
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "const options = new chrome.Options();\noptions.addArguments(\"--start-maximized\");\ndriver = await new Builder()\n  .forBrowser(\"chrome\")\n  .setChromeOptions(options)\n  .build();",
+              "err": {},
+              "uuid": "fc27213c-6180-49cd-b459-5f2eb464885f",
+              "parentUUID": "b2c64810-5a35-4f07-9511-d4cf5cf7d7f1",
+              "isHook": true,
+              "skipped": false
+            }
+          ],
+          "afterHooks": [
+            {
+              "title": "\"after all\" hook in \"Vault Ventures Invalid Login Test\"",
+              "fullTitle": "Vault Ventures Invalid Login Test \"after all\" hook in \"Vault Ventures Invalid Login Test\"",
+              "timedOut": false,
+              "duration": 443,
+              "state": null,
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "if (driver) {\n  await driver.quit();\n}",
+              "err": {},
+              "uuid": "f1bd410d-56e2-444b-b5f1-667df7568087",
+              "parentUUID": "b2c64810-5a35-4f07-9511-d4cf5cf7d7f1",
+              "isHook": true,
+              "skipped": false
+            }
+          ],
+          "tests": [
+            {
+              "title": "TC-04 should not login with invalid credentials",
+              "fullTitle": "Vault Ventures Invalid Login Test TC-04 should not login with invalid credentials",
+              "timedOut": false,
+              "duration": 15586,
+              "state": "passed",
+              "speed": "slow",
+              "pass": true,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "await driver.get(\"http://localhost:8443/login\");\nawait driver.executeScript(\"localStorage.clear(); sessionStorage.clear();\");\nawait driver.wait(\n  until.elementLocated(By.css(\"input[type='email'], input[name='email']\")),\n  15000\n);\nawait driver\n  .findElement(By.css(\"input[type='email'], input[name='email']\"))\n  .sendKeys(\"wrong@example.com\");\nawait driver\n  .findElement(By.css(\"input[type='password'], input[name='password']\"))\n  .sendKeys(\"wrong-password-123\");\nconst submitButton = await driver.wait(\n  until.elementLocated(By.css(\"#login-submit\")),\n  15000\n);\nawait driver.executeScript(\"arguments[0].click();\", submitButton);\nawait driver.sleep(5000);\nconst currentUrl = await driver.getCurrentUrl();\nfs.writeFileSync(\n  \"screenshots/TC-04-invalid-login.png\",\n  await driver.takeScreenshot(),\n  \"base64\"\n);\nif (!currentUrl.includes(\"/login\")) {\n  throw new Error(\"Invalid login should stay on login page.\");\n}\nconst errorElements = await driver.findElements(\n  By.css(\"#login-error, [role='alert']\")\n);\nif (errorElements.length === 0) {\n  const pageText = await driver.findElement(By.css(\"body\")).getText();\n  console.log(\"DEBUG currentUrl:\", currentUrl);\n  console.log(\"DEBUG pageText:\", pageText.slice(0, 500));\n  throw new Error(\"Invalid login error alert was not displayed.\");\n}\nconst errorText = await errorElements[0].getText();\nif (!errorText || errorText.trim().length < 3) {\n  throw new Error(\"Invalid login error alert was empty.\");\n}\nconsole.log(\"Invalid login stayed at:\", currentUrl);\nconsole.log(\"Error message:\", errorText);",
+              "err": {},
+              "uuid": "7c0935cb-c354-47e5-9024-e16f9b904af4",
+              "parentUUID": "b2c64810-5a35-4f07-9511-d4cf5cf7d7f1",
+              "isHook": false,
+              "skipped": false
+            }
+          ],
+          "suites": [],
+          "passes": [
+            "7c0935cb-c354-47e5-9024-e16f9b904af4"
+          ],
+          "failures": [],
+          "pending": [],
+          "skipped": [],
+          "duration": 15586,
+          "root": false,
+          "rootEmpty": false,
+          "_timeout": 60000
+        },
+        {
+          "uuid": "86cfef43-993d-4529-9545-c74035bf952a",
+          "title": "Vault Ventures Login Page Test",
+          "fullFile": "G:\\Vault-Ventures-Selenium-Tests\\tests\\login-page.test.js",
+          "file": "\\tests\\login-page.test.js",
+          "beforeHooks": [
+            {
+              "title": "\"before all\" hook in \"Vault Ventures Login Page Test\"",
+              "fullTitle": "Vault Ventures Login Page Test \"before all\" hook in \"Vault Ventures Login Page Test\"",
+              "timedOut": false,
+              "duration": 3061,
+              "state": null,
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "const options = new chrome.Options();\noptions.addArguments(\"--start-maximized\");\ndriver = await new Builder()\n  .forBrowser(\"chrome\")\n  .setChromeOptions(options)\n  .build();",
+              "err": {},
+              "uuid": "abaec6ed-ef7b-44e0-b992-d87fef57d619",
+              "parentUUID": "86cfef43-993d-4529-9545-c74035bf952a",
+              "isHook": true,
+              "skipped": false
+            }
+          ],
+          "afterHooks": [
+            {
+              "title": "\"after all\" hook in \"Vault Ventures Login Page Test\"",
+              "fullTitle": "Vault Ventures Login Page Test \"after all\" hook in \"Vault Ventures Login Page Test\"",
+              "timedOut": false,
+              "duration": 460,
+              "state": null,
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "if (driver) {\n  await driver.quit();\n}",
+              "err": {},
+              "uuid": "7d089fb4-544b-4c2f-be15-e448482c7316",
+              "parentUUID": "86cfef43-993d-4529-9545-c74035bf952a",
+              "isHook": true,
+              "skipped": false
+            }
+          ],
+          "tests": [
+            {
+              "title": "TC-02 should open login page successfully",
+              "fullTitle": "Vault Ventures Login Page Test TC-02 should open login page successfully",
+              "timedOut": false,
+              "duration": 5088,
+              "state": "passed",
+              "speed": "slow",
+              "pass": true,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "await driver.get(\"http://localhost:8443/login\");\nawait driver.wait(until.elementLocated(By.css(\"body\")), 15000);\nawait driver.sleep(3000);\nconst currentUrl = await driver.getCurrentUrl();\nconst pageText = await driver.findElement(By.css(\"body\")).getText();\nfs.writeFileSync(\n  \"screenshots/TC-02-login-page.png\",\n  await driver.takeScreenshot(),\n  \"base64\"\n);\nif (!currentUrl.includes(\"/login\")) {\n  throw new Error(\"Login page URL did not load correctly.\");\n}\nif (\n  !pageText.toLowerCase().includes(\"login\") &&\n  !pageText.toLowerCase().includes(\"sign\")\n) {\n  throw new Error(\"Login page content was not detected.\");\n}\nconsole.log(\"Current URL:\", currentUrl);",
+              "err": {},
+              "uuid": "9e2da52b-df71-4a52-98d5-23fef3eccb43",
+              "parentUUID": "86cfef43-993d-4529-9545-c74035bf952a",
+              "isHook": false,
+              "skipped": false
+            }
+          ],
+          "suites": [],
+          "passes": [
+            "9e2da52b-df71-4a52-98d5-23fef3eccb43"
+          ],
+          "failures": [],
+          "pending": [],
+          "skipped": [],
+          "duration": 5088,
+          "root": false,
+          "rootEmpty": false,
+          "_timeout": 60000
+        },
+        {
+          "uuid": "2c4f635e-a386-4d68-8304-7761194b2c13",
+          "title": "Vault Ventures Valid Login Test",
+          "fullFile": "G:\\Vault-Ventures-Selenium-Tests\\tests\\valid-login.test.js",
+          "file": "\\tests\\valid-login.test.js",
+          "beforeHooks": [
+            {
+              "title": "\"before all\" hook in \"Vault Ventures Valid Login Test\"",
+              "fullTitle": "Vault Ventures Valid Login Test \"before all\" hook in \"Vault Ventures Valid Login Test\"",
+              "timedOut": false,
+              "duration": 3438,
+              "state": null,
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "const options = new chrome.Options();\noptions.addArguments(\"--start-maximized\");\ndriver = await new Builder()\n  .forBrowser(\"chrome\")\n  .setChromeOptions(options)\n  .build();",
+              "err": {},
+              "uuid": "dc2f21b3-6fec-4faa-a2ec-7dee49f9d437",
+              "parentUUID": "2c4f635e-a386-4d68-8304-7761194b2c13",
+              "isHook": true,
+              "skipped": false
+            }
+          ],
+          "afterHooks": [
+            {
+              "title": "\"after all\" hook in \"Vault Ventures Valid Login Test\"",
+              "fullTitle": "Vault Ventures Valid Login Test \"after all\" hook in \"Vault Ventures Valid Login Test\"",
+              "timedOut": false,
+              "duration": 739,
+              "state": null,
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "if (driver) {\n  await driver.quit();\n}",
+              "err": {},
+              "uuid": "93641b58-f1d4-4997-be8c-bcef30f19cc3",
+              "parentUUID": "2c4f635e-a386-4d68-8304-7761194b2c13",
+              "isHook": true,
+              "skipped": false
+            }
+          ],
+          "tests": [
+            {
+              "title": "TC-03 should login successfully with valid credentials",
+              "fullTitle": "Vault Ventures Valid Login Test TC-03 should login successfully with valid credentials",
+              "timedOut": false,
+              "duration": 18796,
+              "state": "passed",
+              "speed": "slow",
+              "pass": true,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "const email = process.env.VV_EMAIL;\nconst password = process.env.VV_PASSWORD;\nif (!email || !password) {\n  throw new Error(\"Login credentials are missing from environment variables.\");\n}\nawait driver.get(\"http://localhost:8443/login\");\nawait driver.executeScript(\"localStorage.clear(); sessionStorage.clear();\");\nawait driver.wait(\n  until.elementLocated(By.css(\"input[type='email'], input[name='email']\")),\n  15000\n);\nawait driver\n  .findElement(By.css(\"input[type='email'], input[name='email']\"))\n  .sendKeys(email);\nawait driver\n  .findElement(By.css(\"input[type='password'], input[name='password']\"))\n  .sendKeys(password);\nfs.writeFileSync(\n  \"screenshots/TC-03-before-login-submit.png\",\n  await driver.takeScreenshot(),\n  \"base64\"\n);\nconst submitButton = await driver.wait(\n  until.elementLocated(By.css(\"#login-submit\")),\n  15000\n);\nawait driver.executeScript(\"arguments[0].click();\", submitButton);\nawait driver.wait(async function () {\n  const url = await driver.getCurrentUrl();\n  return !url.includes(\"/login\");\n}, 20000);\nconst currentUrl = await driver.getCurrentUrl();\nconst pageText = await driver.findElement(By.css(\"body\")).getText();\nfs.writeFileSync(\n  \"screenshots/TC-03-after-login.png\",\n  await driver.takeScreenshot(),\n  \"base64\"\n);\nconsole.log(\"DEBUG currentUrl:\", currentUrl);\nconsole.log(\"DEBUG pageText:\", pageText.slice(0, 500));\nif (currentUrl.includes(\"/login\")) {\n  throw new Error(\"Login did not redirect away from login page.\");\n}\nif (!currentUrl.includes(\"/app/\") || !currentUrl.includes(\"dashboard\")) {\n  throw new Error(\"Login did not redirect to an app dashboard.\");\n}\nconsole.log(\"Login redirected to:\", currentUrl);",
+              "err": {},
+              "uuid": "92fb073c-8bea-430c-b755-4a051d8bb2de",
+              "parentUUID": "2c4f635e-a386-4d68-8304-7761194b2c13",
+              "isHook": false,
+              "skipped": false
+            }
+          ],
+          "suites": [],
+          "passes": [
+            "92fb073c-8bea-430c-b755-4a051d8bb2de"
+          ],
+          "failures": [],
+          "pending": [],
+          "skipped": [],
+          "duration": 18796,
+          "root": false,
+          "rootEmpty": false,
+          "_timeout": 60000
+        }
+      ],
+      "passes": [],
+      "failures": [],
+      "pending": [],
+      "skipped": [],
+      "duration": 0,
+      "root": true,
+      "rootEmpty": true,
+      "_timeout": 60000
+    }
+  ],
+  "meta": {
+    "mocha": {
+      "version": "12.0.2"
+    },
+    "mochawesome": {
+      "options": {
+        "quiet": false,
+        "reportFilename": "selenium-report",
+        "saveHtml": true,
+        "saveJson": true,
+        "consoleReporter": "spec",
+        "useInlineDiffs": false,
+        "code": true
+      },
+      "version": "8.1.1"
+    },
+    "marge": {
+      "options": {
+        "reportDir": "reports",
+        "reportFilename": "selenium-report",
+        "overwrite": "true",
+        "html": "true",
+        "json": "true"
+      },
+      "version": "6.3.2"
+    }
+  }
+}
