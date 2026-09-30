@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Badge } from '../../components/ui/Badge';
 import { IconShield, IconChevronRight, IconFileText } from '../../components/layout/Icons';
+import { api } from '../../services/api';
 
 type Section =
   | 'general' | 'roles' | 'verification' | 'businesses'
@@ -50,6 +51,38 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
 }
 
 function GeneralSection() {
+  const [commissionRate, setCommissionRate] = useState<number | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (typeof api?.admin?.platformRevenue === 'function') {
+      api.admin
+        .platformRevenue()
+        .then((data) => {
+          if (isMounted && data && typeof data.commission_rate === 'number') {
+            setCommissionRate(data.commission_rate);
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (isMounted) setHasLoaded(true);
+        });
+    } else {
+      setHasLoaded(true);
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const commissionBadgeText =
+    commissionRate !== null
+      ? `${commissionRate}% (Simulated)`
+      : hasLoaded
+      ? 'Configured on server'
+      : '5% (Simulated)';
+
   return (
     <>
       <SectionHeader title="General Configuration" description="Platform locale, currency parameters, and ecosystem identity." />
@@ -63,7 +96,12 @@ function GeneralSection() {
       <Group title="Financial & Monetization Policy">
         <SettingRow label="Platform Currency" description="Authoritative canonical currency used for deal milestones, valuations, and simulated funding ledgers." value={<Badge variant="gold">BDT (৳)</Badge>} highImpact />
         <SettingRow label="Funding Ledger Model" description="Capital commitments and milestone allocations operate under a non-custodial simulated model without live payment settlement." value={<Badge variant="neutral">Simulated / Non-Custodial</Badge>} highImpact />
-        <SettingRow label="Platform Commission" description="Platform commission is not currently applied in this prototype. Planned monetization may include a platform commission; automated fee deduction is not currently implemented." value={<Badge variant="neutral">Not Applied (0%)</Badge>} highImpact />
+        <SettingRow
+          label="Platform Commission"
+          description="Simulated platform commission is calculated on payments recorded as completed. The rate is set in server configuration."
+          value={<Badge variant="accent">{commissionBadgeText}</Badge>}
+          highImpact
+        />
       </Group>
     </>
   );

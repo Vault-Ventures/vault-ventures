@@ -263,7 +263,140 @@ export interface DealMilestoneData {
   dispute_reason: string | null;
   created_at: string | null;
   updated_at: string | null;
+}export interface DealPaymentItem {
+  id: number;
+  deal_id: number;
+  payer_user_id: number;
+  receiver_user_id: number;
+  amount: number;
+  currency: string;
+  payment_method: 'card' | 'bkash' | 'nagad' | 'bank_transfer' | 'cash_other' | string;
+  payment_method_label: string;
+  transaction_reference: string | null;
+  note: string | null;
+  status: 'pending' | 'completed' | 'failed' | 'cancelled' | string;
+  status_label: string;
+  payment_date: string;
+  completed_at: string | null;
+  commission_rate: number | null;
+  commission_amount: number | null;
+  net_amount: number | null;
+  created_at: string;
+  updated_at: string;
 }
+
+export interface DealPaymentSummary {
+  currency: string;
+  agreed_amount_bdt: number;
+  total_pending_bdt: number;
+  total_completed_bdt: number;
+  total_failed_bdt: number;
+  total_cancelled_bdt: number;
+  total_recorded_bdt: number;
+  total_paid_bdt: number;
+  remaining_payable_bdt: number;
+  total_commission_bdt: number;
+  total_net_founder_bdt: number;
+  payment_count: number;
+  completed_count: number;
+  pending_count: number;
+}
+
+export interface DealPaymentEligibility {
+  is_eligible: boolean;
+  can_create: boolean;
+  reasons: string[];
+  agreed_amount: number;
+  stage: string;
+  stage_label: string;
+  counterparty_role: string;
+}
+
+export interface DealPaymentsResponse {
+  deal_id: number;
+  eligibility: DealPaymentEligibility;
+  summary: DealPaymentSummary;
+  payments: DealPaymentItem[];
+}
+
+export interface CreateDealPaymentPayload {
+  amount: number;
+  payment_method: string;
+  transaction_reference?: string | null;
+  note?: string | null;
+  payment_date: string;
+  role?: string;
+}
+
+export interface UpdateDealPaymentStatusPayload {
+  status: 'completed' | 'failed' | 'cancelled' | string;
+  role?: string;
+}
+
+export interface MonthlyPlatformRevenueItem {
+  month: string;
+  total_volume_bdt: number;
+  total_commission_bdt: number;
+  completed_payments_count: number;
+}
+
+export interface AdminPlatformRevenueData {
+  commission_rate: number;
+  total_platform_commission_bdt: number;
+  total_completed_volume_bdt: number;
+  total_completed_payments_count: number;
+  total_pending_volume_bdt: number;
+  total_pending_payments_count: number;
+  total_net_to_founders_bdt: number;
+  currency: string;
+  monthly: MonthlyPlatformRevenueItem[];
+  simulation_disclaimer: string;
+}
+
+export interface AdminPaymentUser {
+  id: number;
+  name: string;
+  email: string;
+}
+
+export interface AdminPaymentItem {
+  id: number;
+  deal_id: number;
+  business_name?: string | null;
+  payer?: AdminPaymentUser | null;
+  payer_name?: string;
+  receiver?: AdminPaymentUser | null;
+  receiver_name?: string;
+  amount: number;
+  amount_bdt?: number;
+  currency: string;
+  payment_method: 'card' | 'bkash' | 'nagad' | 'bank_transfer' | 'cash_other' | string;
+  payment_method_label: string;
+  transaction_reference: string | null;
+  note: string | null;
+  status: 'pending' | 'completed' | 'failed' | 'cancelled' | string;
+  status_label: string;
+  payment_date: string | null;
+  completed_at: string | null;
+  commission_rate: number | null;
+  commission_amount: number | null;
+  commission_amount_bdt?: number | null;
+  net_amount: number | null;
+  net_to_founder_bdt?: number | null;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface AdminPaymentsListResponse {
+  payments: AdminPaymentItem[];
+  pagination: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
+
 
 export interface FundingSummaryData {
   currency: 'BDT' | string;
@@ -1147,6 +1280,14 @@ export const api = {
       apiClient<DealActivationResponseData>(`/api/me/deals/${dealId}/activate-milestones`, { method: 'POST', params: role ? { role } : undefined }),
     complete: (dealId: number | string, role?: string) =>
       apiClient<DealActivationResponseData>(`/api/me/deals/${dealId}/complete`, { method: 'POST', params: role ? { role } : undefined }),
+    payments: {
+      list: (dealId: number | string, role?: string) =>
+        apiClient<DealPaymentsResponse>(`/api/me/deals/${dealId}/payments`, { params: role ? { role } : undefined }),
+      create: (dealId: number | string, payload: CreateDealPaymentPayload, role?: string) =>
+        apiClient<DealPaymentItem>(`/api/me/deals/${dealId}/payments`, { method: 'POST', body: payload, params: role ? { role } : undefined }),
+      updateStatus: (dealId: number | string, paymentId: number | string, payload: UpdateDealPaymentStatusPayload, role?: string) =>
+        apiClient<DealPaymentItem>(`/api/me/deals/${dealId}/payments/${paymentId}/status`, { method: 'POST', body: payload, params: role ? { role } : undefined }),
+    },
     financialOverview: (dealId: number | string, role?: string) =>
       apiClient<DealFinancialOverviewData>(`/api/me/deals/${dealId}/financial-overview`, { params: role ? { role } : undefined }),
     financialReports: {
@@ -1287,6 +1428,18 @@ export const api = {
       current: () => apiClient<AdminInsightRecord | null>(`/api/admin/admin-insight`),
       generate: () => apiClient<AdminInsightRecord>(`/api/admin/admin-insight`, { method: 'POST', body: {} }),
       history: () => apiClient<AdminInsightRecord[]>(`/api/admin/admin-insights`),
+    },
+    platformRevenue: () =>
+      apiClient<AdminPlatformRevenueData>(`/api/admin/platform-revenue`),
+    payments: {
+      list: (params?: {
+        status?: string;
+        payment_method?: string;
+        deal_id?: number | string;
+        per_page?: number;
+        page?: number;
+      }) =>
+        apiClient<AdminPaymentsListResponse>(`/api/admin/payments`, { params }),
     },
   },
 

@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/Button';
 import { StagedDisclosure } from '../../components/ui/StagedDisclosure';
 import DealInsightsSection from '../../components/deals/DealInsightsSection';
 import DealFinancialReportsTab from '../../components/deals/DealFinancialReportsTab';
+import DealPaymentsTab from '../../components/deals/DealPaymentsTab';
 import { useRole } from '../../components/layout/AppShell';
 import { useAuth } from '../../context/AuthContext';
 import { canAccess } from '../../utils/permissions';
@@ -81,7 +82,7 @@ export interface BusinessInfo {
   funding_amount?: number;
 }
 
-type Tab = 'overview' | 'negotiation' | 'agreement' | 'milestones' | 'financial_reports' | 'communication';
+type Tab = 'overview' | 'negotiation' | 'agreement' | 'milestones' | 'payments' | 'financial_reports' | 'communication';
 
 export function submitDealTransition(dealId: number, targetState: string | undefined, role: string) {
   const participantRole = role === 'investor' || role === 'professional' ? role : undefined;
@@ -683,6 +684,7 @@ export default function DealRoom() {
   }
 
   // Tab Definitions
+  const showPaymentsTab = deal?.counterparty_role === 'investor' && (deal.stage_order ?? dealStage) >= 6;
   const tabs: { id: Tab; label: string; badge?: string }[] = [
     { id: 'overview', label: 'Overview' },
     {
@@ -700,6 +702,7 @@ export default function DealRoom() {
       label: 'Milestones',
       badge: milestones.length > 0 ? `${milestones.filter((m) => m.status === 'funded').length}/${milestones.length}` : undefined,
     },
+    ...(showPaymentsTab ? [{ id: 'payments' as const, label: 'Payments' }] : []),
     { id: 'financial_reports', label: 'Financial Reports' },
     { id: 'communication', label: 'Communication & Activity' },
   ];
@@ -2277,6 +2280,20 @@ export default function DealRoom() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ==================================================================== */}
+        {/* TAB: PAYMENTS (SIMULATED)                                            */}
+        {/* ==================================================================== */}
+        {tab === 'payments' && deal && (
+          <DealPaymentsTab
+            deal={deal}
+            isFounder={Boolean(isFounder)}
+            isCounterparty={Boolean(isCounterparty)}
+            role={role}
+            user={user}
+            businessName={business?.name}
+          />
         )}
 
         {/* ==================================================================== */}

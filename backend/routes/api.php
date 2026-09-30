@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdminBusinessController;
 use App\Http\Controllers\AdminFinancialReportController;
 use App\Http\Controllers\AdminInsightController;
+use App\Http\Controllers\AdminPaymentController;
 use App\Http\Controllers\AdminReputationController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AdminVerificationRequestController;
@@ -25,6 +26,7 @@ use App\Http\Controllers\DealFeedbackController;
 use App\Http\Controllers\DealInsightController;
 use App\Http\Controllers\DealMessageController;
 use App\Http\Controllers\DealMilestoneController;
+use App\Http\Controllers\DealPaymentController;
 use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\InvestorPreferenceController;
 use App\Http\Controllers\MatchDetailController;
@@ -135,6 +137,8 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
         ->whereNumber('deal');
     Route::get('/deals/{deal}/milestones', [DealMilestoneController::class, 'index'])
         ->whereNumber('deal');
+    Route::get('/deals/{deal}/payments', [DealPaymentController::class, 'index'])
+        ->whereNumber('deal');
     Route::get('/deals/{deal}/funding-summary', [DealMilestoneController::class, 'fundingSummary'])
         ->whereNumber('deal');
     Route::get('/deals/{deal}/feedback', [DealFeedbackController::class, 'show'])
@@ -199,6 +203,10 @@ Route::prefix('me')->middleware('auth:sanctum')->group(function () {
             ->whereNumber('deal')->whereNumber('milestone');
         Route::post('/deals/{deal}/activate-milestones', [DealMilestoneController::class, 'activateMilestones'])
             ->whereNumber('deal');
+        Route::post('/deals/{deal}/payments', [DealPaymentController::class, 'store'])
+            ->whereNumber('deal');
+        Route::post('/deals/{deal}/payments/{payment}/status', [DealPaymentController::class, 'updateStatus'])
+            ->whereNumber('deal')->whereNumber('payment');
         Route::post('/deals/{deal}/complete', [DealMilestoneController::class, 'complete'])
             ->whereNumber('deal');
         Route::post('/deals/{deal}/feedback', [DealFeedbackController::class, 'store'])
@@ -275,6 +283,8 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'admin'])->group(function ()
     Route::get('/financial-reports/{report}/audit-logs', [AdminFinancialReportController::class, 'auditLogs'])
         ->whereNumber('report');
     Route::get('/financial-governance', [AdminFinancialReportController::class, 'governanceOverview']);
+    Route::get('/payments', [AdminPaymentController::class, 'index']);
+    Route::get('/platform-revenue', [AdminPaymentController::class, 'revenue']);
     Route::get('/businesses', [AdminBusinessController::class, 'index']);
     Route::get('/businesses/{business}', [AdminBusinessController::class, 'show'])->whereNumber('business');
     Route::get('/admin-insight', [AdminInsightController::class, 'current']);

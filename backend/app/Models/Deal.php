@@ -92,4 +92,9 @@ class Deal extends Model
     {
         return $this->hasMany(DealInsight::class)->orderByDesc('version');
     }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(DealPayment::class)->orderBy('id', 'desc');
+    }
 }
