@@ -53,6 +53,14 @@ class AdminFinancialReportService
             $query->where('business_id', $filters['business_id']);
         }
 
+        if (($search = trim((string) ($filters['q'] ?? ''))) !== '') {
+            $query->where(function ($query) use ($search) {
+                $query->where('id', 'like', "%{$search}%")
+                    ->orWhere('deal_id', 'like', "%{$search}%")
+                    ->orWhereHas('business', fn ($business) => $business->where('name', 'like', "%{$search}%"));
+            });
+        }
+
         return $query->orderBy('id', 'desc')->paginate($filters['per_page'] ?? 15);
     }
 

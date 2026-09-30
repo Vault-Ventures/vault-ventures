@@ -46,8 +46,8 @@
   --vv-warning: #F59E0B;
   --vv-danger: #F04438;
   --vv-info: #3B82F6;
-  --vv-control-bg: #182338;
-  --vv-control-hover: #242628;
+  --vv-control-bg: #212324;
+  --vv-control-hover: #2B2D2F;
   --vv-on-copper: #1D0F06;
 }
 
@@ -484,6 +484,15 @@ div:hover .vv-row-hint { opacity: 1; }
 [data-theme="light"] .border-\[\#192439\] { border-color: rgba(27,26,25,0.12) !important; }
 
 /* Light theme: surface overrides for hardcoded dark background classes */
+[data-theme="light"] .bg-\[\#080D18\],
+[data-theme="light"] .bg-\[\#04080F\],
+[data-theme="light"] .bg-\[\#090A0F\] {
+  background-color: #F7F4EC !important;
+}
+
+[data-theme="light"] .bg-\[\#070C16\],
+[data-theme="light"] .bg-\[\#0B132B\],
+[data-theme="light"] .bg-\[\#080A0E\],
 [data-theme="light"] .bg-\[\#141E33\],
 [data-theme="light"] .bg-\[\#182338\],
 [data-theme="light"] .bg-\[\#162035\],
@@ -492,7 +501,8 @@ div:hover .vv-row-hint { opacity: 1; }
 [data-theme="light"] .bg-\[\#131C2E\],
 [data-theme="light"] .bg-\[\#0F172A\],
 [data-theme="light"] .bg-\[\#0F1829\],
-[data-theme="light"] .bg-\[\#080E1A\] {
+[data-theme="light"] .bg-\[\#080E1A\],
+[data-theme="light"] .bg-\[\#151F33\] {
   background-color: #FFFFFF !important;
 }
 
@@ -518,3 +528,4 @@ div:hover .vv-row-hint { opacity: 1; }
 [data-theme="light"] .text-\[\#35446A\] {
   color: #78736C !important;
 }
+

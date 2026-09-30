@@ -2,6 +2,7 @@
 
 namespace App\Services\Financial;
 
+use App\Enums\DealStage;
 use App\Enums\FinancialDiscrepancyStatus;
 use App\Enums\FinancialVerificationStatus;
 use App\Models\FinancialDiscrepancyReport;
@@ -48,13 +49,33 @@ class AdminFinancialGovernanceService
         $totalReportedExpenses = (float) FinancialReport::sum('expenses');
         $totalCalculatedProfitLoss = (float) FinancialReport::sum('net_profit_loss');
 
+        // Compare only explicitly persisted periods; never fill gaps or extrapolate.
+        $reportingPeriods = FinancialReport::query()
+            ->select(['reporting_period_start', 'reporting_period_end'])
+            ->selectRaw('COUNT(*) as reports_count, SUM(revenue) as period_revenue, SUM(expenses) as period_expenses, SUM(net_profit_loss) as period_net')
+            ->groupBy('reporting_period_start', 'reporting_period_end')
+            ->orderBy('reporting_period_start')->orderBy('reporting_period_end')->get()
+            ->map(fn ($period) => [
+                'start' => $period->reporting_period_start?->toDateString(),
+                'end' => $period->reporting_period_end?->toDateString(),
+                'reports_count' => (int) $period->reports_count,
+                'revenue' => round((float) $period->period_revenue, 2),
+                'expenses' => round((float) $period->period_expenses, 2),
+                'net_profit_loss' => round((float) $period->period_net, 2),
+            ])->all();
+
         // 4. Deal reporting activity
         $distinctDealsWithReports = FinancialReport::distinct('deal_id')->count('deal_id');
+        $activeReportingDeals = FinancialReport::whereHas('deal', fn ($query) =>
+            $query->where('stage', DealStage::MilestoneFundingActive)
+        )->distinct()->count('deal_id');
 
         return [
+            'reporting_periods' => $reportingPeriods,
             'overview' => [
                 'total_financial_reports_count' => $totalReports,
                 'total_deals_with_reporting' => $distinctDealsWithReports,
+                'active_reporting_deals_count' => $activeReportingDeals,
                 'total_discrepancies_count' => $totalDiscrepancies,
             ],
             'verification_pipeline' => [

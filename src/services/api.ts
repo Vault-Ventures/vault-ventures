@@ -384,6 +384,35 @@ export interface ReputationSummaryData {
   };
 }
 
+export interface FinancialAuditEvent {
+  financial_report_evidence_id?: number;
+  id: number;
+  action: string;
+  actor_role?: string | null;
+  actor?: { id: number | null; name: string | null } | null;
+  old_state?: unknown;
+  new_state?: unknown;
+  created_at?: string | null;
+}
+
+export interface VerificationAuditEvent {
+  id: number;
+  verification_request_id: number;
+  actor?: { id: number; name: string } | null;
+  action: string;
+  previous_status?: string | null;
+  new_status?: string | null;
+  notes?: string | null;
+  occurred_at: string | null;
+  verification_evidence_id?: number;
+}
+
+export interface VerificationAuditHistory {
+  verification_request_id: number;
+  audit_logs: VerificationAuditEvent[];
+  evidence_access_logs: VerificationAuditEvent[];
+}
+
 export interface FinancialReportItem {
   id: number;
   deal_id: number;
@@ -408,13 +437,72 @@ export interface FinancialReportItem {
   reviewed_at?: string | null;
   reviewed_by?: { id: number; name: string } | null;
   admin_review_notes?: string | null;
+  evidences?: FinancialReportEvidenceItem[];
+  business?: {
+    id?: number;
+    name?: string;
+  };
+  deal?: {
+    id?: number;
+    stage?: string;
+    founder?: { id?: number; name?: string };
+    counterparty?: { id?: number; name?: string; role?: string };
+  };
+  discrepancies?: Array<{
+    id: number;
+    reason: string;
+    status: string;
+    admin_resolution_notes?: string | null;
+    reported_by?: { id: number; name: string };
+    resolved_by?: { id: number; name: string } | null;
+    resolved_at?: string | null;
+    created_at?: string | null;
+  }>;
+  audit_logs?: Array<{
+    id: number;
+    actor_role?: string;
+    action: string;
+    old_state?: any;
+    new_state?: any;
+    created_at?: string | null;
+    actor?: { id: number; name: string };
+  }>;
   created_at?: string | null;
 }
 
+export interface CreateFinancialReportPayload {
+  reporting_period_start: string;
+  reporting_period_end: string;
+  revenue: number;
+  expenses: number;
+  cash_position?: number | null;
+  notes?: string | null;
+  role?: string;
+}
+
+export interface FinancialReportEvidenceItem {
+  id: number;
+  financial_report_id?: number;
+  original_filename: string;
+  file_size: number;
+  mime_type: string;
+  evidence_type: string;
+  uploaded_by?: {
+    id: number;
+    name: string;
+  };
+  created_at: string | null;
+}
+
 export interface AdminFinancialGovernanceOverviewData {
+  reporting_periods?: Array<{
+    start: string; end: string; reports_count: number;
+    revenue: number; expenses: number; net_profit_loss: number;
+  }>;
   overview: {
     total_financial_reports_count: number;
     total_deals_with_reporting: number;
+    active_reporting_deals_count?: number;
     total_discrepancies_count: number;
   };
   verification_pipeline: {
@@ -1062,6 +1150,21 @@ export const api = {
     financialOverview: (dealId: number | string, role?: string) =>
       apiClient<DealFinancialOverviewData>(`/api/me/deals/${dealId}/financial-overview`, { params: role ? { role } : undefined }),
     financialReports: {
+      create: (dealId: number | string, payload: CreateFinancialReportPayload, role?: string) =>
+        apiClient<FinancialReportItem>(`/api/me/deals/${dealId}/financial-reports`, { method: 'POST', body: payload, params: role ? { role } : undefined }),
+      uploadEvidence: (reportId: number | string, file: File, evidenceType?: string) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        if (evidenceType) {
+          formData.append('evidence_type', evidenceType);
+        }
+        return apiClient<FinancialReportEvidenceItem>(
+          `/api/me/financial-reports/${reportId}/evidence`,
+          { method: 'POST', body: formData }
+        );
+      },
+      downloadEvidenceUrl: (reportId: number | string, evidenceId: number | string) =>
+        `${API_BASE_URL}/api/me/financial-reports/${reportId}/evidence/${evidenceId}/download`,
       list: (dealId: number | string, role?: string) =>
         apiClient<{ deal_id: number; reports: FinancialReportItem[] }>(`/api/me/deals/${dealId}/financial-reports`, { params: role ? { role } : undefined }),
     },
@@ -1126,6 +1229,8 @@ export const api = {
         apiClient<AdminUsersListResponse>(`/api/admin/users`, { params }),
     },
     verificationRequests: {
+      getAuditLogs: (id: number | string) =>
+        apiClient<VerificationAuditHistory>(`/api/admin/verification-requests/${id}/audit-logs`),
       downloadEvidence: (requestId: number, evidenceId: number) =>
         apiClient<Blob>(`/api/admin/verification-requests/${requestId}/evidence/${evidenceId}/download`, { responseType: 'blob' }),
       list: (params?: { status?: string }) =>
@@ -1153,7 +1258,7 @@ export const api = {
         apiClient<AdminUserReputationData>(`/api/admin/reputation/users/${userId}`),
     },
     financialReports: {
-      list: (params?: { status?: string; deal_id?: number | string; business_id?: number | string; per_page?: number }) =>
+      list: (params?: { q?: string; status?: string; deal_id?: number | string; business_id?: number | string; per_page?: number; page?: number }) =>
         apiClient<AdminFinancialReportsListResponse>(`/api/admin/financial-reports`, { params }),
       get: (reportId: number | string) =>
         apiClient<FinancialReportItem>(`/api/admin/financial-reports/${reportId}`),
@@ -1164,7 +1269,7 @@ export const api = {
       resolveDiscrepancy: (discrepancyId: number | string, payload: { status: 'resolved' | 'disputed' | 'under_review'; notes?: string }) =>
         apiClient<any>(`/api/admin/financial-discrepancies/${discrepancyId}/resolve`, { method: 'POST', body: payload }),
       getAuditLogs: (reportId: number | string) =>
-        apiClient<{ financial_report_id: number; audit_logs: any[] }>(`/api/admin/financial-reports/${reportId}/audit-logs`),
+        apiClient<{ financial_report_id: number; audit_logs: FinancialAuditEvent[]; evidence_access_logs?: FinancialAuditEvent[] }>(`/api/admin/financial-reports/${reportId}/audit-logs`),
       downloadEvidenceUrl: (reportId: number | string, evidenceId: number | string) =>
         `${API_BASE_URL}/api/admin/financial-reports/${reportId}/evidence/${evidenceId}/download`,
     },

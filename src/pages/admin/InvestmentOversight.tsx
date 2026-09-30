@@ -14,8 +14,10 @@ import {
   AdminFinancialGovernanceOverviewData,
 } from '../../services/api';
 
-function fmtBDT(n: number): string {
-  return '৳ ' + (n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function fmtBDT(n: number | string | null | undefined): string {
+  const num = typeof n === 'number' ? n : parseFloat(String(n ?? '0'));
+  const safeNum = isNaN(num) ? 0 : num;
+  return '৳ ' + safeNum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export default function AdminInvestmentOversight() {
@@ -148,7 +150,7 @@ export default function AdminInvestmentOversight() {
                 </p>
                 <p
                   className={`text-[22px] font-bold font-mono mt-1 ${
-                    governance.financial_totals_bdt.total_calculated_profit_loss >= 0
+                    Number(governance.financial_totals_bdt.total_calculated_profit_loss || 0) >= 0
                       ? 'text-[#C67A4E]'
                       : 'text-red-400'
                   }`}
@@ -290,7 +292,7 @@ export default function AdminInvestmentOversight() {
                           </td>
                           <td
                             className={`px-4 py-3 text-right font-mono font-bold ${
-                              r.net_profit_loss >= 0 ? 'text-[#22C55E]' : 'text-red-400'
+                              Number(r.net_profit_loss || 0) >= 0 ? 'text-[#22C55E]' : 'text-red-400'
                             }`}
                           >
                             {fmtBDT(r.net_profit_loss)}

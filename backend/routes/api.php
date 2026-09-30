@@ -263,6 +263,7 @@ Route::middleware('auth:sanctum')->get('/users/{user}/reputation', [ReputationCo
 Route::prefix('admin')->middleware(['auth:sanctum', 'admin'])->group(function () {
     Route::get('/users', [AdminUserController::class, 'index']);
     Route::get('/verification-requests', [AdminVerificationRequestController::class, 'index']);
+    Route::get('/verification-requests/{verification_request}/audit-logs', [AdminVerificationRequestController::class, 'auditLogs'])->whereNumber('verification_request');
     Route::get('/verification-requests/{verification_request}', [AdminVerificationRequestController::class, 'show'])->whereNumber('verification_request');
     Route::get('/verification-requests/{verification_request}/evidence/{evidence}/download', [AdminVerificationRequestController::class, 'downloadEvidence'])
         ->whereNumber('verification_request')->whereNumber('evidence');

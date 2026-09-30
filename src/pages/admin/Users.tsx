@@ -354,7 +354,7 @@ export default function AdminUsers() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => navigate('/app/admin/reputation')}
+                        onClick={() => navigate(`/app/admin/reputation?userId=${u.id}`)}
                         icon={<IconStar s={13} />}
                       >
                         View Reputation

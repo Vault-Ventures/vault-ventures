@@ -99,7 +99,7 @@ export default function AdminReports() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <Button size="sm" variant="ghost" icon={<IconEye s={12} />} onClick={() => navigate(`/app/admin/financial-reports`)}>
+                      <Button size="sm" variant="ghost" icon={<IconEye s={12} />} onClick={() => navigate(`/app/admin/financial-reports?reportId=${r.id}`)}>
                         Inspect
                       </Button>
                     </td>

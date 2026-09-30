@@ -11,11 +11,11 @@ export default function AdminNotifications() {
       {/* Page header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="font-display text-[18px] font-bold text-[color:var(--vv-text)] tracking-tight">Admin System Notifications</h1>
-          <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">Platform alerts, operational events, and system triggers.</p>
+          <h1 className="font-display text-[18px] font-bold text-[color:var(--vv-text)] tracking-tight">Admin Operations & Notifications Hub</h1>
+          <p className="text-[12.5px] text-[color:var(--vv-text-tertiary)] mt-0.5">Administrative review queues, operational governance, and dispatch blueprints.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="neutral">Server-Side Mail Queue</Badge>
+          <Badge variant="neutral">Operations Hub</Badge>
           <Button variant="secondary" size="sm" onClick={() => navigate('/app/admin/notification-templates')}>
             View Dispatch Templates
           </Button>
@@ -31,14 +31,14 @@ export default function AdminNotifications() {
           </svg>
         </div>
 
-        <div className="max-w-md mx-auto space-y-2">
-          <h3 className="text-[14px] font-semibold text-[color:var(--vv-text)]">Transactional Event Dispatch</h3>
+        <div className="max-w-xl mx-auto space-y-2">
+          <h3 className="text-[14px] font-semibold text-[color:var(--vv-text)]">Administrative Queue Routing</h3>
           <p className="text-[12px] text-[color:var(--vv-text-tertiary)] leading-relaxed">
-            Platform notification events (KYC/KYB verifications, Deal Room milestone payouts, NDA agreements, and dispute escalations) are dispatched asynchronously through Laravel backend notification channels and mail queues.
+            A live admin notification inbox is not implemented on this page. Administrative actions are managed directly within dedicated operational queues. Standard participant in-app notifications (such as mutual connection alerts) are handled separately in user workspaces.
           </p>
         </div>
 
-        <div className="flex items-center justify-center gap-3 pt-2">
+        <div className="flex items-center justify-center gap-3 pt-2 flex-wrap">
           <Button size="sm" onClick={() => navigate('/app/admin/verification')}>
             Check Verification Queue
           </Button>

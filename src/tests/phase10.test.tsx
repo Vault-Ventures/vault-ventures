@@ -18,6 +18,7 @@ const context = vi.hoisted(() => ({
 vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
   useLocation: () => ({ pathname: '/app/admin/financial-reports' }),
+  useSearchParams: () => [new URLSearchParams(), vi.fn()],
   MemoryRouter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Routes: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Route: ({ element }: { element: React.ReactNode }) => <div>{element}</div>,
@@ -240,10 +241,10 @@ describe('Phase 10: Admin Enhancements & Compliance', () => {
       render(<AdminMatchingEngine />);
 
       await waitFor(() => {
-        expect(screen.getByText(/Matching Engine Architecture/i)).toBeTruthy();
-        expect(screen.getByText(/Sector & Industry Alignment/i)).toBeTruthy();
+        expect(screen.getByRole('heading', { name: 'Matching Engine', exact: true })).toBeTruthy();
+        expect(screen.getByText(/Industry alignment/i)).toBeTruthy();
         expect(screen.getByText(/Investment Ticket Fit/i)).toBeTruthy();
-        expect(screen.getByText(/Skillset & Domain Expertise/i)).toBeTruthy();
+        expect(screen.getByText(/Required skill coverage/i)).toBeTruthy();
       });
     });
 

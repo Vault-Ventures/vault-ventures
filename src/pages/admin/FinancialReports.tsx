@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import {
@@ -8,6 +8,9 @@ import {
   IconFilter,
   IconFileText,
   IconCheck,
+  IconEye,
+  IconX,
+  IconShield,
 } from '../../components/layout/Icons';
 import {
   api,
@@ -20,17 +23,29 @@ function fmtBDT(n: number): string {
   return '৳ ' + (n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function formatBytes(bytes?: number): string {
+  if (!bytes || bytes <= 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KiB', 'MiB', 'GiB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
+
 type TabKey = 'reports' | 'governance' | 'discrepancies';
 
-const STATUS_BADGE_MAP: Record<string, { label: string; variant: 'success' | 'warning' | 'info' | 'neutral' }> = {
+const STATUS_BADGE_MAP: Record<string, { label: string; variant: 'success' | 'warning' | 'info' | 'neutral' | 'danger' }> = {
   verified: { label: 'Verified', variant: 'success' },
   under_review: { label: 'Under Review', variant: 'warning' },
   evidence_submitted: { label: 'Evidence Attached', variant: 'info' },
   self_reported: { label: 'Self Reported', variant: 'neutral' },
+  disputed: { label: 'Disputed', variant: 'danger' },
 };
 
 export default function AdminFinancialReports({ initialTab }: { initialTab?: TabKey }) {
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const reportIdParam = searchParams.get('reportId');
+
   const defaultTab: TabKey = initialTab ?? (location.pathname.includes('financial-governance') ? 'governance' : 'reports');
   const [activeTab, setActiveTab] = useState<TabKey>(defaultTab);
   const [reports, setReports] = useState<FinancialReportItem[]>([]);
@@ -39,61 +54,172 @@ export default function AdminFinancialReports({ initialTab }: { initialTab?: Tab
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ current_page: 1, last_page: 1, total: 0, per_page: 15 });
+  const [governanceError, setGovernanceError] = useState(false);
+  const [governanceLoading, setGovernanceLoading] = useState(true);
+  const reportRequest = useRef(0);
+  const governanceRequest = useRef(0);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
+  // Single report inspection state
+  const [inspectingReport, setInspectingReport] = useState<FinancialReportItem | null>(null);
+  const [inspectLoading, setInspectLoading] = useState(false);
+  const [inspectError, setInspectError] = useState<string | null>(null);
+  const [verifyNotes, setVerifyNotes] = useState('');
+  const [verifyingInModal, setVerifyingInModal] = useState(false);
+
+  const fetchGovernance = useCallback(async () => {
+    const request = ++governanceRequest.current;
+    setGovernanceLoading(true);
+    setGovernanceError(false);
+    try {
+      const result = await api.admin.financialReports.getGovernance();
+      if (request === governanceRequest.current) setGovernance(result);
+    } catch {
+      if (request === governanceRequest.current) { setGovernance(null); setGovernanceError(true); }
+    } finally {
+      if (request === governanceRequest.current) setGovernanceLoading(false);
+    }
+  }, []);
+
   const fetchData = useCallback(async () => {
+    const request = ++reportRequest.current;
     setLoading(true);
     setError(null);
     try {
-      const [reportsRes, govRes] = await Promise.all([
-        api.admin.financialReports.list(statusFilter !== 'all' ? { status: statusFilter } : undefined),
-        api.admin.financialReports.getGovernance().catch(() => null),
-      ]);
+      const reportsRes = await api.admin.financialReports.list({ page, q: search.trim() || undefined, status: statusFilter !== 'all' ? statusFilter : undefined });
+      if (request !== reportRequest.current) return;
       setReports(reportsRes.reports || []);
-      setGovernance(govRes);
+      setPagination(reportsRes.pagination);
+      if (page > reportsRes.pagination.last_page) setPage(Math.max(1, reportsRes.pagination.last_page));
     } catch (err: any) {
+      if (request !== reportRequest.current) return;
       if (err instanceof ApiError) {
         setError(err.message || 'Failed to load financial reports.');
       } else {
         setError('Unable to load administrative financial data.');
       }
     } finally {
-      setLoading(false);
+      if (request === reportRequest.current) setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, search, page]);
 
   useEffect(() => {
     fetchData();
+    return () => { reportRequest.current++; };
   }, [fetchData]);
 
-  async function handleVerifyReport(reportId: number) {
+  useEffect(() => {
+    fetchGovernance();
+    return () => { governanceRequest.current++; };
+  }, [fetchGovernance]);
+
+  // Handle report inspection when reportId URL param is present
+  useEffect(() => {
+    if (!reportIdParam) {
+      setInspectingReport(null);
+      setInspectError(null);
+      setInspectLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    async function loadReportDetails(id: string) {
+      setInspectLoading(true);
+      setInspectError(null);
+      try {
+        const [reportData, auditLogsRes] = await Promise.all([
+          api.admin.financialReports.get(id),
+          api.admin.financialReports.getAuditLogs(id).catch(() => null),
+        ]);
+
+        if (isMounted) {
+          const mergedReport: FinancialReportItem = {
+            ...reportData,
+            audit_logs: auditLogsRes?.audit_logs || reportData.audit_logs || [],
+          };
+          setInspectingReport(mergedReport);
+          setVerifyNotes('');
+        }
+      } catch (err: any) {
+        if (isMounted) {
+          setInspectError(err?.message || `Financial report #${id} could not be loaded or was not found.`);
+          setInspectingReport(null);
+        }
+      } finally {
+        if (isMounted) {
+          setInspectLoading(false);
+        }
+      }
+    }
+
+    loadReportDetails(reportIdParam);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [reportIdParam]);
+
+  const handleOpenInspect = (id: number | string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('reportId', String(id));
+    setSearchParams(next);
+  };
+
+  const handleCloseInspect = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('reportId');
+    setSearchParams(next);
+    setInspectingReport(null);
+    setInspectError(null);
+  };
+
+  async function handleVerifyReport(reportId: number, customNotes?: string) {
     setActionLoading(reportId);
     setError(null);
     try {
+      const notes = customNotes || 'Admin verified periodic financial performance figures against supporting evidence.';
       await api.admin.financialReports.review(reportId, {
         status: 'verified',
-        notes: 'Admin verified periodic financial performance figures against supporting evidence.',
+        notes,
       });
       setActionSuccess(`Report #${reportId} marked as verified.`);
       setTimeout(() => setActionSuccess(null), 3000);
+
+      // If currently inspecting this report in modal, update its local state
+      if (inspectingReport && inspectingReport.id === reportId) {
+        setInspectingReport(prev => prev ? {
+          ...prev,
+          status: 'verified',
+          status_label: 'Verified',
+          reviewed_at: new Date().toISOString(),
+          admin_review_notes: notes,
+        } : null);
+      }
+
       fetchData();
+      fetchGovernance();
     } catch (err: any) {
-      setError(err?.message || 'Failed to verify report.');
+      const msg = err?.message || 'Failed to verify report.';
+      setError(msg);
+      if (inspectingReport) {
+        setInspectError(msg);
+      }
     } finally {
       setActionLoading(null);
     }
   }
 
-  const filteredReports = reports.filter(r => {
-    const q = search.toLowerCase();
-    const matchesSearch =
-      !q ||
-      (r.business_name && r.business_name.toLowerCase().includes(q)) ||
-      String(r.deal_id).includes(q) ||
-      String(r.id).includes(q);
-    return matchesSearch;
-  });
+  async function handleVerifyFromModal() {
+    if (!inspectingReport) return;
+    setVerifyingInModal(true);
+    await handleVerifyReport(inspectingReport.id, verifyNotes.trim() || undefined);
+    setVerifyingInModal(false);
+  }
+
+  const filteredReports = reports;
 
   const discrepancyReports = reports.filter(r => (r.discrepancy_count || 0) > 0);
 
@@ -148,6 +274,10 @@ export default function AdminFinancialReports({ initialTab }: { initialTab?: Tab
       )}
 
       {/* Simulation Notice */}
+      {governanceError && <div role="alert" className="p-3.5 rounded-[10px] bg-red-950/40 border border-red-800/60 text-red-300 text-[12.5px]">
+        Unable to load governance metrics. <Button size="sm" variant="secondary" onClick={fetchGovernance}>Retry governance</Button>
+      </div>}
+      {activeTab === 'governance' && governanceLoading && <p role="status">Loading governance metrics...</p>}
       <div
         className="flex items-start gap-2.5 px-4 py-3 rounded-[10px] text-[11.5px]"
         style={{ background: 'rgba(53,68,106,0.12)', border: '1px solid rgba(53,68,106,0.25)', color: '#93A1BF' }}
@@ -169,7 +299,7 @@ export default function AdminFinancialReports({ initialTab }: { initialTab?: Tab
               : 'text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)]'
           }`}
         >
-          Operational Reports ({reports.length})
+          Operational Reports ({pagination.total})
         </button>
         <button
           onClick={() => setActiveTab('governance')}
@@ -204,7 +334,7 @@ export default function AdminFinancialReports({ initialTab }: { initialTab?: Tab
                 <input
                   type="text"
                   value={search}
-                  onChange={e => setSearch(e.target.value)}
+                  onChange={e => { setSearch(e.target.value); setPage(1); }}
                   placeholder="Filter by business or Deal ID..."
                   className="w-full pl-9 pr-3 py-1.5 rounded-[8px] text-[12.5px] text-[color:var(--vv-text)] placeholder-[#35446A] bg-[#121A2B] border border-[color:var(--vv-border)] focus:outline-none focus:ring-1 focus:ring-[#C67A4E]"
                 />
@@ -217,7 +347,7 @@ export default function AdminFinancialReports({ initialTab }: { initialTab?: Tab
               </span>
               <select
                 value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
+                onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
                 className="px-2.5 py-1.5 rounded-[8px] text-[12px] bg-[#121A2B] border border-[color:var(--vv-border)] text-[color:var(--vv-text)] focus:outline-none"
               >
                 <option value="all">All Statuses</option>
@@ -269,7 +399,7 @@ export default function AdminFinancialReports({ initialTab }: { initialTab?: Tab
                         <tr key={report.id} className="hover:bg-[#1A2338]/40 transition-colors">
                           <td className="px-4 py-3">
                             <p className="font-semibold text-[color:var(--vv-text)]">
-                              {report.business_name || `Business #${report.business_id || 'N/A'}`}
+                              {report.business?.name || report.business_name || `Business #${report.business_id || 'N/A'}`}
                             </p>
                             <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] font-mono">
                               Report #{report.id} • Deal #{report.deal_id}
@@ -301,20 +431,30 @@ export default function AdminFinancialReports({ initialTab }: { initialTab?: Tab
                             <Badge variant={badgeCfg.variant}>{badgeCfg.label}</Badge>
                           </td>
                           <td className="px-4 py-3 text-right">
-                            {report.status !== 'verified' ? (
+                            <div className="flex items-center justify-end gap-2">
                               <Button
                                 size="sm"
-                                variant="secondary"
-                                disabled={actionLoading === report.id}
-                                onClick={() => handleVerifyReport(report.id)}
+                                variant="ghost"
+                                icon={<IconEye s={12} />}
+                                onClick={() => handleOpenInspect(report.id)}
                               >
-                                {actionLoading === report.id ? 'Verifying...' : 'Verify'}
+                                Inspect
                               </Button>
-                            ) : (
-                              <span className="text-[11px] text-[#22C55E] font-medium flex items-center justify-end gap-1">
-                                <IconCheck className="w-3.5 h-3.5" /> Verified
-                              </span>
-                            )}
+                              {report.status !== 'verified' ? (
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  disabled={actionLoading === report.id}
+                                  onClick={() => handleVerifyReport(report.id)}
+                                >
+                                  {actionLoading === report.id ? 'Verifying...' : 'Verify'}
+                                </Button>
+                              ) : (
+                                <span className="text-[11px] text-[#22C55E] font-medium flex items-center gap-1">
+                                  <IconCheck className="w-3.5 h-3.5" /> Verified
+                                </span>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -328,6 +468,11 @@ export default function AdminFinancialReports({ initialTab }: { initialTab?: Tab
       )}
 
       {/* Tab: Governance Overview */}
+      {activeTab !== 'governance' && <nav aria-label="Report pagination" className="flex items-center justify-between gap-3 text-xs">
+        <Button size="sm" variant="secondary" disabled={loading || page <= 1} onClick={() => setPage(p => p - 1)}>Previous</Button>
+        <span>Page {pagination.current_page} of {pagination.last_page} · {pagination.total} reports</span>
+        <Button size="sm" variant="secondary" disabled={loading || page >= pagination.last_page} onClick={() => setPage(p => p + 1)}>Next</Button>
+      </nav>}
       {activeTab === 'governance' && governance && (
         <div className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -415,13 +560,18 @@ export default function AdminFinancialReports({ initialTab }: { initialTab?: Tab
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="font-semibold text-[color:var(--vv-text)]">
-                        {r.business_name || `Business #${r.business_id}`}
+                        {r.business?.name || r.business_name || `Business #${r.business_id}`}
                       </span>
                       <span className="text-[color:var(--vv-text-tertiary)] text-[11px] ml-2">
                         Deal #{r.deal_id} • Report #{r.id}
                       </span>
                     </div>
-                    <Badge variant="warning">{r.discrepancy_count} Discrepanc{r.discrepancy_count === 1 ? 'y' : 'ies'}</Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="warning">{r.discrepancy_count} Discrepanc{r.discrepancy_count === 1 ? 'y' : 'ies'}</Badge>
+                      <Button size="sm" variant="ghost" icon={<IconEye s={12} />} onClick={() => handleOpenInspect(r.id)}>
+                        Inspect
+                      </Button>
+                    </div>
                   </div>
                   <div className="grid grid-cols-3 gap-2 py-2 px-3 rounded bg-[#1A2338] font-mono text-[11.5px]">
                     <div>Revenue: <strong>{fmtBDT(r.revenue)}</strong></div>
@@ -439,6 +589,346 @@ export default function AdminFinancialReports({ initialTab }: { initialTab?: Tab
           )}
         </div>
       )}
+
+      {/* ─── Inspection Modal / View ────────────────────────────────────────── */}
+      {reportIdParam && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/75 backdrop-blur-sm overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="inspect-report-modal-title"
+        >
+          <div className="relative w-full max-w-3xl bg-[#121A2B] border border-[color:var(--vv-border-strong)] rounded-[16px] shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="px-5 py-4 border-b border-[color:var(--vv-border)] flex items-center justify-between bg-[#1A2338]/80 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-[#C67A4E]/15 border border-[#C67A4E]/30 flex items-center justify-center text-[#C67A4E]">
+                  <IconFileText s={16} />
+                </div>
+                <div>
+                  <h2 id="inspect-report-modal-title" className="font-display text-[16px] font-semibold text-[color:var(--vv-text)]">
+                    Financial Report #{reportIdParam}
+                  </h2>
+                  <p className="text-[11.5px] text-[color:var(--vv-text-tertiary)]">
+                    Audit and administrative governance inspection
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleCloseInspect}
+                className="p-1.5 rounded-lg text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)] hover:bg-[color:var(--vv-raised)] transition-colors"
+                aria-label="Close inspection modal"
+              >
+                <IconX s={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto space-y-5 flex-1">
+              {inspectLoading ? (
+                <div className="py-20 flex flex-col items-center justify-center text-center">
+                  <div className="w-9 h-9 border-2 border-[color:var(--vv-border-strong)] border-t-[#C67A4E] rounded-full animate-spin mb-3" />
+                  <p className="text-[13px] text-[color:var(--vv-text-secondary)]">Loading report #{reportIdParam} details from ledger...</p>
+                </div>
+              ) : inspectError ? (
+                <div className="p-6 rounded-[12px] bg-red-950/40 border border-red-800/60 text-center space-y-3">
+                  <IconAlertTriangle className="w-8 h-8 text-rose-400 mx-auto" />
+                  <p className="text-[14px] font-semibold text-red-300">Report Inspection Failed</p>
+                  <p className="text-[12.5px] text-red-200/80 max-w-md mx-auto">{inspectError}</p>
+                  <Button size="sm" variant="secondary" onClick={handleCloseInspect}>
+                    Back to Financial Reports
+                  </Button>
+                </div>
+              ) : inspectingReport ? (
+                <>
+                  {/* Top Status & Overview Row */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-[12px] bg-[#1A2338]/50 border border-[color:var(--vv-border)]">
+                    <div>
+                      <span className="text-[11px] text-[color:var(--vv-text-tertiary)] uppercase tracking-wider font-semibold">Current Audit Status:</span>
+                      <div className="mt-1 flex items-center gap-2">
+                        <Badge
+                          variant={
+                            STATUS_BADGE_MAP[inspectingReport.status]?.variant ||
+                            (inspectingReport.status === 'verified' ? 'success' : 'warning')
+                          }
+                        >
+                          {inspectingReport.status_label || inspectingReport.status}
+                        </Badge>
+                        {inspectingReport.status === 'verified' && (
+                          <span className="text-[11.5px] text-[#22C55E] flex items-center gap-1 font-medium">
+                            <IconShield s={13} /> Verified Clean
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[11px] text-[color:var(--vv-text-tertiary)] uppercase tracking-wider font-semibold">Reporting Period</span>
+                      <p className="text-[12.5px] font-mono text-[color:var(--vv-text)] font-medium mt-0.5">
+                        {inspectingReport.reporting_period_start} → {inspectingReport.reporting_period_end}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Financial Figures Grid (BDT) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-3.5 rounded-[12px] bg-[#1A2338] border border-[color:var(--vv-border)]">
+                      <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase font-semibold tracking-wider">Revenue</p>
+                      <p className="text-[15px] font-bold text-[#22C55E] font-mono mt-1">
+                        {fmtBDT(inspectingReport.revenue)}
+                      </p>
+                    </div>
+                    <div className="p-3.5 rounded-[12px] bg-[#1A2338] border border-[color:var(--vv-border)]">
+                      <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase font-semibold tracking-wider">Expenses</p>
+                      <p className="text-[15px] font-bold text-rose-400 font-mono mt-1">
+                        {fmtBDT(inspectingReport.expenses)}
+                      </p>
+                    </div>
+                    <div className="p-3.5 rounded-[12px] bg-[#1A2338] border border-[color:var(--vv-border)]">
+                      <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase font-semibold tracking-wider">Net P/L</p>
+                      <p
+                        className={`text-[15px] font-bold font-mono mt-1 ${
+                          inspectingReport.net_profit_loss >= 0 ? 'text-[#22C55E]' : 'text-red-400'
+                        }`}
+                      >
+                        {fmtBDT(inspectingReport.net_profit_loss)}
+                      </p>
+                    </div>
+                    <div className="p-3.5 rounded-[12px] bg-[#1A2338] border border-[color:var(--vv-border)]">
+                      <p className="text-[10px] text-[color:var(--vv-text-tertiary)] uppercase font-semibold tracking-wider">Cash Position</p>
+                      <p className="text-[14px] font-bold text-[#C67A4E] font-mono mt-1 truncate">
+                        {inspectingReport.cash_position !== null && inspectingReport.cash_position !== undefined
+                          ? fmtBDT(inspectingReport.cash_position)
+                          : '—'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Business & Deal Details */}
+                  <div className="p-4 rounded-[12px] bg-[#1A2338]/40 border border-[color:var(--vv-border)] space-y-3">
+                    <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] uppercase font-semibold tracking-wider">
+                      Deal & Stakeholder Identification
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-4 text-[12px]">
+                      <div className="flex justify-between py-1 border-b border-[color:var(--vv-border)]">
+                        <span className="text-[color:var(--vv-text-tertiary)]">Business:</span>
+                        <span className="font-semibold text-[color:var(--vv-text)]">
+                          {inspectingReport.business?.name || inspectingReport.business_name || `Business #${inspectingReport.business_id || 'N/A'}`}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-[color:var(--vv-border)]">
+                        <span className="text-[color:var(--vv-text-tertiary)]">Deal ID:</span>
+                        <span className="font-mono font-medium text-[color:var(--vv-text)]">
+                          #{inspectingReport.deal_id || inspectingReport.deal?.id}
+                          {inspectingReport.deal?.stage ? ` (${inspectingReport.deal.stage.replace(/_/g, ' ')})` : ''}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-[color:var(--vv-border)]">
+                        <span className="text-[color:var(--vv-text-tertiary)]">Submitted By:</span>
+                        <span className="font-medium text-[color:var(--vv-text)]">
+                          {inspectingReport.submitted_by?.name || inspectingReport.deal?.founder?.name || `User #${inspectingReport.submitted_by_user_id || 'N/A'}`}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-[color:var(--vv-border)]">
+                        <span className="text-[color:var(--vv-text-tertiary)]">Counterparty:</span>
+                        <span className="font-medium text-[color:var(--vv-text)]">
+                          {inspectingReport.deal?.counterparty?.name
+                            ? `${inspectingReport.deal.counterparty.name} (${inspectingReport.deal.counterparty.role || 'counterparty'})`
+                            : '—'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1">
+                        <span className="text-[color:var(--vv-text-tertiary)]">Created At:</span>
+                        <span className="text-[color:var(--vv-text-secondary)]">
+                          {inspectingReport.created_at ? new Date(inspectingReport.created_at).toLocaleString() : '—'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1">
+                        <span className="text-[color:var(--vv-text-tertiary)]">Last Reviewed:</span>
+                        <span className="text-[color:var(--vv-text-secondary)]">
+                          {inspectingReport.reviewed_at ? new Date(inspectingReport.reviewed_at).toLocaleString() : 'Not reviewed'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Notes / Founder Comments */}
+                  <div>
+                    <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] uppercase font-semibold tracking-wider mb-1.5">
+                      Founder Operational Notes
+                    </p>
+                    <div className="p-3.5 rounded-[10px] bg-[#1A2338]/60 border border-[color:var(--vv-border)] text-[12.5px] text-[color:var(--vv-text)]">
+                      {inspectingReport.notes || <span className="text-[color:var(--vv-text-tertiary)] italic">No operational notes supplied with this report.</span>}
+                    </div>
+                  </div>
+
+                  {/* Evidence Files Section */}
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] uppercase font-semibold tracking-wider">
+                        Cryptographic Evidence & Documents ({inspectingReport.evidences?.length || inspectingReport.evidence_count || 0})
+                      </p>
+                    </div>
+                    {inspectingReport.evidences && inspectingReport.evidences.length > 0 ? (
+                      <div className="space-y-2">
+                        {inspectingReport.evidences.map(ev => (
+                          <div
+                            key={ev.id}
+                            className="flex items-center justify-between p-3 rounded-[10px] bg-[#1A2338]/60 border border-[color:var(--vv-border)]"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-8 h-8 rounded-lg bg-[#C67A4E]/15 border border-[#C67A4E]/30 flex items-center justify-center text-[#C67A4E] shrink-0">
+                                <IconFileText s={14} />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-[12.5px] font-medium text-[color:var(--vv-text)] truncate">
+                                  {ev.original_filename}
+                                </p>
+                                <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)]">
+                                  {ev.evidence_type?.replace(/_/g, ' ') || 'Supporting Document'} • {formatBytes(ev.file_size)} • {ev.mime_type}
+                                  {ev.uploaded_by?.name ? ` • Uploaded by ${ev.uploaded_by.name}` : ''}
+                                </p>
+                              </div>
+                            </div>
+                            <a
+                              href={api.admin.financialReports.downloadEvidenceUrl(inspectingReport.id, ev.id)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 rounded-[8px] bg-[color:var(--vv-raised)] hover:bg-[#1f2b44] text-[11.5px] font-semibold text-[color:var(--vv-text)] border border-[color:var(--vv-border)] shrink-0 transition-colors"
+                            >
+                              Download
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-4 rounded-[10px] bg-[#1A2338]/30 border border-[color:var(--vv-border)] text-center text-[12px] text-[color:var(--vv-text-tertiary)]">
+                        No verification evidence files are attached to this report.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Discrepancies if any */}
+                  {inspectingReport.discrepancies && inspectingReport.discrepancies.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-[10.5px] text-amber-400 uppercase font-semibold tracking-wider">
+                        Associated Discrepancies ({inspectingReport.discrepancies.length})
+                      </p>
+                      {inspectingReport.discrepancies.map(disc => (
+                        <div
+                          key={disc.id}
+                          className="p-3.5 rounded-[10px] bg-amber-950/20 border border-amber-800/40 space-y-1.5 text-[12px]"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-amber-200">Discrepancy #{disc.id}</span>
+                            <Badge variant={disc.status === 'resolved' ? 'success' : 'warning'}>
+                              {disc.status}
+                            </Badge>
+                          </div>
+                          <p className="text-[color:var(--vv-text)]">{disc.reason}</p>
+                          {disc.admin_resolution_notes && (
+                            <p className="text-[11px] text-[color:var(--vv-text-tertiary)] italic">
+                              Admin Notes: {disc.admin_resolution_notes}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Audit Logs Trail */}
+                  {inspectingReport.audit_logs && inspectingReport.audit_logs.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] uppercase font-semibold tracking-wider">
+                        Audit Trail & Governance History ({inspectingReport.audit_logs.length})
+                      </p>
+                      <div className="divide-y divide-[color:var(--vv-border)] rounded-[10px] border border-[color:var(--vv-border)] bg-[#1A2338]/40 overflow-hidden text-[11.5px]">
+                        {inspectingReport.audit_logs.map(log => (
+                          <div key={log.id} className="p-2.5 flex items-center justify-between gap-2">
+                            <div>
+                              <span className="font-semibold text-[color:var(--vv-text)] uppercase tracking-wide text-[10.5px]">
+                                {log.action?.replace(/_/g, ' ')}
+                              </span>
+                              <span className="text-[color:var(--vv-text-tertiary)] ml-2">
+                                by {log.actor?.name || log.actor_role || 'System'}
+                              </span>
+                            </div>
+                            <span className="text-[10.5px] font-mono text-[color:var(--vv-text-secondary)]">
+                              {log.created_at ? new Date(log.created_at).toLocaleString() : '—'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Verification Workflow Panel */}
+                  <div className="p-4 rounded-[12px] bg-[#1A2338]/70 border border-[color:var(--vv-border)] space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] text-[color:var(--vv-text-tertiary)] uppercase font-semibold tracking-wider">
+                        Administrative Audit Decision
+                      </p>
+                      {inspectingReport.status === 'verified' && (
+                        <span className="text-[11.5px] text-[#22C55E] font-medium flex items-center gap-1">
+                          <IconCheck className="w-3.5 h-3.5" /> Report is Verified
+                        </span>
+                      )}
+                    </div>
+
+                    {inspectingReport.status !== 'verified' ? (
+                      <div className="space-y-3">
+                        <textarea
+                          value={verifyNotes}
+                          onChange={e => setVerifyNotes(e.target.value)}
+                          placeholder="Optional audit review notes (e.g., Verified bank statements and invoices)..."
+                          className="w-full px-3 py-2 rounded-[8px] bg-[#121A2B] border border-[color:var(--vv-border)] text-[12px] text-[color:var(--vv-text)] placeholder-[#5E6D8F] focus:outline-none focus:ring-1 focus:ring-[#C67A4E] resize-none h-18"
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={handleCloseInspect}
+                          >
+                            Close
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={verifyingInModal}
+                            onClick={handleVerifyFromModal}
+                          >
+                            {verifyingInModal ? 'Verifying...' : 'Verify Report'}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-[12px] space-y-1">
+                        {inspectingReport.admin_review_notes && (
+                          <p className="text-[color:var(--vv-text-secondary)]">
+                            <strong className="text-[color:var(--vv-text)]">Review Notes:</strong> {inspectingReport.admin_review_notes}
+                          </p>
+                        )}
+                        {inspectingReport.reviewed_by && (
+                          <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">
+                            Reviewed by {inspectingReport.reviewed_by.name}
+                            {inspectingReport.reviewed_at ? ` on ${new Date(inspectingReport.reviewed_at).toLocaleString()}` : ''}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3 border-t border-[color:var(--vv-border)] bg-[#1A2338]/60 flex items-center justify-end shrink-0">
+              <Button size="sm" variant="secondary" onClick={handleCloseInspect}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

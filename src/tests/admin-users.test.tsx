@@ -107,7 +107,7 @@ describe('Admin User Directory (Phase 2)', () => {
     expect(repButtons.length).toBe(2);
 
     fireEvent.click(repButtons[0]);
-    expect(mockNavigate).toHaveBeenCalledWith('/app/admin/reputation');
+    expect(mockNavigate).toHaveBeenCalledWith('/app/admin/reputation?userId=6');
   });
 
   it('handles search input and applies search filter to API', async () => {

@@ -124,12 +124,12 @@ function AccountMenu({ role, onManageRoles, onClose, onLogout }: {
   return (
     <div ref={ref}
       className="absolute right-0 top-full mt-1 w-56 vv-glass-elevated rounded-[10px] z-50 overflow-hidden py-1">
-      <div className="px-3 py-2.5 border-b border-[#1c2a3e]">
+      <div className="px-3 py-2.5 border-b border-[color:var(--vv-border)]">
         <p className="text-[12.5px] font-semibold text-[color:var(--vv-text)]">{displayName}</p>
         {displayEmail && <p className="text-[10.5px] text-[color:var(--vv-text-tertiary)] font-mono">{displayEmail}</p>}
       </div>
       <button onClick={() => { navigate(isAdmin ? '/app/admin/dashboard' : '/app/profile'); onClose(); }}
-        className="w-full text-left px-3 py-2 text-[12px] text-[color:var(--vv-text-secondary)] hover:text-[color:var(--vv-text)] hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)] transition-colors">
+        className="w-full text-left px-3 py-2 text-[12px] text-[color:var(--vv-text-secondary)] hover:text-[color:var(--vv-text)] hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)] transition-colors cursor-pointer">
         {isAdmin ? 'Admin Dashboard' : 'View Profile'}
       </button>
       {!isAdmin && (
@@ -139,7 +139,7 @@ function AccountMenu({ role, onManageRoles, onClose, onLogout }: {
           </div>
           <div className="px-3 pb-1.5">
             <button onClick={() => { navigate('/app/premium'); onClose(); }}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-md w-full transition-all hover:opacity-90"
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-md w-full transition-all hover:opacity-90 cursor-pointer"
               style={{ background: 'linear-gradient(90deg, rgba(122,69,39,0.12), rgba(198,122,78,0.12))', border: '1px solid rgba(198,122,78,0.22)' }}>
               <svg width="9" height="9" viewBox="0 0 24 24" fill="#C9A24B"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
               <span className="text-[11px] font-semibold" style={{ background: 'linear-gradient(90deg, #E8A878, #C67A4E)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Upgrade to Premium</span>
@@ -147,20 +147,25 @@ function AccountMenu({ role, onManageRoles, onClose, onLogout }: {
           </div>
         </>
       )}
-      <div className="border-t border-[#1c2a3e]">
+      <div className="border-t border-[color:var(--vv-border)]">
         {[
           { label: 'Settings', action: () => { navigate(isAdmin ? '/app/admin/settings' : '/app/settings'); onClose(); } },
           ...(!isAdmin ? [{ label: 'Manage Roles', action: () => { onManageRoles(); onClose(); } }] : []),
         ].map(item => (
           <button key={item.label} onClick={item.action}
-            className="w-full text-left px-3 py-2 text-[12px] text-[color:var(--vv-text-secondary)] hover:text-[color:var(--vv-text)] hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)] transition-colors">
+            className="w-full text-left px-3 py-2 text-[12px] text-[color:var(--vv-text-secondary)] hover:text-[color:var(--vv-text)] hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)] transition-colors cursor-pointer">
             {item.label}
           </button>
         ))}
       </div>
-      <div className="border-t border-[#1c2a3e]">
-        <button onClick={async () => { onClose(); await onLogout(); navigate(isAdmin ? '/admin-login' : '/login'); }}
-          className="w-full text-left px-3 py-2 text-[12px] text-[color:var(--vv-text-tertiary)] hover:text-[#F04438] hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)] transition-colors flex items-center gap-2">
+      <div className="border-t border-[color:var(--vv-border)]">
+        <button onClick={async () => {
+          const dest = isAdmin ? '/admin-login' : '/';
+          onClose();
+          navigate(dest, { replace: true });
+          await onLogout();
+        }}
+          className="w-full text-left px-3 py-2 text-[12px] text-[color:var(--vv-text-tertiary)] hover:text-[#F04438] hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)] transition-colors flex items-center gap-2 cursor-pointer">
           <IconLogOut s={12} /> Sign out
         </button>
       </div>
@@ -168,14 +173,12 @@ function AccountMenu({ role, onManageRoles, onClose, onLogout }: {
   );
 }
 
-// ─── Notifications panel ──────────────────────────────────────────────────────
-
 // ─── Mobile bottom nav ────────────────────────────────────────────────────────
 
 function MobileNav({ role, items }: { role: Role; items: NavItem[] }) {
   const primary = items.slice(0, 4);
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#0D1626] border-t border-[#1c2a3e] flex safe-area-inset-bottom">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-[color:var(--vv-surface)] border-t border-[color:var(--vv-border)] flex safe-area-inset-bottom">
       {primary.map(item => (
         <NavLink key={item.to} to={item.to}
           className={({ isActive }) =>
@@ -287,9 +290,9 @@ export function AppShell() {
 
   // ── Sidebar content ──────────────────────────────────────────────────────
   const SidebarContent = () => (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden bg-[color:var(--vv-surface)]">
       {/* Wordmark */}
-      <div className={`flex items-center gap-3 px-4 h-14 border-b border-[#1c2a3e] flex-shrink-0 ${collapsed ? 'justify-center px-0' : ''}`}>
+      <div className={`flex items-center gap-3 px-4 h-14 border-b border-[color:var(--vv-border)] flex-shrink-0 ${collapsed ? 'justify-center px-0' : ''}`}>
         <Link to="/" className="flex items-center gap-2.5">
           <svg viewBox="0 0 28 28" fill="none" className="w-6 h-6 flex-shrink-0 vv-logo-glow">
             <path d="M14 3L5 8v5c0 4.97 3.67 9.62 9 10.93C19.33 22.62 23 17.97 23 13V8L14 3z"
@@ -304,16 +307,16 @@ export function AppShell() {
 
       {/* Role switcher (normal roles only) */}
       {!isAdmin && !collapsed && (
-        <div className="px-3 py-2.5 border-b border-[#1c2a3e] relative flex-shrink-0">
+        <div className="px-3 py-2.5 border-b border-[color:var(--vv-border)] relative flex-shrink-0">
           <button onClick={() => setShowRolePicker(v => !v)} aria-expanded={showRolePicker} aria-haspopup="menu"
-            className="w-full flex items-center justify-between px-2.5 py-2 rounded-md hover:bg-[color:var(--vv-raised)] transition-colors group">
+            className="w-full flex items-center justify-between px-2.5 py-2 rounded-md hover:bg-[color:var(--vv-raised)] transition-colors group cursor-pointer">
             <div className="flex items-center gap-2.5">
               <span className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold flex-shrink-0"
                 style={{ background: activeColor + '18', color: activeColor, border: `1px solid ${activeColor}40` }}>
                 {roleLabels[role][0]}
               </span>
               <div className="text-left leading-tight">
-                <p className="text-[11px] font-semibold text-[color:var(--vv-text)] group-hover:text-white transition-colors">{roleLabels[role]}</p>
+                <p className="text-[11px] font-semibold text-[color:var(--vv-text)] group-hover:text-[#C67A4E] transition-colors">{roleLabels[role]}</p>
                 <p className="text-[9.5px] text-[color:var(--vv-text-tertiary)]">Switch workspace</p>
               </div>
             </div>
@@ -324,7 +327,7 @@ export function AppShell() {
               <p className="text-[9.5px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold px-3 pb-1.5">Your workspaces</p>
               {userRoles.map(r => (
                 <button key={r} onClick={() => handleRoleChange(r)}
-                  className={`w-full text-left px-3 py-2 text-[12px] transition-colors flex items-center gap-2.5 ${role === r ? 'text-[color:var(--vv-text)]' : 'text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_40%,transparent)]'
+                  className={`w-full text-left px-3 py-2 text-[12px] transition-colors flex items-center gap-2.5 cursor-pointer ${role === r ? 'text-[color:var(--vv-text)] font-semibold bg-[#C67A4E]/10' : 'text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)] hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_40%,transparent)]'
                     }`}>
                   <span className="w-4 h-4 rounded flex items-center justify-center text-[9px] font-bold flex-shrink-0"
                     style={{ background: roleColors[r] + '18', color: roleColors[r] }}>
@@ -334,9 +337,9 @@ export function AppShell() {
                   {role === r && <IconCheck s={10} className="ml-auto text-[#C67A4E]" />}
                 </button>
               ))}
-              <div className="border-t border-[#1c2a3e] mt-1.5 pt-1.5 px-3">
+              <div className="border-t border-[color:var(--vv-border)] mt-1.5 pt-1.5 px-3">
                 <button onClick={() => { setShowManageRoles(true); setShowRolePicker(false); }}
-                  className="text-[11px] text-[color:var(--vv-text-tertiary)] hover:text-[#C67A4E] transition-colors">
+                  className="text-[11px] text-[color:var(--vv-text-tertiary)] hover:text-[#C67A4E] transition-colors cursor-pointer">
                   Manage roles →
                 </button>
               </div>
@@ -347,9 +350,9 @@ export function AppShell() {
 
       {/* Admin badge */}
       {isAdmin && !collapsed && (
-        <div className="px-4 py-2.5 border-b border-[#1c2a3e] flex-shrink-0">
+        <div className="px-4 py-2.5 border-b border-[color:var(--vv-border)] flex-shrink-0">
           <div className="flex items-center gap-2">
-            <IconShield s={11} className="text-[color:var(--vv-text-tertiary)]" />
+            <IconShield s={11} className="text-[#C67A4E]" />
             <span className="text-[11px] font-semibold text-[color:var(--vv-text-tertiary)] uppercase tracking-wider">Admin Console</span>
           </div>
         </div>
@@ -362,7 +365,7 @@ export function AppShell() {
             className={({ isActive }) =>
               `flex items-center gap-2.5 px-2.5 py-[7px] rounded-md text-[12.5px] font-medium transition-all duration-150 group relative ${isActive
                 ? 'text-[color:var(--vv-text)] vv-dichroic-active'
-                : 'text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] hover:bg-[rgba(11,20,44,0.65)] hover:border hover:border-[rgba(198,122,78,0.07)]'
+                : 'text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)] hover:bg-[color:var(--vv-raised)]/60'
               } ${collapsed ? 'justify-center' : ''}`
             }
             title={collapsed ? item.label : undefined}>
@@ -384,7 +387,7 @@ export function AppShell() {
       </nav>
 
       {/* Bottom — user/profile identity area */}
-      <div className="border-t border-[#1c2a3e] flex-shrink-0">
+      <div className="border-t border-[color:var(--vv-border)] flex-shrink-0">
         {!collapsed && (
           <div className="px-3 py-3">
             <Link to="/app/profile"
@@ -406,14 +409,14 @@ export function AppShell() {
 
   return (
     <RoleContext.Provider value={{ role, setRole }}>
-      <div className="flex h-full bg-[#0B1220]">
+      <div className="flex h-full bg-[color:var(--vv-bg)] text-[color:var(--vv-text)]">
 
         {/* Desktop sidebar */}
-        <aside className={`hidden lg:flex flex-col flex-shrink-0 bg-[#0D1626] border-r border-[#1c2a3e] transition-[width] duration-200 relative ${collapsed ? 'w-14' : 'w-56'}`}>
+        <aside className={`hidden lg:flex flex-col flex-shrink-0 bg-[color:var(--vv-surface)] border-r border-[color:var(--vv-border)] transition-[width] duration-200 relative ${collapsed ? 'w-14' : 'w-56'}`}>
           <SidebarContent />
           <button onClick={() => setCollapsed(v => !v)}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className="absolute -right-2.5 top-[72px] w-5 h-5 rounded-full bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] flex items-center justify-center text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)] hover:border-[#5E6D8F] transition-all z-10">
+            className="absolute -right-2.5 top-[72px] w-5 h-5 rounded-full bg-[color:var(--vv-surface)] border border-[color:var(--vv-border)] flex items-center justify-center text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)] hover:border-[#C67A4E] transition-all z-10 cursor-pointer shadow-sm">
             {collapsed ? <IconChevronRight s={10} /> : <IconChevronLeft s={10} />}
           </button>
         </aside>
@@ -421,8 +424,8 @@ export function AppShell() {
         {/* Mobile sidebar overlay */}
         {mobileOpen && (
           <div className="fixed inset-0 z-40 lg:hidden">
-            <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-            <aside className="absolute left-0 top-0 bottom-0 w-56 bg-[#0D1626] border-r border-[#1c2a3e] z-50 flex flex-col">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+            <aside className="absolute left-0 top-0 bottom-0 w-56 bg-[color:var(--vv-surface)] border-r border-[color:var(--vv-border)] z-50 flex flex-col">
               <SidebarContent />
             </aside>
           </div>
@@ -432,10 +435,10 @@ export function AppShell() {
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
 
           {/* Topbar */}
-          <header className="flex-shrink-0 h-14 flex items-center gap-3 px-4 bg-[#0D1626] border-b border-[#1c2a3e] z-[60] lg:z-20">
+          <header className="flex-shrink-0 h-14 flex items-center gap-3 px-4 bg-[color:var(--vv-surface)] border-b border-[color:var(--vv-border)] z-[60] lg:z-20">
 
             {/* Mobile menu toggle */}
-            <button className="lg:hidden w-8 h-8 flex items-center justify-center text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)] transition-colors"
+            <button className="lg:hidden w-8 h-8 flex items-center justify-center text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)] transition-colors cursor-pointer"
               aria-label="Open navigation menu"
               onClick={() => setMobileOpen(true)}>
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
@@ -447,7 +450,7 @@ export function AppShell() {
             {!isAdmin && (
               <div className="lg:hidden relative">
                 <button onClick={() => setShowRolePicker(v => !v)} aria-expanded={showRolePicker} aria-haspopup="menu" aria-label="Switch workspace"
-                  className="flex items-center gap-1.5 h-8 px-2.5 rounded-md bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border)] text-[12px] text-[color:var(--vv-text-secondary)] hover:text-[color:var(--vv-text)] transition-colors">
+                  className="flex items-center gap-1.5 h-8 px-2.5 rounded-md bg-[color:var(--vv-raised)] border border-[color:var(--vv-border)] text-[12px] text-[color:var(--vv-text-secondary)] hover:text-[color:var(--vv-text)] transition-colors cursor-pointer">
                   <span style={{ color: activeColor }}>{roleLabels[role]}</span>
                   <IconChevronDown s={10} className={`transition-transform ${showRolePicker ? 'rotate-180' : ''}`} />
                 </button>
@@ -456,7 +459,7 @@ export function AppShell() {
                     <p className="text-[9.5px] text-[color:var(--vv-text-tertiary)] uppercase tracking-widest font-semibold px-3 pb-1.5">Workspaces</p>
                     {userRoles.map(r => (
                       <button key={r} onClick={() => handleRoleChange(r)}
-                        className={`w-full text-left px-3 py-2 text-[12px] flex items-center gap-2 transition-colors ${role === r ? 'text-[color:var(--vv-text)]' : 'text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)]'
+                        className={`w-full text-left px-3 py-2 text-[12px] flex items-center gap-2 transition-colors cursor-pointer ${role === r ? 'text-[color:var(--vv-text)] font-semibold bg-[#C67A4E]/10' : 'text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)]'
                           }`}>
                         {roleLabels[r]}
                         {role === r && <span className="ml-auto" style={{ color: activeColor }}><IconCheck s={10} /></span>}
@@ -477,8 +480,8 @@ export function AppShell() {
                   onChange={e => setGlobalSearch(e.target.value)}
                   onKeyDown={handleGlobalSearch}
                   placeholder="Search…"
-                  className="w-full h-8 pl-8 pr-10 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border)] rounded-md text-[12.5px] text-[color:var(--vv-text)] placeholder-[color:var(--vv-text-tertiary)] focus:outline-none focus:border-[#C67A4E] transition-colors" />
-                <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-[color:var(--vv-text-tertiary)] bg-[#0B1220] border border-[color:var(--vv-border)] px-1 py-0.5 rounded hidden md:block">⌘K</kbd>
+                  className="w-full h-8 pl-8 pr-10 bg-[color:var(--vv-raised)]/60 border border-[color:var(--vv-border)] rounded-md text-[12.5px] text-[color:var(--vv-text)] placeholder-[color:var(--vv-text-tertiary)] focus:outline-none focus:border-[#C67A4E] transition-colors" />
+                <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-[color:var(--vv-text-tertiary)] bg-[color:var(--vv-surface)] border border-[color:var(--vv-border)] px-1 py-0.5 rounded hidden md:block">⌘K</kbd>
               </div>
             </div>
 
@@ -487,7 +490,7 @@ export function AppShell() {
 
               {/* Workspace pill — desktop */}
               {!collapsed && (
-                <div className="hidden lg:flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-[color:var(--vv-border)] bg-[color:color-mix(in_srgb,var(--vv-raised)_50%,transparent)] mr-1">
+                <div className="hidden lg:flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-[color:var(--vv-border)] bg-[color:var(--vv-raised)]/40 mr-1">
                   <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: activeColor }} />
                   <span className="text-[11px] font-medium text-[color:var(--vv-text-tertiary)]">{workspaceLabel}</span>
                 </div>
@@ -504,7 +507,7 @@ export function AppShell() {
                       setShowAccountMenu(false);
                     }
                   }}
-                  className="relative w-8 h-8 flex items-center justify-center rounded-md text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] hover:bg-[color:var(--vv-raised)] transition-colors"
+                  className="relative w-8 h-8 flex items-center justify-center rounded-md text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)] hover:bg-[color:var(--vv-raised)] transition-colors cursor-pointer"
                   title={isAdmin ? 'Admin Notifications' : 'Notifications'}
                   aria-label={isAdmin ? 'Open admin notifications' : 'Open notifications'}
                   aria-expanded={isAdmin ? undefined : showNotifs}>
@@ -521,7 +524,7 @@ export function AppShell() {
                   <div className="absolute right-0 top-full mt-1 w-[304px] vv-glass-elevated rounded-[10px] z-50 overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-3 border-b border-[color:var(--vv-border)]">
                       <p className="text-[12.5px] font-semibold text-[color:var(--vv-text)]">Notifications</p>
-                      <button onClick={() => setShowNotifs(false)} aria-label="Close notifications" className="text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)]"><IconX s={13} /></button>
+                      <button onClick={() => setShowNotifs(false)} aria-label="Close notifications" className="text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text)] cursor-pointer"><IconX s={13} /></button>
                     </div>
                     <div>
                       {notifications.length === 0 ? (
@@ -535,9 +538,9 @@ export function AppShell() {
                             onClick={() => { if (n.is_unread) markRead(n.id); }}
                             className="flex gap-3 px-4 py-3 hover:bg-[color:color-mix(in_srgb,var(--vv-raised)_60%,transparent)] transition-colors border-b border-[color:var(--vv-border)] last:border-0 cursor-pointer"
                           >
-                            <div className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${n.is_unread ? 'bg-[#C67A4E]' : 'bg-[#35446A]'}`} />
+                            <div className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${n.is_unread ? 'bg-[#C67A4E]' : 'bg-[#5E6D8F]'}`} />
                             <div className="min-w-0">
-                              <p className={`text-[12px] leading-snug truncate ${n.is_unread ? 'text-[color:var(--vv-text-secondary)]' : 'text-[color:var(--vv-text-tertiary)]'}`}>
+                              <p className={`text-[12px] leading-snug truncate ${n.is_unread ? 'text-[color:var(--vv-text)] font-medium' : 'text-[color:var(--vv-text-tertiary)]'}`}>
                                 {n.body}
                               </p>
                               <p className="text-[10px] text-[color:var(--vv-text-tertiary)] mt-1 font-mono">
@@ -549,9 +552,9 @@ export function AppShell() {
                       )}
                     </div>
                     {notifications.length > 0 && (
-                      <div className="px-4 py-2.5">
+                      <div className="px-4 py-2.5 border-t border-[color:var(--vv-border)]">
                         <button
-                          className="text-[11.5px] text-[#C67A4E] hover:underline"
+                          className="text-[11.5px] text-[#C67A4E] hover:underline cursor-pointer"
                           onClick={() => { markAllRead(); setShowNotifs(false); }}
                         >
                           Mark all as read
@@ -572,7 +575,7 @@ export function AppShell() {
               {/* Avatar + account menu */}
               <div className="relative ml-1">
                 <button onClick={() => { setShowAccountMenu(v => !v); setShowNotifs(false); }} aria-label="Open profile menu" aria-expanded={showAccountMenu} aria-haspopup="menu"
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[color:var(--vv-raised)] transition-colors">
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[color:var(--vv-raised)] transition-colors cursor-pointer">
                   <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 overflow-hidden"
                     style={{ background: activeColor + '18', color: activeColor, border: `1px solid ${activeColor}40` }}>
                     {user?.avatar_url ? (
@@ -600,7 +603,7 @@ export function AppShell() {
           </header>
 
           {/* Page content */}
-          <main className="flex-1 overflow-y-auto pb-16 lg:pb-0">
+          <main className="flex-1 overflow-y-auto pb-16 lg:pb-0 bg-[color:var(--vv-bg)] text-[color:var(--vv-text)]">
             <Outlet context={{ role }} />
           </main>
         </div>

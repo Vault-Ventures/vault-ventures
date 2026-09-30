@@ -30,15 +30,21 @@ export default function Login() {
       }
     } catch (err: unknown) {
       if (err instanceof ApiError) {
-        if (err.details && err.details.email) {
+        if (err.details && Array.isArray(err.details.email) && err.details.email.length > 0) {
           setError(err.details.email[0]);
-        } else if (err.details && err.details.password) {
+        } else if (err.details && typeof err.details.email === 'string') {
+          setError(err.details.email);
+        } else if (err.details && Array.isArray(err.details.password) && err.details.password.length > 0) {
           setError(err.details.password[0]);
+        } else if (err.details && typeof err.details.password === 'string') {
+          setError(err.details.password);
         } else {
-          setError(err.message || 'Login failed. Please check your credentials.');
+          setError(err.message || 'Invalid email or password.');
         }
+      } else if (err && typeof err === 'object' && 'message' in err && typeof (err as { message?: unknown }).message === 'string') {
+        setError((err as { message: string }).message || 'Invalid email or password.');
       } else {
-        setError('Unable to connect to server. Please try again.');
+        setError('Invalid email or password.');
       }
     } finally {
       setLoading(false);
@@ -86,11 +92,16 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-sm">
           {/* Back nav */}
-          <button onClick={() => navigate('/')}
-            className="flex items-center gap-1.5 text-[11.5px] text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] transition-colors mb-7 -ml-0.5">
+          <Link
+            to="/"
+            id="login-back-btn"
+            data-testid="login-back-btn"
+            className="flex items-center gap-1.5 text-[11.5px] text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] transition-colors mb-7 -ml-0.5"
+            aria-label="Back to home"
+          >
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
             Back
-          </button>
+          </Link>
           <Link to="/" className="lg:hidden flex items-center gap-2 mb-8">
             <svg viewBox="0 0 28 28" fill="none" className="w-6 h-6">
               <path d="M14 3L5 8v5c0 4.97 3.67 9.62 9 10.93C19.33 22.62 23 17.97 23 13V8L14 3z" fill="#C67A4E" fillOpacity="0.18" stroke="#C67A4E" strokeWidth="1.25" strokeLinejoin="round"/>
@@ -104,17 +115,26 @@ export default function Login() {
           </p>
 
           {error && (
-            <div className="mb-4 px-3 py-2.5 bg-[#F04438]/8 border border-[#F04438]/30 rounded-md">
+            <div role="alert" id="login-error" data-testid="login-error" className="mb-4 px-3 py-2.5 bg-[#F04438]/8 border border-[#F04438]/30 rounded-md">
               <p className="text-[12px] text-[#F04438]">{error}</p>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form id="login-form" data-testid="login-form" onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-[11.5px] font-medium text-[color:var(--vv-text-secondary)] mb-1.5" htmlFor="login-email">Email address</label>
-              <input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required
+              <input
+                id="login-email"
+                data-testid="login-email"
+                name="email"
+                type="email"
+                autoComplete="username"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
                 className="w-full h-9 px-3 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] rounded-md text-[13px] text-[color:var(--vv-text)] placeholder-[color:var(--vv-text-tertiary)] focus:outline-none focus:border-[#C67A4E] transition-colors"
-                placeholder="you@example.com" />
+                placeholder="you@example.com"
+              />
             </div>
             <div>
               <div className="flex items-center justify-between mb-1.5">
@@ -122,11 +142,31 @@ export default function Login() {
                 <Link to="/forgot-password" className="text-[11.5px] text-[#C67A4E] hover:underline">Forgot password?</Link>
               </div>
               <div className="relative">
-                <input id="login-pw" type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required
+                <input
+                  id="login-pw"
+                  data-testid="login-pw"
+                  name="password"
+                  type={showPw ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
                   className="w-full h-9 px-3 pr-10 bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border-strong)] rounded-md text-[13px] text-[color:var(--vv-text)] placeholder-[color:var(--vv-text-tertiary)] focus:outline-none focus:border-[#C67A4E] transition-colors"
-                  placeholder="••••••••" />
-                <button type="button" aria-label={showPw ? 'Hide password' : 'Show password'} onClick={() => setShowPw(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] transition-colors">
+                  placeholder="••••••••"
+                />
+                <span
+                  role="button"
+                  tabIndex={0}
+                  aria-label={showPw ? 'Hide password' : 'Show password'}
+                  onClick={() => setShowPw(v => !v)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setShowPw(v => !v);
+                    }
+                  }}
+                  className="cursor-pointer absolute right-3 top-1/2 -translate-y-1/2 text-[color:var(--vv-text-tertiary)] hover:text-[color:var(--vv-text-secondary)] transition-colors select-none"
+                >
                   {showPw ? (
                     <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75">
                       <path strokeLinecap="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"/>
@@ -137,10 +177,19 @@ export default function Login() {
                       <path strokeLinecap="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
                     </svg>
                   )}
-                </button>
+                </span>
               </div>
             </div>
-            <Button type="submit" className="w-full" size="md" loading={loading}>Sign in</Button>
+            <Button
+              id="login-submit"
+              data-testid="login-submit"
+              type="submit"
+              className="w-full"
+              size="md"
+              loading={loading}
+            >
+              Sign in
+            </Button>
           </form>
 
           <p className="text-center mt-6 text-[11px] text-[color:var(--vv-text-tertiary)]">

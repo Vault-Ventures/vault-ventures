@@ -292,6 +292,77 @@ describe('AI Phase 5 Part 4 — Admin Intelligence Frontend Integration', () => 
     expect(document.querySelector('script[src*="xss"]')).toBeNull();
   });
 
+  it('suppresses empty-state card when generation fails with no prior insight and restores on dismiss', async () => {
+    vi.spyOn(api.admin.insights, 'generate').mockRejectedValue(
+      new ApiError(503, 'Analysis disabled', 'PROVIDER_UNAVAILABLE')
+    );
+
+    render(<AdminInsightsSection />);
+
+    expect(await screen.findByTestId('insights-empty-state')).toBeTruthy();
+    expect(screen.getByText('No AI Platform Insight Generated')).toBeTruthy();
+
+    const btn = screen.getByTestId('generate-insight-btn');
+    fireEvent.click(btn);
+
+    // Error banner and error state should be visible, normal empty-state card should be suppressed
+    expect(await screen.findByTestId('insights-error-banner')).toBeTruthy();
+    expect(screen.getByTestId('insights-error-state')).toBeTruthy();
+    expect(screen.queryByTestId('insights-empty-state')).toBeNull();
+    expect(screen.queryByText('No AI Platform Insight Generated')).toBeNull();
+
+    // Dismissing error restores the normal empty state
+    const dismissBtn = screen.getByTestId('dismiss-error-btn');
+    fireEvent.click(dismissBtn);
+
+    expect(await screen.findByTestId('insights-empty-state')).toBeTruthy();
+    expect(screen.getByText('No AI Platform Insight Generated')).toBeTruthy();
+    expect(screen.queryByTestId('insights-error-banner')).toBeNull();
+    expect(screen.queryByTestId('insights-error-state')).toBeNull();
+  });
+
+  it('allows retrying generation directly from the error container', async () => {
+    const generateSpy = vi.spyOn(api.admin.insights, 'generate')
+      .mockRejectedValueOnce(new ApiError(503, 'Analysis disabled', 'PROVIDER_UNAVAILABLE'))
+      .mockResolvedValueOnce(createMockAdminInsight());
+
+    render(<AdminInsightsSection />);
+
+    expect(await screen.findByTestId('insights-empty-state')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('generate-insight-btn'));
+
+    expect(await screen.findByTestId('insights-error-state')).toBeTruthy();
+    const retryBtn = screen.getByTestId('retry-insight-btn');
+    fireEvent.click(retryBtn);
+
+    expect(await screen.findByTestId('insights-content')).toBeTruthy();
+    expect(generateSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves existing insight in view when refresh/regeneration fails', async () => {
+    const existingInsight = createMockAdminInsight({ summary: 'Persisted Prior Insight Summary' });
+    vi.spyOn(api.admin.insights, 'current').mockResolvedValue(existingInsight);
+    vi.spyOn(api.admin.insights, 'generate').mockRejectedValue(
+      new ApiError(503, 'Analysis disabled', 'PROVIDER_UNAVAILABLE')
+    );
+
+    render(<AdminInsightsSection />);
+
+    expect(await screen.findByTestId('insights-content')).toBeTruthy();
+    expect(screen.getByTestId('insight-summary').textContent).toContain('Persisted Prior Insight Summary');
+
+    // Click refresh/regenerate
+    const btn = screen.getByTestId('generate-insight-btn');
+    fireEvent.click(btn);
+
+    // Error banner is shown, but existing insight content is NOT wiped or replaced by error state
+    expect(await screen.findByTestId('insights-error-banner')).toBeTruthy();
+    expect(screen.getByTestId('insights-content')).toBeTruthy();
+    expect(screen.getByTestId('insight-summary').textContent).toContain('Persisted Prior Insight Summary');
+    expect(screen.queryByTestId('insights-empty-state')).toBeNull();
+    expect(screen.queryByTestId('insights-error-state')).toBeNull();
+  });
+
   it('integrates cleanly into AdminDashboard while preserving deterministic metric cards and verification queue', async () => {
     render(
       <MemoryRouter>
@@ -314,3 +385,4 @@ describe('AI Phase 5 Part 4 — Admin Intelligence Frontend Integration', () => 
     expect(screen.getByText('Recent Financial Submissions')).toBeTruthy();
   });
 });
+

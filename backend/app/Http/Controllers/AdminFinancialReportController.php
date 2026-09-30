@@ -36,6 +36,7 @@ class AdminFinancialReportController extends Controller
         $user = $request->user();
 
         $paginator = $service->listReports($user, $request->only([
+            'q',
             'status',
             'deal_id',
             'business_id',
@@ -267,9 +268,18 @@ class AdminFinancialReportController extends Controller
         $user = $request->user();
 
         $logs = $service->getAuditLogs($reportModel, $user);
+        $accessLogs = $reportModel->evidenceAccessLogs()->with('actorUser:id,name')->get();
 
         return ApiResponse::success([
             'financial_report_id' => $reportModel->id,
+            'evidence_access_logs' => $accessLogs->map(fn ($log) => [
+                'id' => $log->id,
+                'financial_report_evidence_id' => $log->financial_report_evidence_id,
+                'actor_role' => $log->actor_role,
+                'action' => $log->action,
+                'created_at' => $log->created_at?->toIso8601String(),
+                'actor' => $log->actorUser ? ['id' => $log->actorUser->id, 'name' => $log->actorUser->name] : null,
+            ])->all(),
             'audit_logs' => $logs->map(fn ($log) => [
                 'id' => $log->id,
                 'actor_role' => $log->actor_role,

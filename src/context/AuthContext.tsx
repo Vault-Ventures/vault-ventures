@@ -176,6 +176,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (credentials: LoginPayload): Promise<AuthUser> => {
     const userData = await api.post<RawAuthUserData>('/api/auth/login', credentials);
 
+    if (!userData || typeof userData !== 'object' || !userData.id) {
+      throw new ApiError(401, 'Invalid email or password.');
+    }
+
     const roles: NormalRole[] = Array.isArray(userData.roles) ? userData.roles : [];
     const isAdmin: boolean = Boolean(userData.is_admin);
     const activeRole: NormalRole = roles.length > 0 ? roles[0] : 'founder';

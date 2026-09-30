@@ -4,6 +4,7 @@ import { Badge, VerificationBadge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { StagedDisclosure } from '../../components/ui/StagedDisclosure';
 import DealInsightsSection from '../../components/deals/DealInsightsSection';
+import DealFinancialReportsTab from '../../components/deals/DealFinancialReportsTab';
 import { useRole } from '../../components/layout/AppShell';
 import { useAuth } from '../../context/AuthContext';
 import { canAccess } from '../../utils/permissions';
@@ -80,7 +81,7 @@ export interface BusinessInfo {
   funding_amount?: number;
 }
 
-type Tab = 'overview' | 'negotiation' | 'agreement' | 'milestones' | 'communication';
+type Tab = 'overview' | 'negotiation' | 'agreement' | 'milestones' | 'financial_reports' | 'communication';
 
 export function submitDealTransition(dealId: number, targetState: string | undefined, role: string) {
   const participantRole = role === 'investor' || role === 'professional' ? role : undefined;
@@ -699,6 +700,7 @@ export default function DealRoom() {
       label: 'Milestones',
       badge: milestones.length > 0 ? `${milestones.filter((m) => m.status === 'funded').length}/${milestones.length}` : undefined,
     },
+    { id: 'financial_reports', label: 'Financial Reports' },
     { id: 'communication', label: 'Communication & Activity' },
   ];
 
@@ -2275,6 +2277,20 @@ export default function DealRoom() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ==================================================================== */}
+        {/* TAB: FINANCIAL REPORTS                                               */}
+        {/* ==================================================================== */}
+        {tab === 'financial_reports' && deal && (
+          <DealFinancialReportsTab
+            deal={deal}
+            isFounder={Boolean(isFounder)}
+            isCounterparty={Boolean(isCounterparty)}
+            role={role}
+            user={user}
+            businessName={business?.name}
+          />
         )}
       </div>
       {/* Complete Deal Confirmation Modal */}

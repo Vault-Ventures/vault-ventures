@@ -73,7 +73,7 @@ final class AdminVerificationRequestController extends Controller
             VerificationRequestStatus::Cancelled->value,
         ], true)) {
             $query->where('status', $status);
-        } else {
+        } elseif ($status !== 'all') {
             // Default queue: Tier 1 requests requiring review
             $query->whereIn('status', [
                 VerificationRequestStatus::Pending,
@@ -103,6 +103,46 @@ final class AdminVerificationRequestController extends Controller
         return ApiResponse::success(
             (new AdminVerificationRequestResource($record))->resolve($request)
         );
+    }
+
+    public function auditLogs(Request $request, string $verification_request): JsonResponse
+    {
+        Gate::authorize('viewAnyAdmin', VerificationRequest::class);
+        $record = VerificationRequest::findOrFail($verification_request);
+        abort_unless($record->requested_tier === VerificationTier::Tier1, 404);
+
+        $logs = $record->auditLogs()->with('actor:id,name')
+            ->orderBy('occurred_at')->orderBy('id')->get();
+        $accessLogs = \App\Models\VerificationEvidenceAccessLog::query()
+            ->where('verification_request_id', $record->id)
+            ->orderBy('occurred_at')->orderBy('id')->get();
+        $actors = \App\Models\User::whereIn('id', $accessLogs->pluck('actor_user_id'))
+            ->get(['id', 'name'])->keyBy('id');
+
+        return ApiResponse::success([
+            'verification_request_id' => $record->id,
+            'audit_logs' => $logs->map(fn ($log) => [
+                'id' => $log->id,
+                'verification_request_id' => $log->verification_request_id,
+                'actor' => $log->actor ? ['id' => $log->actor->id, 'name' => $log->actor->name] : null,
+                'action' => $log->action,
+                'previous_status' => $log->previous_status,
+                'new_status' => $log->new_status,
+                'notes' => $log->notes,
+                'occurred_at' => $log->occurred_at?->toIso8601String(),
+            ])->all(),
+            'evidence_access_logs' => $accessLogs->map(function ($log) use ($actors) {
+                $actor = $actors->get($log->actor_user_id);
+                return [
+                    'id' => $log->id,
+                    'verification_request_id' => $log->verification_request_id,
+                    'verification_evidence_id' => $log->verification_evidence_id,
+                    'actor' => $actor ? ['id' => $actor->id, 'name' => $actor->name] : null,
+                    'action' => $log->action,
+                    'occurred_at' => $log->occurred_at?->toIso8601String(),
+                ];
+            })->all(),
+        ]);
     }
 
     public function approve(ApproveVerificationRequestRequest $request, string $verification_request): JsonResponse

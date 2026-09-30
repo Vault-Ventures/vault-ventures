@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { IconStar, IconSearch, IconShield, IconCheck, IconAlertTriangle } from '../../components/layout/Icons';
 import { api, AdminUserReputationData, ReputationSummaryData } from '../../services/api';
 
 export default function AdminReputation() {
-  const [userIdInput, setUserIdInput] = useState('1');
+  const [searchParams] = useSearchParams();
+  const queryUserId = searchParams.get('userId') || searchParams.get('user_id');
+  const [userIdInput, setUserIdInput] = useState(queryUserId || '1');
   const [reputationData, setReputationData] = useState<AdminUserReputationData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,8 +32,10 @@ export default function AdminReputation() {
   };
 
   useEffect(() => {
-    handleLookup(undefined, '1');
-  }, []);
+    const targetId = queryUserId || '1';
+    setUserIdInput(targetId);
+    handleLookup(undefined, targetId);
+  }, [queryUserId]);
 
   return (
     <div className="p-6 max-w-[1280px] mx-auto space-y-6">
@@ -62,7 +67,7 @@ export default function AdminReputation() {
             className="w-full pl-9 pr-3 py-2 rounded-[8px] bg-[color:color-mix(in_srgb,var(--vv-raised)_80%,transparent)] border border-[color:var(--vv-border)] text-[12.5px] text-[color:var(--vv-text)] placeholder-[#35446A] outline-none"
           />
         </div>
-        <Button size="sm" onClick={() => handleLookup()} disabled={loading || !userIdInput.trim()}>
+        <Button type="submit" size="sm" disabled={loading || !userIdInput.trim()}>
           {loading ? 'Auditing...' : 'Audit User'}
         </Button>
       </form>

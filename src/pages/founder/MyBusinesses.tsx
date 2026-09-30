@@ -168,7 +168,7 @@ function BusinessLogo({ initials, logoUrl }: { initials: string; logoUrl?: strin
 
   if (resolved && !imgError) {
     return (
-      <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-[color:var(--vv-border)] bg-[#182338]">
+      <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 border border-[color:var(--vv-border)] bg-[color:var(--vv-raised)]">
         <img
           src={resolved}
           alt="Logo"
@@ -180,7 +180,7 @@ function BusinessLogo({ initials, logoUrl }: { initials: string; logoUrl?: strin
   }
 
   return (
-    <div className="w-8 h-8 rounded-lg bg-[#182338] border border-[color:var(--vv-border)] flex items-center justify-center font-display font-bold text-[11px] text-[#C67A4E] shrink-0">
+    <div className="w-8 h-8 rounded-lg bg-[color:var(--vv-raised)] border border-[color:var(--vv-border)] flex items-center justify-center font-display font-bold text-[11px] text-[#C67A4E] shrink-0">
       {initials}
     </div>
   );
@@ -191,7 +191,7 @@ function BusinessLogo({ initials, logoUrl }: { initials: string; logoUrl?: strin
 function DraftRequirements({ business }: { business: Business }) {
   if (business.status === 'Published' || business.status === 'Approved' || business.missingFields.length === 0) return null;
   return (
-    <div className="px-5 py-3.5 border-t border-[#1c2a3e]"
+    <div className="px-5 py-3.5 border-t border-[color:var(--vv-border)]"
       style={{ background: 'rgba(245,158,11,0.04)' }}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
@@ -404,15 +404,15 @@ export default function MyBusinesses() {
       {loading && (
         <div className="space-y-3" role="status">
           {[1, 2].map(n => (
-            <div key={n} className="h-24 rounded-xl bg-[#121A2B]/60 border border-[color:var(--vv-border)] animate-pulse" />
+            <div key={n} className="h-24 rounded-xl bg-[color:var(--vv-surface)]/60 border border-[color:var(--vv-border)] animate-pulse" />
           ))}
         </div>
       )}
 
       {/* --- Businesses Table / Cards --------------------------------------- */}
       {!loading && !error && businesses.length === 0 && (
-        <div className="p-12 text-center rounded-2xl border border-[color:var(--vv-border)] bg-[#121A2B]">
-          <h3 className="font-display text-lg font-semibold text-white mb-2">No businesses registered</h3>
+        <div className="p-12 text-center rounded-2xl border border-[color:var(--vv-border)] bg-[color:var(--vv-surface)]">
+          <h3 className="font-display text-lg font-semibold text-[color:var(--vv-text)] mb-2">No businesses registered</h3>
           <p className="text-[13px] text-[color:var(--vv-text-tertiary)] max-w-md mx-auto mb-6">
             Get started by creating your business profile to begin the verification, matching, and discovery process.
           </p>
@@ -423,12 +423,12 @@ export default function MyBusinesses() {
       )}
 
       {!loading && !error && businesses.length > 0 && (
-        <div className="rounded-[14px] border border-[color:var(--vv-border)] bg-[#121A2B] overflow-hidden">
+        <div className="rounded-[14px] border border-[color:var(--vv-border)] bg-[color:var(--vv-surface)] overflow-hidden">
           {/* Desktop table */}
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-[12.5px]">
               <thead>
-                <tr className="border-b border-[color:var(--vv-border)] bg-[#151F33] text-[11px] uppercase tracking-wider text-[color:var(--vv-text-tertiary)] font-semibold">
+                <tr className="border-b border-[color:var(--vv-border)] bg-[color:var(--vv-raised)] text-[11px] uppercase tracking-wider text-[color:var(--vv-text-tertiary)] font-semibold">
                   <th className="py-3 px-4">Business</th>
                   <th className="py-3 px-4">Industry & Stage</th>
                   <th className="py-3 px-4">Funding Requirement</th>
@@ -440,12 +440,12 @@ export default function MyBusinesses() {
               <tbody className="divide-y divide-[color:var(--vv-border)]">
                 {businesses.map(b => (
                   <React.Fragment key={b.id}>
-                    <tr className="hover:bg-white/[0.02] transition-colors">
+                    <tr className="hover:bg-[color:var(--vv-raised)] transition-colors">
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2.5">
                           <BusinessLogo initials={b.initials} logoUrl={b.logoUrl} />
                           <div>
-                            <Link to={`/app/founder/businesses/${b.id}`} className="font-semibold text-white hover:text-[#C67A4E] transition-colors">
+                            <Link to={`/app/founder/businesses/${b.id}`} className="font-semibold text-[color:var(--vv-text)] hover:text-[#C67A4E] transition-colors">
                               {b.name}
                             </Link>
                             <p className="text-[11px] text-[color:var(--vv-text-tertiary)] mt-0.5">{b.updatedAt}</p>
@@ -453,7 +453,7 @@ export default function MyBusinesses() {
                         </div>
                       </td>
                       <td className="py-3.5 px-4">
-                        <p className="text-white">{b.industry}</p>
+                        <p className="text-[color:var(--vv-text)]">{b.industry}</p>
                         <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">{b.stage}</p>
                       </td>
                       <td className="py-3.5 px-4 font-mono text-[#C67A4E] font-medium">
@@ -502,7 +502,7 @@ export default function MyBusinesses() {
                   <div className="flex items-center gap-2.5">
                     <BusinessLogo initials={b.initials} logoUrl={b.logoUrl} />
                     <div>
-                      <Link to={`/app/founder/businesses/${b.id}`} className="font-semibold text-white text-[14px]">
+                      <Link to={`/app/founder/businesses/${b.id}`} className="font-semibold text-[color:var(--vv-text)] text-[14px]">
                         {b.name}
                       </Link>
                       <p className="text-[11px] text-[color:var(--vv-text-tertiary)]">{b.industry} · {b.stage}</p>
